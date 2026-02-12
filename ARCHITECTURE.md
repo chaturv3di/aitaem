@@ -9,7 +9,7 @@ This document defines the architecture for **aitaem** (All Interesting Things Ar
 - **LLM-friendly**: Standardized output format, familiar APIs, leveraging widely-known technologies
 - **Lazy evaluation**: Specs loaded on-demand, queries built but not executed until needed
 - **SQL-native**: Use DuckDB/SQL syntax directly in YAML specs (no custom DSL)
-- **Loosely coupled**: Slices and segments are independent, reusable specifications
+- **Loosely coupled**: Specifications of slices and segments are independent of metrics; modular, reusable specifications
 
 ---
 
@@ -29,7 +29,7 @@ This document defines the architecture for **aitaem** (All Interesting Things Ar
 
 **Implementation**:
 - DuckDB as primary backend for CSV/Parquet and local analytics
-- ClickHouse/Druid connectors for OLAP databases
+- Bigquery/ClickHouse connectors for OLAP databases
 - DuckDB federation for operational databases (Postgres, MySQL) via ATTACH
 
 ### 2. Output Format: **pandas (default) with polars support**
@@ -41,11 +41,11 @@ This document defines the architecture for **aitaem** (All Interesting Things Ar
 - **Ubiquity**: Universal adoption, gentler learning curve for analysts
 - **Stability**: Minimal breaking changes vs polars' evolving API
 - **Ibis alignment**: pandas is Ibis's default output format
-- **Polars option**: Easy to support via `output_format='polars'` for performance-sensitive users
+- **Polars option**: Easy to support via `output_format='polars'` for performance-sensitive users. Not a priority for phase 1
 
 **Implementation**:
 - Default: `compute()` returns pandas DataFrame
-- Optional: `compute(..., output_format='polars')` returns polars DataFrame
+- Optional: `compute(..., output_format='polars')` returns polars DataFrame. Postpone until phase 2.
 - Both leverage zero-copy Arrow conversion from DuckDB/Ibis
 
 ---
@@ -59,11 +59,12 @@ All `compute()` calls return a single DataFrame in this standardized long format
 | `period_type` | str | Time granularity | 'daily', 'weekly', 'monthly', 'all_time' |
 | `period_start_date` | date/str | Start of period | '2026-02-01' |
 | `period_end_date` | date/str | End of period | '2026-02-08' |
-| `metric_name` | str | Name of the metric | 'click_rate', 'revenue' |
+| `metric_name` | str | Name of the metric | 'click_rate', 'revenue', etc. |
 | `slice_type` | str | Dimension(s) sliced (pipe-delimited) | 'geo', 'geo\|device', 'none' |
 | `slice_value` | str | Value(s) of slice (pipe-delimited) | 'US', 'US\|mobile', 'all' |
-| `segment_name` | str | Segment applied | 'premium_users', 'all_users' |
-| `metric_value` | float | Computed metric value | 0.045, 12500.0 |
+| `segment_name` | str | Segment applied | 'user_tier', 'login_status' |
+| `segment_value` | str | Segment applied | 'premium_users', 'all_users', 'logged_in', 'visitors', etc. |
+| `metric_value` | float | Computed metric value | 0.045, 12500.0, etc. |
 
 **Benefits**:
 - **LLM integration**: Consistent format simplifies prompt engineering
@@ -73,7 +74,7 @@ All `compute()` calls return a single DataFrame in this standardized long format
 
 **Example Row**:
 ```python
-['weekly', '2026-02-01', '2026-02-08', 'click_rate', 'geo|device', 'US|mobile', 'premium_users', 0.045]
+['weekly', '2026-02-01', '2026-02-08', 'click_rate', 'geo|device', 'US|mobile', 'user_tier', 'premium_users', 0.045]
 ```
 
 ---
@@ -84,7 +85,6 @@ All `compute()` calls return a single DataFrame in this standardized long format
 aitaem/
 ├── __init__.py              # Top-level imports (depth-1 access)
 ├── insights.py              # PRIMARY USER INTERFACE
-├── connection.py            # ConnectionManager for multiple backends
 ├── specs/                   # YAML specification parsing
 │   ├── __init__.py
 │   ├── metric.py           # MetricSpec class
@@ -99,6 +99,7 @@ aitaem/
 ├── connectors/              # Backend connections
 │   ├── __init__.py
 │   ├── base.py             # Abstract Connector interface
+│   ├── connection.py       # ConnectionManager for multiple backends
 │   └── ibis_connector.py   # Ibis-based multi-backend connector
 └── utils/                   # Utilities
     ├── __init__.py
@@ -111,12 +112,12 @@ aitaem/
 
 ```python
 # Depth 1 - Primary interface
-from aitaem import compute, connect
+from aitaem import compute, set_connections
 
 # Depth 2 - Specific functionality
 from aitaem.insights import MetricCompute
 from aitaem.specs import MetricSpec, SliceSpec, SegmentSpec
-from aitaem.connectors import IbisConnector
+from aitaem.connectors import IbisConnector, ConnectionManager
 ```
 
 ---
@@ -135,7 +136,7 @@ class MetricCompute:
     def __init__(self, metric_paths=None, slice_paths=None, segment_paths=None):
         """
         Initialize with paths for lazy loading.
-        Specs are loaded on-demand during compute().
+        Uses global ConnectionManager set via set_connections().
 
         Args:
             metric_paths: str or list[str] - paths to metric YAML files/directories
@@ -174,8 +175,14 @@ class MetricCompute:
 def compute(metrics, slices=None, segments=None, **kwargs):
     """One-shot computation from spec names (requires prior setup)."""
 
-def connect(connection_string, backend='duckdb', **kwargs):
-    """Establish global backend connection."""
+def set_connections(connections_yaml_path):
+    """
+    Load backend connections from YAML file.
+    Sets global ConnectionManager instance.
+
+    Args:
+        connections_yaml_path: Path to connections.yaml file
+    """
 ```
 
 **Design Decisions**:
@@ -186,11 +193,11 @@ def connect(connection_string, backend='duckdb', **kwargs):
 
 **Usage Example**:
 ```python
-from aitaem import connect
+from aitaem import set_connections
 from aitaem.insights import MetricCompute
 
-# Establish connection
-connect('duckdb://analytics.db')
+# Load backend connections from YAML
+set_connections('config/connections.yaml')
 
 # Load specs (lazy - files read during compute)
 mc = MetricCompute.from_yaml(
@@ -220,7 +227,7 @@ df = mc.compute(
 
 ---
 
-### 2. `connection.py` - Connection Manager
+### 2. `connectors/connection.py` - Connection Manager
 
 **Purpose**: Manage multiple backend connections throughout a session.
 
@@ -230,49 +237,87 @@ df = mc.compute(
 ```python
 class ConnectionManager:
     """
-    Singleton managing backend connections.
-    Supports multiple simultaneous connections (e.g., DuckDB + ClickHouse).
+    Manages backend connections throughout a session.
+    Supports multiple backend types (one connection per backend).
     """
 
-    def add_connection(self, name, connection_string, backend_type='auto', **kwargs):
+    @classmethod
+    def from_yaml(cls, yaml_path: str) -> 'ConnectionManager':
         """
-        Add a new backend connection.
+        Load connections from YAML file.
+
+        YAML format:
+            duckdb:
+              path: analytics.db
+            bigquery:
+              project_id: my-project
+              credentials_path: ~/.config/gcloud/credentials.json
+            clickhouse:
+              host: prod.example.com
+              database: events
+              user: ${CLICKHOUSE_USER}
+              password: ${CLICKHOUSE_PASSWORD}
+
+        Supports environment variable substitution: ${VAR_NAME}
+        """
+
+    def add_connection(self, backend_type: str, **config):
+        """
+        Add a backend connection.
 
         Args:
-            name: str - identifier for this connection
-            connection_string: str - connection URI (e.g., 'duckdb://db.db', 'clickhouse://host:port')
-            backend_type: str - 'duckdb', 'clickhouse', 'druid', or 'auto' (infer from URI)
+            backend_type: 'duckdb', 'clickhouse', 'bigquery', etc.
+            **config: Backend-specific configuration (credentials, paths, etc.)
         """
 
-    def get_connection(self, name_or_uri):
+    def get_connection(self, backend_type: str) -> IbisConnector:
         """
-        Retrieve connection by name or URI.
-        If URI not registered, create on-demand.
+        Retrieve connection by backend type.
+        Returns IbisConnector instance for the backend.
+        Raises ConnectionNotFoundError if backend not configured.
         """
 
-    def get_connection_for_source(self, source_uri):
+    def get_connection_for_source(self, source_uri: str) -> IbisConnector:
         """
-        Get appropriate connection for a metric's source table.
-        Automatically creates connection if needed.
+        Get appropriate connection for a metric's source URI.
+        Parses URI to extract backend type, returns corresponding connection.
+
+        Example:
+            source_uri: 'bigquery://my-project.analytics.transactions'
+            → Extracts 'bigquery' → Returns bigquery connection
+        """
+
+    @classmethod
+    def get_global(cls) -> 'ConnectionManager':
+        """
+        Get global ConnectionManager instance.
+        Set via set_connections() function.
         """
 ```
 
 **Design Decisions**:
-- **Global singleton**: One manager per session
-- **Lazy connection creation**: Connections established on first use
-- **Multi-backend support**: Can query DuckDB + ClickHouse simultaneously
-- **Auto-detection**: Infer backend type from URI scheme
+- **YAML-based configuration**: Separates infrastructure config from logic
+- **One connection per backend**: Fully qualified table names handle multi-table scenarios
+- **Environment variable substitution**: Secure credential management (${VAR_NAME})
+- **Global singleton**: Set once via set_connections(), accessible throughout session
+- **Explicit connection setup**: Fail fast with clear errors if connections missing
 
 **Usage Example**:
 ```python
-from aitaem import connect
+from aitaem.connectors import ConnectionManager
 
-# Primary connection (global default)
-connect('duckdb://local.db')
+# Load connections from YAML
+conn_mgr = ConnectionManager.from_yaml('connections.yaml')
 
-# Additional connections registered as needed
-# (Auto-created when metrics reference new sources)
-# e.g., metric with source='clickhouse://prod.example.com/events'
+# Or build programmatically
+conn_mgr = ConnectionManager()
+conn_mgr.add_connection('duckdb', path='analytics.db')
+conn_mgr.add_connection('bigquery',
+                       project_id='my-project',
+                       credentials_path='~/.config/gcloud/credentials.json')
+
+# Access global instance (set via set_connections)
+conn_mgr = ConnectionManager.get_global()
 ```
 
 ---
@@ -456,109 +501,163 @@ class SpecCache:
 
 #### 4.1 `query/builder.py` - QueryBuilder
 
-**Purpose**: Convert metric/slice/segment specs into Ibis expressions.
+**Purpose**: Build optimized Ibis query expressions from metric specifications, grouping metrics by source table for efficient batch execution.
 
 **Key Class**:
 ```python
 class QueryBuilder:
     """
-    Builds Ibis query expressions from specs.
+    Builds optimized Ibis query expressions from metric specifications.
+    Groups metrics by source table for efficient batch execution.
+    All methods are static - no instance state required (Ibis expressions are lazy).
     """
 
-    def build_metric_query(self, metric_spec: MetricSpec,
-                          slice_specs: list[SliceSpec] | None,
-                          segment_spec: SegmentSpec | None,
-                          time_window: tuple | None) -> ibis.Expr:
+    @staticmethod
+    def build_queries(
+        metric_specs: list[MetricSpec],
+        slice_specs: list[SliceSpec] | None,
+        segment_spec: SegmentSpec | None,
+        time_window: tuple | None
+    ) -> list[QueryGroup]:
         """
-        Build complete Ibis expression for metric computation.
+        Build optimized queries for multiple metrics.
+
+        Process:
+        1. Group metrics by source table (optimization)
+        2. For each group, build combined Ibis expression
+        3. Generate standard output columns (period_type, metric_name, etc.)
+        4. Return QueryGroup objects with lazy Ibis expressions
+
+        Metrics from same source table are computed in single query.
+        Metrics from different source tables are returned as separate QueryGroups
+        for parallel execution.
+
+        Returns:
+            List of QueryGroups, each containing:
+            - source: str (table URI)
+            - metrics: list[MetricSpec]
+            - query_expr: ibis.Expr (lazy expression, not executed)
+        """
+
+    @staticmethod
+    def _build_single_metric_expression(
+        metric_spec: MetricSpec,
+        table: ibis.Table,
+        slice_specs: list[SliceSpec] | None,
+        segment_spec: SegmentSpec | None,
+        time_window: tuple | None
+    ) -> ibis.Expr:
+        """
+        Internal helper to build Ibis expression for a single metric.
 
         Steps:
-        1. Get table from metric source
-        2. Apply segment filter (if provided)
-        3. Apply time window filter (if provided)
-        4. Apply slices (generate rows for each slice value combination)
-        5. Compute metric aggregation (numerator/denominator)
-        6. Return expression in standard output format
+        1. Apply segment filter (if provided)
+        2. Apply time window filter (if provided)
+        3. Apply slices (generate rows for each slice value combination)
+        4. Compute metric aggregation (numerator/denominator)
+        5. Add standard output columns
+
+        Returns lazy Ibis expression (not executed).
+        Used by build_queries() when constructing grouped queries.
         """
 
-    def build_slice_expression(self, table, slice_specs: list[SliceSpec]) -> ibis.Expr:
+    @staticmethod
+    def _group_by_source(metric_specs: list[MetricSpec]) -> dict[str, list[MetricSpec]]:
+        """
+        Internal helper to group metrics by source table URI.
+
+        Returns:
+            Dict mapping source URI to list of metrics from that source
+            Example: {'duckdb://analytics.db/events': [metric1, metric2],
+                     'bigquery://project.dataset.table': [metric3]}
+        """
+
+    @staticmethod
+    def _build_slice_expression(
+        table: ibis.Table,
+        slice_specs: list[SliceSpec]
+    ) -> ibis.Expr:
         """
         Build slice cross-product (e.g., country x device).
         Returns expression with slice_type and slice_value columns.
         """
 
-    def parse_sql_expression(self, sql_expr: str, table) -> ibis.Expr:
+    @staticmethod
+    def _parse_sql_expression(sql_expr: str, table: ibis.Table) -> ibis.Expr:
         """
         Parse SQL expression (from numerator/denominator) into Ibis expression.
         Uses Ibis's SQL string parsing or direct expression API.
         """
-```
-
-**Design Decisions**:
-- **Ibis expressions**: All queries built as Ibis expressions (backend-agnostic)
-- **SQL expression parsing**: Leverage Ibis's ability to parse SQL strings
-- **Standard output generation**: Builder adds standard columns (period_type, metric_name, etc.)
-- **Cross-product slicing**: Multiple slices create hierarchical combinations
-
-#### 4.2 `query/optimizer.py` - QueryOptimizer
-
-**Purpose**: Optimize multi-metric queries by grouping by source table.
-
-**Key Class**:
-```python
-class QueryOptimizer:
-    """
-    Optimizes batch metric computation.
-    Groups metrics by source table for efficient execution.
-    """
-
-    def optimize(self, metric_specs: list[MetricSpec],
-                 slice_specs: list[SliceSpec] | None,
-                 segment_spec: SegmentSpec | None) -> list[QueryGroup]:
-        """
-        Group metrics by source table.
-        Metrics from same table computed in single query.
-        Metrics from different tables executed in parallel.
-
-        Returns:
-            List of QueryGroups, each containing metrics from same source
-        """
 
     @dataclass
     class QueryGroup:
+        """Container for grouped metrics and their combined query expression."""
         source: str  # Table URI
         metrics: list[MetricSpec]
-        query_expr: ibis.Expr  # Combined query for all metrics in group
+        query_expr: ibis.Expr  # Combined lazy query for all metrics in group
 ```
 
 **Design Decisions**:
-- **Group by source table**: Metrics from same source table combined into single query
-- **Parallel execution**: Different source tables queried in parallel
-- **Shared filters**: Slices and segments applied once per table
+- **Unified builder + optimizer**: Consolidates query building and optimization into single class
+- **Static methods**: No instance state needed (Ibis expressions are lazy, no connection required)
+- **Grouping by source**: Metrics from same source table combined into single query
+- **Clear separation**: QueryBuilder builds expressions, QueryExecutor executes them
+- **Standard output generation**: Builder adds standard columns (period_type, metric_name, etc.)
+- **Cross-product slicing**: Multiple slices create hierarchical combinations
 
-#### 4.3 `query/executor.py` - QueryExecutor
+#### 4.2 `query/executor.py` - QueryExecutor
 
-**Purpose**: Execute Ibis queries and format results.
+**Purpose**: Execute Ibis queries and format results, with graceful handling of missing connections.
 
 **Key Class**:
 ```python
 class QueryExecutor:
     """
     Executes Ibis queries and formats results in standard output format.
+    Uses global ConnectionManager for backend connections.
     """
 
-    def execute(self, query_groups: list[QueryGroup],
-                output_format: str = 'pandas') -> DataFrame:
+    def execute(
+        self,
+        query_groups: list[QueryBuilder.QueryGroup],
+        output_format: str = 'pandas'
+    ) -> DataFrame:
         """
         Execute query groups (in parallel if multiple sources).
         Combine results into single DataFrame in standard format.
+        Uses global ConnectionManager set via set_connections().
 
         Args:
-            query_groups: List of optimized query groups
+            query_groups: List of QueryGroups from QueryBuilder.build_queries()
             output_format: 'pandas' or 'polars'
 
         Returns:
-            Single DataFrame with all results in standard format
+            Single DataFrame with all results in standard format.
+            If some connections missing, returns partial results with warnings logged.
+        """
+
+    def _execute_query_group(
+        self,
+        query_group: QueryBuilder.QueryGroup,
+        output_format: str
+    ) -> DataFrame | None:
+        """
+        Execute a single query group.
+        Uses global ConnectionManager to get backend connections.
+
+        Returns:
+            DataFrame with results, or None if connection unavailable.
+            Logs warning if connection missing/failed.
+
+        Example:
+            try:
+                conn_mgr = ConnectionManager.get_global()
+                connector = conn_mgr.get_connection_for_source(query_group.source)
+                result_df = connector.execute(query_group.query_expr, output_format)
+                return result_df
+            except ConnectionNotFoundError as e:
+                logger.warning(f"Skipping metrics - connection not found: {e}")
+                return None
         """
 
     def execute_single_query(self, query_expr: ibis.Expr) -> DataFrame:
@@ -569,6 +668,9 @@ class QueryExecutor:
 ```
 
 **Design Decisions**:
+- **Global ConnectionManager**: Accesses connections via ConnectionManager.get_global()
+- **Partial computation**: Gracefully handles missing connections, returns partial results
+- **Warning logs**: Failed metrics logged with clear warnings (Phase 1)
 - **Lazy execution**: Queries built but not executed until `execute()` called
 - **Parallel execution**: Multiple source tables queried concurrently
 - **Format standardization**: All results formatted into standard output schema
@@ -622,7 +724,7 @@ class IbisConnector(Connector):
         Initialize connector for specific backend.
 
         Args:
-            backend_type: 'duckdb', 'clickhouse', 'druid', etc.
+            backend_type: 'duckdb', 'clickhouse', 'bigquery', etc.
         """
         self.backend_type = backend_type
         self.connection = None
@@ -634,7 +736,7 @@ class IbisConnector(Connector):
         Examples:
             - DuckDB: 'duckdb://analytics.db'
             - ClickHouse: 'clickhouse://host:port/database'
-            - Druid: 'druid://host:port/druid/v2/sql'
+            - BigQuery: 'bigquery://host:port/druid/v2/sql'
         """
         # Parse connection string
         # Create Ibis backend connection
@@ -858,6 +960,68 @@ segment:
   where: "lifetime_value > 1000 AND customer_status = 'active'"
 ```
 
+### Connection Configuration Example
+
+**connections.yaml**:
+```yaml
+# DuckDB - Local analytics database
+duckdb:
+  path: analytics.db
+  # Optional: read_only, config options
+
+# BigQuery - Cloud data warehouse
+bigquery:
+  project_id: my-gcp-project
+  # Option 1: Use gcloud CLI credentials (default)
+  # Option 2: Specify credentials file
+  credentials_path: ~/.config/gcloud/application_default_credentials.json
+  # Option 3: Inline credentials JSON
+  # credentials_json: {...}
+
+# ClickHouse - Production events database
+clickhouse:
+  host: prod.example.com
+  port: 9000
+  database: events
+  # Environment variable substitution for security
+  user: ${CLICKHOUSE_USER}
+  password: ${CLICKHOUSE_PASSWORD}
+  # Optional: secure, compression, etc.
+```
+
+**Usage with ConnectionManager**:
+```python
+from aitaem import set_connections
+from aitaem.insights import MetricCompute
+
+# Load connections from YAML (one-time setup)
+set_connections('connections.yaml')
+
+# Initialize MetricCompute
+mc = MetricCompute.from_yaml(metric_paths='metrics/')
+
+# Compute metrics across multiple backends (uses global connections)
+df = mc.compute(['duckdb_metric', 'bigquery_metric', 'clickhouse_metric'])
+```
+
+**Advanced: Direct ConnectionManager Access**:
+```python
+from aitaem.connectors import ConnectionManager
+
+# For advanced use cases, access global ConnectionManager directly
+conn_mgr = ConnectionManager.get_global()
+
+# Or create/use custom ConnectionManager instance (not typical)
+custom_conn_mgr = ConnectionManager.from_yaml('connections.yaml')
+```
+
+**Connection-to-Metric Mapping**:
+- Metric source URI: `bigquery://my-gcp-project.analytics.transactions`
+- Extracted backend type: `bigquery`
+- ConnectionManager looks up: `connections.yaml → bigquery → {...}`
+- One connection per backend type handles all metrics of that type
+- Fully qualified table names (project.dataset.table) specify exact tables within backend
+
 ---
 
 ## Usage Workflow
@@ -865,10 +1029,14 @@ segment:
 ### 1. Setup Connection
 
 ```python
-from aitaem import connect
+from aitaem import set_connections
+# Or: from aitaem.connectors import ConnectionManager
 
-# Establish default backend connection
-connect('duckdb://analytics.db')
+# Load all backend connections from YAML
+set_connections('config/connections.yaml')
+
+# Or use ConnectionManager directly (advanced)
+conn_mgr = ConnectionManager.from_yaml('config/connections.yaml')
 ```
 
 ### 2. Load Specs
@@ -901,6 +1069,9 @@ df = mc.compute(
     time_window=('2026-01-01', '2026-02-01'),
     output_format='pandas'
 )
+
+# If some connections unavailable, partial results returned with warnings
+# Example warning: "Skipping metric 'clickhouse_metric' - connection 'clickhouse' not configured"
 ```
 
 ### 4. Work with Results
@@ -943,12 +1114,18 @@ polars_df = pl.from_pandas(df)
 - pandas and polars output
 - File-based YAML spec loading
 - Standard output format
+- YAML-based connection management
+- Partial computation with warning logs
 
 **Deliverables**:
 - All modules defined above
 - Comprehensive unit tests
-- Example YAML specs
+- Example YAML specs (metrics, slices, segments, connections)
 - Basic documentation
+- Connection YAML specification and parsing
+- ConnectionManager.from_yaml() implementation
+- Environment variable substitution in connection configs
+- Partial computation with warning logs for missing connections
 
 ### Phase 2: Advanced Features (Future)
 
@@ -960,8 +1137,10 @@ polars_df = pl.from_pandas(df)
 - Result caching
 - Time-series-specific optimizations
 - Additional backends (Druid, BigQuery, Snowflake)
-- Metadata in output (query timing, SQL generated)
+- Metadata in output (query timing, SQL generated, failed metrics with detailed reasons)
 - Async API for non-blocking execution
+- Interactive credential prompting for missing auth
+- Connection pooling and retry logic
 
 ---
 
@@ -972,9 +1151,8 @@ Based on this architecture, here are the critical files needed for implementatio
 ### Package Structure
 ```
 aitaem/
-├── __init__.py                          # Top-level imports, connect() function
+├── __init__.py                          # Top-level imports, set_connections() function
 ├── insights.py                          # MetricCompute class, compute() function
-├── connection.py                        # ConnectionManager singleton
 ├── specs/
 │   ├── __init__.py                      # Export MetricSpec, SliceSpec, SegmentSpec
 │   ├── metric.py                        # MetricSpec class
@@ -982,13 +1160,13 @@ aitaem/
 │   ├── segment.py                       # SegmentSpec class
 │   └── loader.py                        # SpecCache, loading functions
 ├── query/
-│   ├── __init__.py                      # Export QueryBuilder, QueryOptimizer, QueryExecutor
-│   ├── builder.py                       # QueryBuilder class
-│   ├── optimizer.py                     # QueryOptimizer class
-│   └── executor.py                      # QueryExecutor class
+│   ├── __init__.py                      # Export QueryBuilder, QueryExecutor (no QueryOptimizer)
+│   ├── builder.py                       # QueryBuilder class (merged with optimization logic)
+│   └── executor.py                      # QueryExecutor class (partial computation handling)
 ├── connectors/
-│   ├── __init__.py                      # Export Connector, IbisConnector
+│   ├── __init__.py                      # Export Connector, IbisConnector, ConnectionManager
 │   ├── base.py                          # Connector abstract base class
+│   ├── connection.py                    # ConnectionManager class (YAML parsing, env var substitution)
 │   └── ibis_connector.py                # IbisConnector implementation
 └── utils/
     ├── __init__.py                      # Export validation, exceptions, formatting
@@ -1003,6 +1181,8 @@ aitaem/
 ├── README.md                            # User-facing documentation (update)
 ├── CLAUDE.md                            # Development guidance (update)
 ├── examples/
+│   ├── connections.yaml                 # Example connection configuration
+│   ├── connections.template.yaml        # Template with comments for user setup
 │   ├── metrics/                         # Example metric YAML files
 │   ├── slices/                          # Example slice YAML files
 │   ├── segments/                        # Example segment YAML files
@@ -1098,24 +1278,12 @@ all = ["aitaem[clickhouse,druid,dev]"]
 | **Single compute() method** | Simpler API, handles both single and multiple metrics elegantly |
 | **SQL expressions in YAML** | No custom DSL, familiar syntax, direct mapping to backends, LLM-friendly |
 | **numerator/denominator split** | Explicit ratio definition, supports complex CASE expressions, clear semantics |
-| **Query optimization** | Efficient multi-metric computation, group by table, parallel execution |
+| **ConnectionManager with YAML** | Separates infrastructure from logic, secure credential management, explicit setup, supports multi-backend cleanly |
+| **One connection per backend** | Simplifies configuration, fully qualified table names handle multi-table scenarios, aligns with typical backend usage |
+| **Unified QueryBuilder** | Eliminates artificial separation, optimization is part of building, clearer responsibilities, better testability |
+| **Static QueryBuilder methods** | Ibis expressions are lazy (no connection needed), pure transformation, no instance state required |
+| **Partial computation** | Graceful degradation when connections unavailable, user gets computable results, warnings logged (Phase 1 metadata Phase 2) |
 | **Custom exceptions** | Clear error messages, rich context for debugging, user-friendly guidance |
-
----
-
-## Next Steps
-
-Once this architecture is approved:
-
-1. **Create package structure**: Set up directories and `__init__.py` files
-2. **Define dependencies**: Write `pyproject.toml` with Ibis, pandas, polars
-3. **Implement specs module**: Start with YAML parsing and validation
-4. **Implement connectors**: DuckDB connector first (ClickHouse later)
-5. **Implement query builder**: Convert specs to Ibis expressions
-6. **Implement insights API**: MetricCompute class and compute() method
-7. **Write tests**: Unit and integration tests alongside implementation
-8. **Create examples**: Example YAMLs and quickstart notebook
-9. **Document**: Update README with usage guide
 
 ---
 
