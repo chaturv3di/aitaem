@@ -507,10 +507,10 @@ tests/test_connectors/
    - ✓ Missing required field raises `ConfigurationError`
 
 2. **Environment Variable Substitution**:
-   - ✓ Replace `${VAR}` with env var value
-   - ✓ Replace multiple `${VAR1}` and `${VAR2}` in same file
-   - ✓ Missing env var raises `ConfigurationError` with var name
-   - ✓ Nested values substituted correctly
+   - ✓ Single substitution: `${VAR}` replaced with env var value
+   - ✓ Multiple substitutions in different fields: `${VAR1}` and `${VAR2}` in same file
+   - ✓ Multiple substitutions in single value: `${HOME}/${ENV}/analytics.db`
+   - ✓ Missing env var raises `ConfigurationError` with variable name
 
 3. **Connection Management**:
    - ✓ Add connection for DuckDB
