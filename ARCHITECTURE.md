@@ -1215,7 +1215,6 @@ druid = ["ibis-framework[druid]>=9.0.0"]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
-    "black>=23.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
 ]
