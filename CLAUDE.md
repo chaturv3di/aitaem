@@ -99,6 +99,7 @@ Strictly follow the instructions below.
 
 ## Common Commands
 - Running tests: `pytest`
+- Dependency management: `uv`
 - Linting and formatting: `ruff`
-- Building/packaging: `uv`
+- Building/packaging: `hatchling`
 - Running development server (if applicable)
