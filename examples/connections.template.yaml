@@ -1,0 +1,31 @@
+# Production configuration template with all options
+# Copy this file to connections.yaml and customize for your environment
+
+# Setup Instructions:
+# 1. Copy this file to connections.yaml
+# 2. Set environment variables (if using ${VAR} syntax):
+#    export GCP_PROJECT_ID=your-project-id
+# 3. Authenticate with gcloud (for BigQuery):
+#    gcloud auth application-default login
+# 4. Load in Python:
+#    from aitaem.connectors import ConnectionManager
+#    manager = ConnectionManager.from_yaml('connections.yaml')
+
+# DuckDB - Local analytics database
+duckdb:
+  path: /data/analytics/production.db  # or ':memory:' for testing
+  read_only: false                      # Optional: set to true for read-only access
+
+# BigQuery - Cloud data warehouse
+bigquery:
+  project_id: ${GCP_PROJECT_ID}        # Required: GCP project ID
+
+  # Optional: Default dataset (if not specified in table names)
+  # dataset_id: analytics
+
+  # Optional: Region for query execution
+  # location: US
+
+# Note: BigQuery uses Application Default Credentials (gcloud CLI)
+# Run this command to authenticate:
+#   gcloud auth application-default login
