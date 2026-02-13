@@ -16,8 +16,9 @@ from aitaem.utils.exceptions import (
 
 # Check for optional dependencies
 try:
-    import ibis.bigquery  # noqa: F401
+    import ibis
 
+    _ = ibis.bigquery  # Trigger lazy loading
     HAS_BIGQUERY = True
 except (ImportError, AttributeError):
     HAS_BIGQUERY = False

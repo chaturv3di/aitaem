@@ -30,6 +30,11 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: marks tests as integration tests (require real external resources)",
+]
+# By default, skip integration tests unless explicitly requested
+addopts = "-m 'not integration'"
 
 [tool.ruff]
 line-length = 100
