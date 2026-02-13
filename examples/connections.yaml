@@ -1,0 +1,7 @@
+# Minimal configuration for local development
+
+duckdb:
+  path: ":memory:"
+
+bigquery:
+  project_id: my-project

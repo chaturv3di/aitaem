@@ -1,0 +1,4 @@
+# Valid configuration with only DuckDB (no optional dependencies)
+
+duckdb:
+  path: ":memory:"

@@ -1,0 +1,7 @@
+# Configuration with environment variables for testing
+
+duckdb:
+  path: ${DUCKDB_PATH}
+
+bigquery:
+  project_id: ${GCP_PROJECT_ID}
