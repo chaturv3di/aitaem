@@ -1,0 +1,8 @@
+# Valid configuration for testing
+
+duckdb:
+  path: :memory:
+
+bigquery:
+  project_id: test-project
+  dataset_id: test_dataset

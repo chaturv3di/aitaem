@@ -14,9 +14,15 @@ from aitaem.utils.exceptions import (
     ConnectionError as AitaemConnectionError,
     InvalidURIError,
     QueryExecutionError,
-    TableNotFoundError,
+    TableNotFoundError as AitaemTableNotFoundError,
     UnsupportedBackendError,
 )
+
+# Import ibis-specific exceptions
+try:
+    from ibis.common.exceptions import IbisError
+except ImportError:
+    IbisError = Exception
 
 
 class IbisConnector(Connector):
@@ -140,7 +146,7 @@ class IbisConnector(Connector):
 
         Raises:
             AitaemConnectionError: If not connected
-            TableNotFoundError: If table doesn't exist
+            AitaemTableNotFoundError: If table doesn't exist
             InvalidURIError: If BigQuery table name format is invalid
         """
         if not self.is_connected:
@@ -154,10 +160,29 @@ class IbisConnector(Connector):
                 table_name = self._parse_bigquery_table_name(table_name)
 
             return self.connection.table(table_name)
-        except Exception as e:
+        except IbisError as e:
+            # Check if it's a table not found error
             error_msg = str(e).lower()
-            if "not found" in error_msg or "does not exist" in error_msg:
-                raise TableNotFoundError(
+            error_type = type(e).__name__.lower()
+            if (
+                "not found" in error_msg
+                or "does not exist" in error_msg
+                or "tablenotfound" in error_type
+            ):
+                raise AitaemTableNotFoundError(
+                    f"Table '{table_name}' not found in {self.backend_type} backend"
+                ) from e
+            raise
+        except Exception as e:
+            # Catch other exceptions and check for table not found patterns
+            error_msg = str(e).lower()
+            error_type = type(e).__name__.lower()
+            if (
+                "not found" in error_msg
+                or "does not exist" in error_msg
+                or "tablenotfound" in error_type
+            ):
+                raise AitaemTableNotFoundError(
                     f"Table '{table_name}' not found in {self.backend_type} backend"
                 ) from e
             raise

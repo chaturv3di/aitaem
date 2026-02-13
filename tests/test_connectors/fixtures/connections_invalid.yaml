@@ -1,0 +1,8 @@
+# Invalid configuration for error testing
+
+bigquery:
+  # Missing required project_id
+  dataset_id: test_dataset
+
+unknown_backend:
+  some_config: value
