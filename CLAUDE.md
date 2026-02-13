@@ -98,7 +98,7 @@ Strictly follow the instructions below.
 3. After each sub-feature implementation, proactively manage context to stay focused
 
 ## Common Commands
-- Running tests: `pytest`
+- Running tests: `python -m pytest`
 - Dependency management: `uv`
 - Linting and formatting: `ruff`
 - Building/packaging: `hatchling`
