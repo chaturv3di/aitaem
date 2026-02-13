@@ -5,8 +5,6 @@ Test coverage for YAML loading, environment variable substitution, URI parsing,
 connection management, and global singleton pattern.
 """
 
-import os
-from pathlib import Path
 
 import pytest
 
@@ -20,7 +18,7 @@ from aitaem.utils.exceptions import (
 
 # Check for optional dependencies
 try:
-    import ibis.bigquery
+    import ibis.bigquery  # noqa: F401
 
     HAS_BIGQUERY = True
 except (ImportError, AttributeError):
@@ -216,18 +214,14 @@ class TestURIParsing:
 
     def test_parse_duckdb_uri_memory(self):
         """Test parsing DuckDB in-memory URI."""
-        backend, database, table = ConnectionManager.parse_source_uri(
-            "duckdb://:memory:/events"
-        )
+        backend, database, table = ConnectionManager.parse_source_uri("duckdb://:memory:/events")
         assert backend == "duckdb"
         assert database == ":memory:"
         assert table == "events"
 
     def test_parse_duckdb_uri_absolute_path(self):
         """Test parsing DuckDB URI with absolute path."""
-        backend, database, table = ConnectionManager.parse_source_uri(
-            "duckdb:///abs/path/db/table"
-        )
+        backend, database, table = ConnectionManager.parse_source_uri("duckdb:///abs/path/db/table")
         assert backend == "duckdb"
         assert database == "/abs/path/db"
         assert table == "table"
@@ -261,9 +255,7 @@ class TestURIParsing:
 
     def test_parse_bigquery_uri_extra_parts(self):
         """Test parsing BigQuery URI with extra parts (>3)."""
-        backend, project, table = ConnectionManager.parse_source_uri(
-            "bigquery://proj.ds.tbl.extra"
-        )
+        backend, project, table = ConnectionManager.parse_source_uri("bigquery://proj.ds.tbl.extra")
         assert backend == "bigquery"
         assert project == "proj"
         assert table == "ds.tbl.extra"
@@ -318,9 +310,7 @@ class TestConnectionRouting:
         manager = ConnectionManager()
         manager.add_connection("bigquery", project_id="test-project")
 
-        connector = manager.get_connection_for_source(
-            "bigquery://test-project.dataset.table"
-        )
+        connector = manager.get_connection_for_source("bigquery://test-project.dataset.table")
         assert isinstance(connector, IbisConnector)
         assert connector.backend_type == "bigquery"
 

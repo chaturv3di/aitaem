@@ -80,9 +80,7 @@ class IbisConnector(Connector):
                 f"Failed to connect to {self.backend_type}: {str(e)}"
             ) from e
 
-    def _connect_duckdb(
-        self, connection_string: str | None = None, **kwargs: Any
-    ) -> None:
+    def _connect_duckdb(self, connection_string: str | None = None, **kwargs: Any) -> None:
         """Connect to DuckDB database.
 
         Args:
@@ -129,9 +127,7 @@ class IbisConnector(Connector):
                     "Or set GOOGLE_APPLICATION_CREDENTIALS environment variable:\n"
                     "  export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json"
                 ) from e
-            raise AitaemConnectionError(
-                f"BigQuery connection failed: {str(e)}"
-            ) from e
+            raise AitaemConnectionError(f"BigQuery connection failed: {str(e)}") from e
 
     def get_table(self, table_name: str) -> ibis.expr.types.Table:
         """Get a table reference from the backend.
@@ -236,8 +232,7 @@ class IbisConnector(Connector):
 
         if output_format not in {"pandas", "polars"}:
             raise ValueError(
-                f"Invalid output_format '{output_format}'. "
-                "Supported formats: 'pandas', 'polars'"
+                f"Invalid output_format '{output_format}'. Supported formats: 'pandas', 'polars'"
             )
 
         try:

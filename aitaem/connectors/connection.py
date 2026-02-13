@@ -82,9 +82,7 @@ class ConnectionManager:
                 )
 
             # Substitute environment variables in all config values
-            substituted_config = manager._substitute_env_vars_in_dict(
-                backend_config, yaml_path
-            )
+            substituted_config = manager._substitute_env_vars_in_dict(backend_config, yaml_path)
 
             try:
                 manager.add_connection(backend_type, **substituted_config)
@@ -168,7 +166,7 @@ class ConnectionManager:
         if backend_type == "duckdb":
             if "path" not in config:
                 raise ConfigurationError(
-                    f"Missing required field 'path' in duckdb configuration\n\n"
+                    "Missing required field 'path' in duckdb configuration\n\n"
                     "Add the required field:\n"
                     "  duckdb:\n"
                     "    path: analytics.db"
@@ -176,7 +174,7 @@ class ConnectionManager:
         elif backend_type == "bigquery":
             if "project_id" not in config:
                 raise ConfigurationError(
-                    f"Missing required field 'project_id' in bigquery configuration\n\n"
+                    "Missing required field 'project_id' in bigquery configuration\n\n"
                     "Add the required field:\n"
                     "  bigquery:\n"
                     "    project_id: your-project-id"
@@ -279,8 +277,7 @@ class ConnectionManager:
 
         if not full_path:
             raise InvalidURIError(
-                f"Empty path in URI: '{uri}'\n\n"
-                "URI must include database and table."
+                f"Empty path in URI: '{uri}'\n\nURI must include database and table."
             )
 
         # Backend-specific parsing
@@ -292,16 +289,13 @@ class ConnectionManager:
             # For unknown backends, try generic parsing
             # This will fail later in get_connection with UnsupportedBackendError
             if "/" not in full_path:
-                raise InvalidURIError(
-                    f"Missing table separator '/' in URI: '{uri}'"
-                )
+                raise InvalidURIError(f"Missing table separator '/' in URI: '{uri}'")
             last_slash = full_path.rfind("/")
             database = full_path[:last_slash]
             table = full_path[last_slash + 1 :]
             if not table:
                 raise InvalidURIError(
-                    f"Empty table name in URI: '{uri}'\n\n"
-                    "URI must include table name."
+                    f"Empty table name in URI: '{uri}'\n\nURI must include table name."
                 )
             return (backend_type, database, table)
 

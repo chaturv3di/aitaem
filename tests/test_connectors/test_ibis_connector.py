@@ -10,21 +10,20 @@ from aitaem.connectors import IbisConnector
 from aitaem.utils.exceptions import (
     ConnectionError as AitaemConnectionError,
     InvalidURIError,
-    QueryExecutionError,
     TableNotFoundError,
     UnsupportedBackendError,
 )
 
 # Check for optional dependencies
 try:
-    import ibis.bigquery
+    import ibis.bigquery  # noqa: F401
 
     HAS_BIGQUERY = True
 except (ImportError, AttributeError):
     HAS_BIGQUERY = False
 
 try:
-    import polars
+    import polars  # noqa: F401
 
     HAS_POLARS = True
 except ImportError:
