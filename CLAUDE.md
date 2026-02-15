@@ -58,6 +58,7 @@ Strictly follow the instructions in the relevant section(s).
 
 ### Common Instructions
 These instructions apply regardless of the nature of implementation task, whether it's implementing a plan, an ad-hoc feature, a bug-fix, or anything else.
+
 0. Feel free to use agents/teammates for steps that can be executed in parallel
 1. Always double check your work. Create a checklist of all the claims you make and tick off claims that you are able to verify.
 2. Focus only on the task at hand. Do not create additional scope of work.
