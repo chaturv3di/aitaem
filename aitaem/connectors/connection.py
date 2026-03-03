@@ -148,20 +148,36 @@ class ConnectionManager:
 
         return re.sub(pattern, replace_var, value)
 
-    def add_connection(self, backend_type: str, **config: Any) -> None:
+    def add_connection(
+        self, backend_type: str, connector: "IbisConnector | None" = None, **config: Any
+    ) -> None:
         """Add single connection by creating and storing IbisConnector.
 
         Args:
             backend_type: Backend type ('duckdb', 'bigquery', etc.)
-            **config: Backend-specific configuration
+            connector: Optional pre-existing IbisConnector instance. If provided,
+                it is stored directly without creating a new connection.
+            **config: Backend-specific configuration (used only when connector is None)
                 - DuckDB: path (str), read_only (bool, optional)
                 - BigQuery: project_id (str), dataset_id (str, optional)
 
         Raises:
+            ConfigurationError: If a connection for backend_type already exists,
+                or if required config fields are missing.
             UnsupportedBackendError: If backend_type is not supported
-            ConfigurationError: If required fields are missing
             ValueError: If configuration is invalid
         """
+        if backend_type in self._connections:
+            raise ConfigurationError(
+                f"A connection for backend '{backend_type}' already exists.\n\n"
+                "Close the existing connection before adding a new one:\n"
+                "  manager.get_connection('{backend_type}').close()"
+            )
+
+        if connector is not None:
+            self._connections[backend_type] = connector
+            return
+
         # Validate required fields based on backend type
         if backend_type == "duckdb":
             if "path" not in config:
@@ -182,19 +198,19 @@ class ConnectionManager:
 
         # Create connector
         try:
-            connector = IbisConnector(backend_type)
+            new_connector = IbisConnector(backend_type)
         except UnsupportedBackendError:
             raise
 
         # Connect using appropriate method
         if backend_type == "duckdb":
             path = config.pop("path")
-            connector.connect(path, **config)
+            new_connector.connect(path, **config)
         elif backend_type == "bigquery":
-            connector.connect(**config)
+            new_connector.connect(**config)
 
         # Store connector
-        self._connections[backend_type] = connector
+        self._connections[backend_type] = new_connector
 
     def get_connection(self, backend_type: str) -> IbisConnector:
         """Get connector by backend type.

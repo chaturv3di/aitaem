@@ -200,6 +200,49 @@ class TestConnectionManagement:
         with pytest.raises(UnsupportedBackendError):
             manager.add_connection("clickhouse", host="localhost")
 
+    def test_add_connection_with_existing_connector(self):
+        """Test adding a pre-existing IbisConnector instance."""
+        connector = IbisConnector("duckdb")
+        connector.connect(":memory:")
+
+        manager = ConnectionManager()
+        manager.add_connection("duckdb", connector=connector)
+
+        assert manager._connections["duckdb"] is connector
+
+    def test_add_connection_with_existing_connector_no_config_needed(self):
+        """Test that passing a connector requires no config kwargs."""
+        connector = IbisConnector("duckdb")
+        connector.connect(":memory:")
+
+        manager = ConnectionManager()
+        # Should not raise even though no 'path' kwarg is given
+        manager.add_connection("duckdb", connector=connector)
+        assert manager.get_connection("duckdb") is connector
+
+    def test_add_connection_duplicate_raises_error(self):
+        """Test that adding a second connection for the same backend raises ConfigurationError."""
+        manager = ConnectionManager()
+        manager.add_connection("duckdb", path=":memory:")
+
+        with pytest.raises(ConfigurationError) as exc_info:
+            manager.add_connection("duckdb", path=":memory:")
+
+        assert "already exists" in str(exc_info.value)
+
+    def test_add_connection_duplicate_connector_raises_error(self):
+        """Test that injecting a connector when one already exists raises ConfigurationError."""
+        manager = ConnectionManager()
+        manager.add_connection("duckdb", path=":memory:")
+
+        connector = IbisConnector("duckdb")
+        connector.connect(":memory:")
+
+        with pytest.raises(ConfigurationError) as exc_info:
+            manager.add_connection("duckdb", connector=connector)
+
+        assert "already exists" in str(exc_info.value)
+
 
 class TestURIParsing:
     """Test URI parsing functionality."""
