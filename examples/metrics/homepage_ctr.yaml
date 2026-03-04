@@ -1,0 +1,7 @@
+metric:
+  name: homepage_ctr
+  description: Click-through rate for homepage impressions
+  source: duckdb://analytics.db/events
+  aggregation: ratio
+  numerator: "SUM(CASE WHEN event_type = 'click' AND page = 'home_page' THEN 1 ELSE 0 END)"
+  denominator: "SUM(CASE WHEN event_type = 'impression' AND page = 'home_page' THEN 1 ELSE 0 END)"

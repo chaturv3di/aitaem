@@ -1,0 +1,6 @@
+metric:
+  name: total_revenue
+  description: Sum of all transaction amounts
+  source: duckdb://analytics.db/transactions
+  aggregation: sum
+  numerator: "SUM(amount)"
