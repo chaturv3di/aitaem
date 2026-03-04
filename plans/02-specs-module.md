@@ -818,8 +818,8 @@ ruff format aitaem/specs/ aitaem/utils/
 
 ## 16. Future Enhancements (Phase 2+)
 
-- HAVING clause support in `SegmentSpec` for aggregate-level filtering
-- Subquery support in `SegmentValue.where`
+- HAVING clause support in `SegmentSpec` and `SliceSpec` for aggregate-level filtering
+- Subquery support in `SegmentValue.where` and `SliceValue.where`
 - Multi-table metric support (joins) in `MetricSpec`
 - Database-backed spec storage (`SpecCache` reading from a DB rather than files)
 - Spec versioning and schema evolution
