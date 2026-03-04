@@ -13,7 +13,6 @@ from aitaem.specs.segment import SegmentSpec
 from aitaem.specs.slice import SliceSpec
 from aitaem.utils.exceptions import SpecNotFoundError
 from tests.test_specs.conftest import (
-    FIXTURES_DIR,
     VALID_METRIC_RATIO_YAML,
     VALID_METRIC_SUM_YAML,
     VALID_SEGMENT_YAML,
