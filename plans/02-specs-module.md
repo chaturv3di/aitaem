@@ -83,7 +83,25 @@ def validate_slice_spec(spec_dict: dict) -> ValidationResult: ...
 def validate_segment_spec(spec_dict: dict) -> ValidationResult: ...
 ```
 
-**Validation rules**:
+**Two-tier validation approach**:
+
+| Tier | What | How |
+|------|------|-----|
+| Structural | Required fields, enum values, URI format, non-empty strings, list constraints | Pure Python checks |
+| SQL syntax | `numerator`, `denominator`, `where` clauses | `sqlglot` parser (see below) |
+
+Semantic validation (column existence, type compatibility) is **not** performed in the specs layer — specs are decoupled from any table or schema. Semantic errors surface implicitly at query execution time.
+
+**SQL syntax validation via `sqlglot`**:
+
+`sqlglot` is a pure Python SQL parser with no database dependency. SQL fields are validated by wrapping them in a dummy statement and parsing:
+
+- `numerator` / `denominator` → wrapped as `SELECT {expr}` (aggregation expression context)
+- `where` → wrapped as `SELECT 1 WHERE {expr}` (predicate context)
+
+If `sqlglot` raises a parse error, a `ValidationError` is recorded for that field with the parse failure message. DuckDB-specific syntax that deviates from standard SQL may occasionally produce false positives/negatives, but this is acceptable for Phase 1.
+
+**Structural validation rules**:
 
 | Spec | Required Fields | Optional Fields | Field Constraints |
 |------|----------------|-----------------|-------------------|
@@ -163,6 +181,7 @@ class MetricSpec:
 - `source` URI format: `scheme://rest-of-uri`. Validate that `://` is present and `scheme` is non-empty.
 - `aggregation` must be one of the allowed values (case-insensitive, normalize to lowercase).
 - `denominator` is required when `aggregation == 'ratio'`; forbidden for other aggregation types (log a warning, don't error, for forward compatibility).
+- `numerator` and `denominator` are SQL syntax-validated by wrapping in `SELECT {expr}` and parsing with `sqlglot`. A parse failure adds a `ValidationError` for the respective field.
 
 ---
 
@@ -210,7 +229,7 @@ class SliceSpec:
 - Parse YAML, extract `slice:` top-level key.
 - `values` list must be non-empty; each item must have `name` and `where`.
 - Convert `values` list to `tuple[SliceValue, ...]` for frozen dataclass compatibility.
-- `SliceValue.where` must be a non-empty string (no further SQL validation in Phase 1).
+- `SliceValue.where` is SQL syntax-validated by wrapping in `SELECT 1 WHERE {expr}` and parsing with `sqlglot`. A parse failure adds a `ValidationError` for `values[N].where`.
 - Duplicate `name` values in `values` list: raise `SpecValidationError` with clear message.
 
 ---
@@ -247,7 +266,8 @@ class SegmentSpec:
 
 - Parse YAML, extract `segment:` top-level key.
 - `where` must be a non-empty string.
-- Same validation pattern as other specs.
+- `where` is SQL syntax-validated by wrapping in `SELECT 1 WHERE {expr}` and parsing with `sqlglot`. A parse failure adds a `ValidationError` for the `where` field.
+- Same structural validation pattern as other specs.
 
 ---
 
@@ -378,7 +398,19 @@ __all__ = [
 | YAML with extra unknown fields | SUCCESS (Phase 1) | Unknown fields ignored silently; logged at DEBUG level |
 | YAML with `null` / `~` for required field | FAIL | `SpecValidationError` listing the null field |
 
-### 7.2 MetricSpec Edge Cases
+### 7.2 SQL Syntax Validation Edge Cases
+
+| Input | Handling | Result |
+|-------|----------|--------|
+| Valid aggregation expression: `"SUM(amount)"` | SUCCESS | Parses cleanly via `SELECT SUM(amount)` |
+| Valid CASE expression: `"SUM(CASE WHEN x = 1 THEN 1 ELSE 0 END)"` | SUCCESS | Parses cleanly |
+| Valid predicate: `"country_code IN ('US', 'CA')"` | SUCCESS | Parses cleanly via `SELECT 1 WHERE ...` |
+| Malformed expression: `"SUM(amount"` (unclosed paren) | FAIL | `ValidationError` on the field with sqlglot parse error message |
+| Malformed predicate: `"country_code IN ('US'"` | FAIL | `ValidationError` on `where` field |
+| DuckDB-specific syntax not in sqlglot's model | WARN (Phase 1) | Logged at DEBUG; spec accepted. False negatives are acceptable. |
+| Empty string after non-null check passes | FAIL | Caught by structural validation before SQL parsing is attempted |
+
+### 7.3 MetricSpec Edge Cases
 
 | Input | Handling | Result |
 |-------|----------|--------|
@@ -389,7 +421,7 @@ __all__ = [
 | `aggregation: window_function` (unsupported) | FAIL | `SpecValidationError`: "Unsupported aggregation type. Must be one of: sum, avg, count, ratio, min, max" |
 | `numerator` is empty string | FAIL | `SpecValidationError`: "'numerator' must be a non-empty SQL expression" |
 
-### 7.3 SliceSpec Edge Cases
+### 7.4 SliceSpec Edge Cases
 
 | Input | Handling | Result |
 |-------|----------|--------|
@@ -398,7 +430,7 @@ __all__ = [
 | A slice value missing `where` | FAIL | `SpecValidationError`: "Slice value 'X' is missing required field 'where'" |
 | Duplicate `name` values in `values` list | FAIL | `SpecValidationError`: "Duplicate slice value name: 'X'" |
 
-### 7.4 `SpecCache` / Loader Edge Cases
+### 7.5 `SpecCache` / Loader Edge Cases
 
 | Input | Handling | Result |
 |-------|----------|--------|
@@ -438,6 +470,9 @@ tests/test_specs/
 **MetricSpec (`test_metric_spec.py`)**:
 - ✓ `validate()` on valid spec → returns `ValidationResult(valid=True, errors=[])`
 - ✓ `validate()` on invalid spec → returns `ValidationResult(valid=False, errors=[...])` without raising
+- ✓ Valid `numerator` SQL expression → no validation error
+- ✗ Malformed `numerator` SQL (e.g., unclosed paren) → `SpecValidationError` with field `numerator`
+- ✗ Malformed `denominator` SQL → `SpecValidationError` with field `denominator`
 - ✓ Load valid ratio metric from YAML string → all fields populated correctly
 - ✓ Load valid ratio metric from YAML file path → same
 - ✓ Load valid sum metric without denominator → `denominator is None`
@@ -454,6 +489,8 @@ tests/test_specs/
 **SliceSpec (`test_slice_spec.py`)**:
 - ✓ Load valid slice with 3 values → `values` is tuple of `SliceValue`
 - ✓ Each `SliceValue` has correct `name` and `where`
+- ✓ Valid `where` SQL predicate → no validation error
+- ✗ Malformed `where` SQL in any slice value → `SpecValidationError` with field `values[N].where`
 - ✗ Empty `values` list → `SpecValidationError`
 - ✗ A value missing `name` → `SpecValidationError`
 - ✗ A value missing `where` → `SpecValidationError`
@@ -463,8 +500,10 @@ tests/test_specs/
 **SegmentSpec (`test_segment_spec.py`)**:
 - ✓ Load valid segment → `name` and `where` populated
 - ✓ `description` optional; defaults to empty string
+- ✓ Valid `where` SQL predicate → no validation error
 - ✗ Missing `where` → `SpecValidationError`
 - ✗ Empty `where` string → `SpecValidationError`
+- ✗ Malformed `where` SQL → `SpecValidationError` with field `where`
 - ✗ Missing top-level `segment:` key → `SpecValidationError`
 
 **Loader + SpecCache (`test_spec_loader.py`)**:
@@ -663,14 +702,14 @@ Implement in this order (each step is testable before moving to the next):
 
 ## 13. Dependencies
 
-No new runtime dependencies required. `pyyaml` is already listed in `pyproject.toml`.
+No new entries required in `pyproject.toml`.
 
 ```toml
 # Already present — confirm only
 "pyyaml>=6.0"
 ```
 
-No Ibis, DuckDB, or pandas imports anywhere in `aitaem/specs/`. Conversion to Ibis expressions is the responsibility of `query/builder.py`.
+`sqlglot` (used for SQL syntax validation) is a transitive dependency of `ibis-framework` and will already be present in the environment. It does not need to be declared explicitly. No Ibis, DuckDB, or pandas imports anywhere in `aitaem/specs/`. Conversion to Ibis expressions is the responsibility of `query/builder.py`.
 
 ---
 
@@ -727,7 +766,6 @@ ruff format aitaem/specs/ aitaem/utils/
 
 ## 16. Future Enhancements (Phase 2+)
 
-- SQL syntax validation for `numerator`, `denominator`, and `where` fields using DuckDB parser
 - HAVING clause support in `SegmentSpec` for aggregate-level filtering
 - Subquery support in `SegmentSpec.where`
 - Multi-table metric support (joins) in `MetricSpec`
