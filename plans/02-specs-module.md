@@ -107,7 +107,7 @@ If `sqlglot` raises a parse error, a `ValidationError` is recorded for that fiel
 |------|----------------|-----------------|-------------------|
 | Metric | `name`, `source`, `aggregation`, `numerator` | `description`, `denominator` | `aggregation` in `{sum, avg, count, ratio, min, max}`; `denominator` required when `aggregation == 'ratio'`; `source` must match `scheme://...` URI format |
 | Slice | `name`, `values` | `description` | `values` must be non-empty list; each value must have `name` and `where` |
-| Segment | `name`, `where` | `description` | `where` must be non-empty string |
+| Segment | `name`, `source`, `values` | `description` | `source` must match `scheme://...` URI format; `values` must be non-empty list; each value must have `name` and `where` |
 
 ---
 
@@ -238,20 +238,35 @@ class SliceSpec:
 
 ### 4.1 YAML Schema
 
+A segment groups rows from a **source table** into named cohorts, each defined by a SQL `WHERE` condition — analogous to how a `SliceSpec` groups event rows, but tied to a specific backing table (like a customers or users dimension).
+
 ```yaml
 segment:
-  name: high_value_customers
-  description: Customers with lifetime value > $1000 and active status
-  where: "lifetime_value > 1000 AND customer_status = 'active'"
+  name: customer_value_tier
+  description: Customer segmentation by lifetime value and status
+  source: duckdb://analytics.db/customers
+  values:
+    - name: high_value
+      where: "lifetime_value > 1000 AND customer_status = 'active'"
+    - name: medium_value
+      where: "lifetime_value BETWEEN 100 AND 1000 AND customer_status = 'active'"
+    - name: low_value
+      where: "lifetime_value < 100 OR customer_status != 'active'"
 ```
 
 ### 4.2 Class Definition
 
 ```python
 @dataclass(frozen=True)
+class SegmentValue:
+    name: str    # Display name, e.g. "high_value"
+    where: str   # SQL WHERE condition, e.g. "lifetime_value > 1000"
+
+@dataclass(frozen=True)
 class SegmentSpec:
     name: str
-    where: str   # SQL WHERE condition
+    source: str                        # URI: scheme://path/table
+    values: tuple[SegmentValue, ...]   # Tuple for immutability (frozen dataclass)
     description: str = ""
 
     @classmethod
@@ -265,9 +280,12 @@ class SegmentSpec:
 ### 4.3 Implementation Details
 
 - Parse YAML, extract `segment:` top-level key.
-- `where` must be a non-empty string.
-- `where` is SQL syntax-validated by wrapping in `SELECT 1 WHERE {expr}` and parsing with `sqlglot`. A parse failure adds a `ValidationError` for the `where` field.
-- Same structural validation pattern as other specs.
+- `source` URI format: `scheme://rest-of-uri`. Validate that `://` is present and `scheme` is non-empty (same rule as `MetricSpec.source`).
+- `values` list must be non-empty; each item must have `name` and `where`.
+- Convert `values` list to `tuple[SegmentValue, ...]` for frozen dataclass compatibility.
+- `SegmentValue.where` is SQL syntax-validated by wrapping in `SELECT 1 WHERE {expr}` and parsing with `sqlglot`. A parse failure adds a `ValidationError` for `values[N].where`.
+- Duplicate `name` values in `values` list: raise `SpecValidationError` with clear message.
+- `validate_segment_spec()` in `utils/validation.py` mirrors the structure of `validate_slice_spec()`, with the addition of the `source` URI check.
 
 ---
 
@@ -368,7 +386,7 @@ class SpecCache:
 ```python
 from aitaem.specs.metric import MetricSpec
 from aitaem.specs.slice import SliceSpec, SliceValue
-from aitaem.specs.segment import SegmentSpec
+from aitaem.specs.segment import SegmentSpec, SegmentValue
 from aitaem.specs.loader import SpecCache, load_spec_from_file, load_spec_from_string, load_specs_from_directory
 
 __all__ = [
@@ -376,6 +394,7 @@ __all__ = [
     "SliceSpec",
     "SliceValue",
     "SegmentSpec",
+    "SegmentValue",
     "SpecCache",
     "load_spec_from_file",
     "load_spec_from_string",
@@ -430,7 +449,18 @@ __all__ = [
 | A slice value missing `where` | FAIL | `SpecValidationError`: "Slice value 'X' is missing required field 'where'" |
 | Duplicate `name` values in `values` list | FAIL | `SpecValidationError`: "Duplicate slice value name: 'X'" |
 
-### 7.5 `SpecCache` / Loader Edge Cases
+### 7.5 SegmentSpec Edge Cases
+
+| Input | Handling | Result |
+|-------|----------|--------|
+| `values` is empty list | FAIL | `SpecValidationError`: "'values' must contain at least one segment value" |
+| A segment value missing `name` | FAIL | `SpecValidationError`: "Segment value at index N is missing required field 'name'" |
+| A segment value missing `where` | FAIL | `SpecValidationError`: "Segment value 'X' is missing required field 'where'" |
+| Duplicate `name` values in `values` list | FAIL | `SpecValidationError`: "Duplicate segment value name: 'X'" |
+| `source` without URI scheme (e.g., `customers` instead of `duckdb://...`) | FAIL | `SpecValidationError`: "Invalid source URI: must include scheme (e.g., 'duckdb://...')" |
+| Malformed `where` SQL in any segment value | FAIL | `SpecValidationError` with field `values[N].where` |
+
+### 7.6 `SpecCache` / Loader Edge Cases
 
 | Input | Handling | Result |
 |-------|----------|--------|
@@ -462,6 +492,7 @@ tests/test_specs/
     ├── valid_slice.yaml
     ├── valid_segment.yaml
     ├── invalid_metric_no_denominator.yaml
+    ├── invalid_segment_no_source.yaml
     └── invalid_yaml_syntax.yaml
 ```
 
@@ -498,12 +529,18 @@ tests/test_specs/
 - ✗ Missing top-level `slice:` key → `SpecValidationError`
 
 **SegmentSpec (`test_segment_spec.py`)**:
-- ✓ Load valid segment → `name` and `where` populated
+- ✓ Load valid segment with 3 values → `values` is tuple of `SegmentValue`
+- ✓ Each `SegmentValue` has correct `name` and `where`
 - ✓ `description` optional; defaults to empty string
-- ✓ Valid `where` SQL predicate → no validation error
-- ✗ Missing `where` → `SpecValidationError`
-- ✗ Empty `where` string → `SpecValidationError`
-- ✗ Malformed `where` SQL → `SpecValidationError` with field `where`
+- ✓ `source` URI stored correctly
+- ✓ Valid `where` SQL predicate in each value → no validation error
+- ✗ Missing `source` field → `SpecValidationError`
+- ✗ Invalid source URI format (no scheme) → `SpecValidationError`
+- ✗ Empty `values` list → `SpecValidationError`
+- ✗ A value missing `name` → `SpecValidationError`
+- ✗ A value missing `where` → `SpecValidationError`
+- ✗ Malformed `where` SQL in any value → `SpecValidationError` with field `values[N].where`
+- ✗ Duplicate segment value names → `SpecValidationError`
 - ✗ Missing top-level `segment:` key → `SpecValidationError`
 
 **Loader + SpecCache (`test_spec_loader.py`)**:
@@ -554,9 +591,14 @@ slice:
 
 VALID_SEGMENT_YAML = """
 segment:
-  name: premium_users
-  description: Premium subscribers
-  where: "subscription_tier = 'premium' AND status = 'active'"
+  name: customer_value_tier
+  description: Customer segmentation by value
+  source: duckdb://analytics.db/customers
+  values:
+    - name: high_value
+      where: "lifetime_value > 1000 AND customer_status = 'active'"
+    - name: low_value
+      where: "lifetime_value <= 1000 OR customer_status != 'active'"
 """
 ```
 
@@ -607,12 +649,19 @@ slice:
       where: "country_code NOT IN ('US', 'CA', 'MX', 'DE', 'FR', 'UK', 'ES', 'IT', 'CN', 'JP', 'IN', 'AU', 'SG')"
 ```
 
-### `examples/segments/high_value_customers.yaml`
+### `examples/segments/customer_value_tier.yaml`
 ```yaml
 segment:
-  name: high_value_customers
-  description: Customers with lifetime value > $1000 and active status
-  where: "lifetime_value > 1000 AND customer_status = 'active'"
+  name: customer_value_tier
+  description: Customer segmentation by lifetime value and status
+  source: duckdb://analytics.db/customers
+  values:
+    - name: high_value
+      where: "lifetime_value > 1000 AND customer_status = 'active'"
+    - name: medium_value
+      where: "lifetime_value BETWEEN 100 AND 1000 AND customer_status = 'active'"
+    - name: low_value
+      where: "lifetime_value < 100 OR customer_status != 'active'"
 ```
 
 ---
@@ -651,7 +700,10 @@ Implement in this order (each step is testable before moving to the next):
 - [ ] `MetricSpec` normalizes `aggregation` to lowercase
 - [ ] `SliceSpec.values` is a tuple (immutable)
 - [ ] `SliceSpec` rejects duplicate value names
-- [ ] `SegmentSpec.from_yaml()` raises on empty `where`
+- [ ] `SegmentSpec.source` validated as URI (same rule as `MetricSpec.source`)
+- [ ] `SegmentSpec.values` is a tuple (immutable)
+- [ ] `SegmentSpec` rejects duplicate value names
+- [ ] `SegmentSpec.from_yaml()` raises on empty `values` list
 - [ ] All three spec classes are `frozen=True` dataclasses
 
 ### Validation
@@ -689,7 +741,7 @@ Implement in this order (each step is testable before moving to the next):
 | P0 | `aitaem/utils/validation.py` | `ValidationError`, `ValidationResult`, validate functions | 80 |
 | P1 | `aitaem/specs/metric.py` | `MetricSpec` dataclass + `from_yaml()` | 70 |
 | P1 | `aitaem/specs/slice.py` | `SliceValue` + `SliceSpec` dataclass + `from_yaml()` | 70 |
-| P1 | `aitaem/specs/segment.py` | `SegmentSpec` dataclass + `from_yaml()` | 50 |
+| P1 | `aitaem/specs/segment.py` | `SegmentValue` + `SegmentSpec` dataclass + `from_yaml()` | 70 |
 | P2 | `aitaem/specs/loader.py` | `SpecCache` + loading functions | 120 |
 | P3 | `aitaem/specs/__init__.py` | Package exports | 15 |
 | P4 | `tests/test_specs/conftest.py` | Shared fixtures | 50 |
@@ -766,8 +818,8 @@ ruff format aitaem/specs/ aitaem/utils/
 
 ## 16. Future Enhancements (Phase 2+)
 
-- HAVING clause support in `SegmentSpec` for aggregate-level filtering
-- Subquery support in `SegmentSpec.where`
+- HAVING clause support in `SegmentSpec` and `SliceSpec` for aggregate-level filtering
+- Subquery support in `SegmentValue.where` and `SliceValue.where`
 - Multi-table metric support (joins) in `MetricSpec`
 - Database-backed spec storage (`SpecCache` reading from a DB rather than files)
 - Spec versioning and schema evolution
@@ -785,6 +837,6 @@ ruff format aitaem/specs/ aitaem/utils/
 
 ---
 
-**Plan Status**: Draft — Pending Review
+**Plan Status**: Ready for Implementation
 **Target module**: `aitaem/specs/`
 **Blocked by**: None (specs module has no upstream aitaem dependencies beyond utils/exceptions.py)
