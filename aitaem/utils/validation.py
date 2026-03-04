@@ -35,7 +35,11 @@ def _validate_sql_expression(
     """Validate SQL expression using sqlglot. Returns ValidationError if invalid, else None."""
     try:
         import sqlglot
+    except ImportError:
+        logger.warning("sqlglot is not installed; skipping SQL validation for field '%s'", field)
+        return None
 
+    try:
         if context == "select":
             sqlglot.parse_one(f"SELECT {expr}")
         else:
