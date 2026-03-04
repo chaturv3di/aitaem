@@ -1,0 +1,5 @@
+segment:
+  name: no_source_segment
+  values:
+    - name: tier_a
+      where: "value > 100"

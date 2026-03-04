@@ -1,0 +1,246 @@
+"""
+aitaem.utils.validation - Spec validation utilities
+
+Two-tier validation:
+1. Structural: required fields, enum values, URI format, non-empty strings, list constraints
+2. SQL syntax: numerator, denominator, where clauses via sqlglot
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
+
+VALID_AGGREGATIONS = {"sum", "avg", "count", "ratio", "min", "max"}
+
+
+@dataclass
+class ValidationError:
+    field: str
+    message: str
+    suggestion: str | None = None
+
+
+@dataclass
+class ValidationResult:
+    valid: bool
+    errors: list[ValidationError]
+
+
+def _validate_sql_expression(
+    expr: str, field: str, context: str = "select"
+) -> ValidationError | None:
+    """Validate SQL expression using sqlglot. Returns ValidationError if invalid, else None."""
+    try:
+        import sqlglot
+
+        if context == "select":
+            sqlglot.parse_one(f"SELECT {expr}")
+        else:
+            sqlglot.parse_one(f"SELECT 1 WHERE {expr}")
+    except Exception as e:
+        return ValidationError(field=field, message=f"Invalid SQL syntax: {e}")
+    return None
+
+
+def _validate_uri(value: str, field: str) -> ValidationError | None:
+    """Validate that value is a URI with a scheme (scheme://...)."""
+    if "://" not in value:
+        return ValidationError(
+            field=field,
+            message="Invalid source URI: must include scheme (e.g., 'duckdb://...')",
+            suggestion="Use format 'duckdb://path/table' or similar",
+        )
+    scheme = value.split("://")[0]
+    if not scheme:
+        return ValidationError(
+            field=field,
+            message="Invalid source URI: scheme must be non-empty",
+            suggestion="Use format 'duckdb://path/table' or similar",
+        )
+    return None
+
+
+def validate_metric_spec(spec_dict: dict) -> ValidationResult:
+    """Validate a metric spec dict. Returns ValidationResult with all errors found."""
+    errors: list[ValidationError] = []
+
+    name = spec_dict.get("name")
+    if not name or not isinstance(name, str) or not name.strip():
+        errors.append(
+            ValidationError(
+                field="name", message="'name' is required and must be a non-empty string"
+            )
+        )
+
+    source = spec_dict.get("source")
+    if not source or not isinstance(source, str) or not source.strip():
+        errors.append(
+            ValidationError(
+                field="source", message="'source' is required and must be a non-empty string"
+            )
+        )
+    else:
+        uri_error = _validate_uri(source, "source")
+        if uri_error:
+            errors.append(uri_error)
+
+    aggregation = spec_dict.get("aggregation")
+    if not aggregation or not isinstance(aggregation, str) or not aggregation.strip():
+        errors.append(
+            ValidationError(
+                field="aggregation",
+                message=f"'aggregation' is required. Must be one of: {', '.join(sorted(VALID_AGGREGATIONS))}",
+            )
+        )
+    else:
+        aggregation_lower = aggregation.lower()
+        if aggregation_lower not in VALID_AGGREGATIONS:
+            errors.append(
+                ValidationError(
+                    field="aggregation",
+                    message=f"Unsupported aggregation type. Must be one of: {', '.join(sorted(VALID_AGGREGATIONS))}",
+                )
+            )
+
+    numerator = spec_dict.get("numerator")
+    if not numerator or not isinstance(numerator, str) or not numerator.strip():
+        errors.append(
+            ValidationError(
+                field="numerator", message="'numerator' must be a non-empty SQL expression"
+            )
+        )
+    else:
+        sql_error = _validate_sql_expression(numerator, "numerator", context="select")
+        if sql_error:
+            errors.append(sql_error)
+
+    denominator = spec_dict.get("denominator")
+    aggregation_lower = (aggregation or "").lower()
+    if aggregation_lower == "ratio":
+        if not denominator or not isinstance(denominator, str) or not denominator.strip():
+            errors.append(
+                ValidationError(
+                    field="denominator",
+                    message="'denominator' is required when aggregation is 'ratio'",
+                    suggestion="add denominator field",
+                )
+            )
+        else:
+            sql_error = _validate_sql_expression(denominator, "denominator", context="select")
+            if sql_error:
+                errors.append(sql_error)
+    elif denominator:
+        logger.warning("'denominator' is ignored for '%s' aggregation", aggregation_lower)
+
+    return ValidationResult(valid=len(errors) == 0, errors=errors)
+
+
+def _validate_values_list(values: list, item_type: str, errors: list[ValidationError]) -> None:
+    """Validate a list of value dicts (for slice/segment). Appends errors in-place."""
+    seen_names: set[str] = set()
+    for i, value in enumerate(values):
+        if not isinstance(value, dict):
+            errors.append(
+                ValidationError(
+                    field=f"values[{i}]",
+                    message=f"{item_type} value at index {i} must be a dict",
+                )
+            )
+            continue
+
+        item_name = value.get("name")
+        if not item_name or not isinstance(item_name, str) or not item_name.strip():
+            errors.append(
+                ValidationError(
+                    field=f"values[{i}].name",
+                    message=f"{item_type} value at index {i} is missing required field 'name'",
+                )
+            )
+        else:
+            if item_name in seen_names:
+                errors.append(
+                    ValidationError(
+                        field="values",
+                        message=f"Duplicate {item_type.lower()} value name: '{item_name}'",
+                    )
+                )
+            seen_names.add(item_name)
+
+        where = value.get("where")
+        if not where or not isinstance(where, str) or not where.strip():
+            name_str = item_name if item_name else f"index {i}"
+            errors.append(
+                ValidationError(
+                    field=f"values[{i}].where",
+                    message=f"{item_type} value '{name_str}' is missing required field 'where'",
+                )
+            )
+        else:
+            sql_error = _validate_sql_expression(where, f"values[{i}].where", context="where")
+            if sql_error:
+                errors.append(sql_error)
+
+
+def validate_slice_spec(spec_dict: dict) -> ValidationResult:
+    """Validate a slice spec dict. Returns ValidationResult with all errors found."""
+    errors: list[ValidationError] = []
+
+    name = spec_dict.get("name")
+    if not name or not isinstance(name, str) or not name.strip():
+        errors.append(
+            ValidationError(
+                field="name", message="'name' is required and must be a non-empty string"
+            )
+        )
+
+    values = spec_dict.get("values")
+    if values is None or not isinstance(values, list) or len(values) == 0:
+        errors.append(
+            ValidationError(
+                field="values", message="'values' must contain at least one slice value"
+            )
+        )
+    else:
+        _validate_values_list(values, "Slice", errors)
+
+    return ValidationResult(valid=len(errors) == 0, errors=errors)
+
+
+def validate_segment_spec(spec_dict: dict) -> ValidationResult:
+    """Validate a segment spec dict. Returns ValidationResult with all errors found."""
+    errors: list[ValidationError] = []
+
+    name = spec_dict.get("name")
+    if not name or not isinstance(name, str) or not name.strip():
+        errors.append(
+            ValidationError(
+                field="name", message="'name' is required and must be a non-empty string"
+            )
+        )
+
+    source = spec_dict.get("source")
+    if not source or not isinstance(source, str) or not source.strip():
+        errors.append(
+            ValidationError(
+                field="source", message="'source' is required and must be a non-empty string"
+            )
+        )
+    else:
+        uri_error = _validate_uri(source, "source")
+        if uri_error:
+            errors.append(uri_error)
+
+    values = spec_dict.get("values")
+    if values is None or not isinstance(values, list) or len(values) == 0:
+        errors.append(
+            ValidationError(
+                field="values", message="'values' must contain at least one segment value"
+            )
+        )
+    else:
+        _validate_values_list(values, "Segment", errors)
+
+    return ValidationResult(valid=len(errors) == 0, errors=errors)

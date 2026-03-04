@@ -1,0 +1,8 @@
+slice:
+  name: geography
+  description: Regional breakdown
+  values:
+    - name: North America
+      where: "country_code IN ('US', 'CA')"
+    - name: Europe
+      where: "country_code IN ('DE', 'FR')"

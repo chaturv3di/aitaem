@@ -1,0 +1,11 @@
+segment:
+  name: customer_value_tier
+  description: Customer segmentation by lifetime value and status
+  source: duckdb://analytics.db/customers
+  values:
+    - name: high_value
+      where: "lifetime_value > 1000 AND customer_status = 'active'"
+    - name: medium_value
+      where: "lifetime_value BETWEEN 100 AND 1000 AND customer_status = 'active'"
+    - name: low_value
+      where: "lifetime_value < 100 OR customer_status != 'active'"

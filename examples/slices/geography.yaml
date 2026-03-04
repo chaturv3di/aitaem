@@ -1,0 +1,12 @@
+slice:
+  name: geography
+  description: Geographic breakdown by major regions
+  values:
+    - name: North America
+      where: "country_code IN ('US', 'CA', 'MX')"
+    - name: Europe
+      where: "country_code IN ('DE', 'FR', 'UK', 'ES', 'IT')"
+    - name: Asia Pacific
+      where: "country_code IN ('CN', 'JP', 'IN', 'AU', 'SG')"
+    - name: Rest of World
+      where: "country_code NOT IN ('US', 'CA', 'MX', 'DE', 'FR', 'UK', 'ES', 'IT', 'CN', 'JP', 'IN', 'AU', 'SG')"
