@@ -12,7 +12,8 @@ The specs module is a **pure parsing/validation layer** — it produces typed ob
 
 **Key constraints**:
 - No Ibis or database dependencies in this module; imports must be minimal
-- `to_ibis_expression()` / `to_ibis_filters()` / `to_ibis_filter()` stubs are defined here but may be implemented in the `query/` module in Phase 2
+- Spec classes are pure data objects: parse, validate, and store fields only
+- Conversion of specs to Ibis expressions/filters is handled entirely by `query/builder.py`
 - All spec fields are validated at construction time; invalid specs raise `SpecValidationError`
 - Specs are immutable after creation (frozen dataclasses or equivalent)
 
@@ -152,9 +153,6 @@ class MetricSpec:
         Called by from_yaml(), which raises SpecValidationError if result.valid is False.
         Can also be called directly to inspect errors without catching exceptions.
         """
-
-    def to_ibis_expression(self, table) -> object:
-        """Stub — implemented by query/builder.py. Raises NotImplementedError."""
 ```
 
 ### 2.3 Implementation Details
@@ -205,9 +203,6 @@ class SliceSpec:
 
     def validate(self) -> ValidationResult:
         """Validate spec fields and return a ValidationResult."""
-
-    def to_ibis_filters(self, table) -> list:
-        """Stub — implemented by query/builder.py. Raises NotImplementedError."""
 ```
 
 ### 3.3 Implementation Details
@@ -246,9 +241,6 @@ class SegmentSpec:
 
     def validate(self) -> ValidationResult:
         """Validate spec fields and return a ValidationResult."""
-
-    def to_ibis_filter(self, table) -> object:
-        """Stub — implemented by query/builder.py. Raises NotImplementedError."""
 ```
 
 ### 4.3 Implementation Details
@@ -678,7 +670,7 @@ No new runtime dependencies required. `pyyaml` is already listed in `pyproject.t
 "pyyaml>=6.0"
 ```
 
-No Ibis, DuckDB, or pandas imports in `aitaem/specs/`. The `to_ibis_*` methods are stubs that raise `NotImplementedError`.
+No Ibis, DuckDB, or pandas imports anywhere in `aitaem/specs/`. Conversion to Ibis expressions is the responsibility of `query/builder.py`.
 
 ---
 
@@ -740,7 +732,6 @@ ruff format aitaem/specs/ aitaem/utils/
 - Subquery support in `SegmentSpec.where`
 - Multi-table metric support (joins) in `MetricSpec`
 - Database-backed spec storage (`SpecCache` reading from a DB rather than files)
-- `to_ibis_expression()` / `to_ibis_filters()` / `to_ibis_filter()` full implementations (currently stubs)
 - Spec versioning and schema evolution
 - Auto-discovery of spec directories (convention over configuration)
 
@@ -748,8 +739,8 @@ ruff format aitaem/specs/ aitaem/utils/
 
 ## Notes
 
-1. The `to_ibis_*` methods on spec classes are intentional stubs. They are listed in the architecture as part of the spec class interface but their actual implementation belongs in `query/builder.py`. Phase 1 defines the stub signatures so that the interface contract is clear.
-2. The specs module has **no database imports**. `import ibis` should not appear anywhere in `aitaem/specs/`.
+1. Spec classes have no Ibis-related methods. Unlike the original architecture doc, `to_ibis_expression()`, `to_ibis_filters()`, and `to_ibis_filter()` are **not** defined on spec classes. All conversion from specs to Ibis expressions is the responsibility of `query/builder.py`, which accepts spec objects as pure data inputs.
+2. The specs module has **no database imports**. `import ibis` must not appear anywhere in `aitaem/specs/`.
 3. The existing `aitaem/utils/exceptions.py` may already have some exceptions from the connectors module. Extend it, do not replace it.
 4. Use `pathlib.Path` consistently (not raw `str`) internally; accept both `str` and `Path` in public APIs.
 5. YAML files in `examples/` directories should be created as part of this plan but do not block testing.
