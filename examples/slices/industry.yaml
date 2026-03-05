@@ -1,0 +1,14 @@
+slice:
+  name: industry
+  description: Breakdown by target industry vertical
+  values:
+    - name: SaaS
+      where: "industry = 'SaaS'"
+    - name: E-commerce
+      where: "industry = 'E-commerce'"
+    - name: EdTech
+      where: "industry = 'EdTech'"
+    - name: Fintech
+      where: "industry = 'Fintech'"
+    - name: Healthcare
+      where: "industry = 'Healthcare'"

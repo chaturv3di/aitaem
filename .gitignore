@@ -205,3 +205,6 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# DuckDB database files (generated from CSV via examples/data/setup_db.py)
+*.duckdb

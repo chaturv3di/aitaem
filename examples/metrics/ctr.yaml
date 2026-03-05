@@ -1,0 +1,7 @@
+metric:
+  name: ctr
+  description: Click-through rate — ratio of clicks to impressions
+  source: duckdb://ad_campaigns.duckdb/ad_campaigns
+  aggregation: ratio
+  numerator: "SUM(clicks)"
+  denominator: "SUM(impressions)"

@@ -1,0 +1,12 @@
+slice:
+  name: campaign_type
+  description: Breakdown by ad campaign type
+  values:
+    - name: Search
+      where: "campaign_type = 'Search'"
+    - name: Display
+      where: "campaign_type = 'Display'"
+    - name: Video
+      where: "campaign_type = 'Video'"
+    - name: Shopping
+      where: "campaign_type = 'Shopping'"
