@@ -1,7 +1,6 @@
-# Minimal configuration for local development
+# Example connections configuration for the ad campaigns dataset.
+# Run `python examples/data/setup_db.py` first to create the DuckDB file.
+# Paths are relative to the project root.
 
 duckdb:
-  path: ":memory:"
-
-bigquery:
-  project_id: my-project
+  path: examples/data/ad_campaigns.duckdb

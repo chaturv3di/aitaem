@@ -1,0 +1,7 @@
+metric:
+  name: cpc
+  description: Cost per click — average ad spend per click
+  source: duckdb://ad_campaigns.duckdb/ad_campaigns
+  aggregation: ratio
+  numerator: "SUM(ad_spend)"
+  denominator: "SUM(clicks)"

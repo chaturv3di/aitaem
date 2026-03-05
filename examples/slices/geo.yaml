@@ -1,0 +1,12 @@
+slice:
+  name: geo
+  description: Geographic breakdown by major regions
+  values:
+    - name: USA
+      where: "country = 'USA'"
+    - name: EU
+      where: "country IN ('UK', 'Germany')"
+    - name: APAC
+      where: "country IN ('India', 'Australia')"
+    - name: ROW
+      where: "country NOT IN ('USA', 'UK', 'Germany', 'India', 'Australia')"

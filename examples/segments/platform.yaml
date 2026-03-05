@@ -1,0 +1,11 @@
+segment:
+  name: platform
+  description: Breakdown by advertising platform
+  source: duckdb://ad_campaigns.duckdb/ad_campaigns
+  values:
+    - name: Google Ads
+      where: "platform = 'Google Ads'"
+    - name: Meta Ads
+      where: "platform = 'Meta Ads'"
+    - name: TikTok Ads
+      where: "platform = 'TikTok Ads'"
