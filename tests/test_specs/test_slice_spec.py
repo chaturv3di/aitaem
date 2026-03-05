@@ -168,3 +168,96 @@ class TestSliceSpecValidate:
     def test_values_tuple_is_immutable(self, valid_slice_yaml):
         spec = SliceSpec.from_yaml(valid_slice_yaml)
         assert isinstance(spec.values, tuple)
+
+
+class TestCompositeSliceSpec:
+    """Tests for composite SliceSpec (cross_product field)."""
+
+    COMPOSITE_YAML = """
+slice:
+  name: geo_x_device
+  description: Cross of geo and device
+  cross_product:
+    - geography
+    - device
+"""
+
+    def test_composite_from_yaml(self):
+        spec = SliceSpec.from_yaml(self.COMPOSITE_YAML)
+        assert spec.name == "geo_x_device"
+        assert spec.is_composite is True
+        assert spec.cross_product == ("geography", "device")
+        assert spec.values == ()
+
+    def test_leaf_spec_is_not_composite(self, valid_slice_yaml):
+        spec = SliceSpec.from_yaml(valid_slice_yaml)
+        assert spec.is_composite is False
+        assert spec.cross_product == ()
+
+    def test_composite_description_stored(self):
+        spec = SliceSpec.from_yaml(self.COMPOSITE_YAML)
+        assert spec.description == "Cross of geo and device"
+
+    def test_composite_validate_returns_valid(self):
+        spec = SliceSpec.from_yaml(self.COMPOSITE_YAML)
+        result = spec.validate()
+        assert result.valid is True
+        assert result.errors == []
+
+    def test_both_values_and_cross_product_raises(self):
+        yaml_str = """
+slice:
+  name: conflict
+  values:
+    - name: USA
+      where: "country = 'USA'"
+  cross_product:
+    - geo
+    - device
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            SliceSpec.from_yaml(yaml_str)
+        assert any("cross_product" in e.message.lower() or "values" in e.message.lower()
+                   for e in exc_info.value.errors)
+
+    def test_cross_product_with_one_item_raises(self):
+        yaml_str = """
+slice:
+  name: bad_composite
+  cross_product:
+    - geo
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            SliceSpec.from_yaml(yaml_str)
+        assert any("cross_product" in e.field for e in exc_info.value.errors)
+
+    def test_cross_product_with_empty_list_raises(self):
+        yaml_str = """
+slice:
+  name: bad_composite
+  cross_product: []
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            SliceSpec.from_yaml(yaml_str)
+        assert any("cross_product" in e.field for e in exc_info.value.errors)
+
+    def test_cross_product_duplicate_entry_raises(self):
+        yaml_str = """
+slice:
+  name: dup_composite
+  cross_product:
+    - geo
+    - geo
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            SliceSpec.from_yaml(yaml_str)
+        assert any("cross_product" in e.field for e in exc_info.value.errors)
+
+    def test_neither_values_nor_cross_product_raises(self):
+        yaml_str = """
+slice:
+  name: no_content
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            SliceSpec.from_yaml(yaml_str)
+        assert any("values" in e.field for e in exc_info.value.errors)

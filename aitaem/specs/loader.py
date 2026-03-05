@@ -11,12 +11,13 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Union
+from typing import ClassVar, Union
 
 from aitaem.specs.metric import MetricSpec
 from aitaem.specs.segment import SegmentSpec
 from aitaem.specs.slice import SliceSpec
 from aitaem.utils.exceptions import SpecNotFoundError, SpecValidationError
+from aitaem.utils.validation import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -89,8 +90,34 @@ class SpecCache:
     Specs are loaded on first access (by name) and cached for the duration
     of the session. Supports metrics, slices, and segments.
 
+    Provides a global singleton via set_global() / get_global(), mirroring
+    the ConnectionManager pattern.
+
     Note: Not thread-safe in Phase 1.
     """
+
+    _global_instance: ClassVar[SpecCache | None] = None
+
+    @classmethod
+    def set_global(cls, cache: SpecCache) -> None:
+        """Set global singleton instance."""
+        cls._global_instance = cache
+
+    @classmethod
+    def get_global(cls) -> SpecCache:
+        """Get global singleton instance.
+
+        Raises:
+            RuntimeError: If set_global() has not been called.
+        """
+        if cls._global_instance is None:
+            raise RuntimeError(
+                "No global SpecCache set. Call SpecCache.set_global() first.\n\n"
+                "Example:\n"
+                "  cache = SpecCache(slice_paths=['examples/slices'])\n"
+                "  SpecCache.set_global(cache)"
+            )
+        return cls._global_instance
 
     def __init__(
         self,
@@ -143,14 +170,54 @@ class SpecCache:
             raise SpecNotFoundError("metric", name, [str(p) for p in self._metric_paths])
         return self._metrics[name]
 
+    def _validate_slice_cross_references(self) -> None:
+        """After loading all slices, validate that composite specs' references resolve.
+
+        Raises:
+            SpecValidationError: if a referenced name is missing or is itself composite.
+        """
+        for spec_name, spec in (self._slices or {}).items():
+            if not spec.is_composite:
+                continue
+            for ref_name in spec.cross_product:
+                if ref_name not in self._slices:
+                    raise SpecValidationError(
+                        "slice",
+                        spec_name,
+                        [
+                            ValidationError(
+                                field="cross_product",
+                                message=f"Referenced slice '{ref_name}' not found in loaded slices",
+                            )
+                        ],
+                    )
+                ref_spec = self._slices[ref_name]
+                if ref_spec.is_composite:
+                    raise SpecValidationError(
+                        "slice",
+                        spec_name,
+                        [
+                            ValidationError(
+                                field="cross_product",
+                                message=f"Nested composite slices not supported (Phase 1): "
+                                f"'{ref_name}' is also composite",
+                            )
+                        ],
+                    )
+
     def get_slice(self, name: str) -> SliceSpec:
         """Return SliceSpec by name. Same lazy-load semantics.
 
+        On first call, loads all slices from configured paths and validates
+        cross-references in composite specs.
+
         Raises:
             SpecNotFoundError: if name not found in any configured path
+            SpecValidationError: if a composite spec references an unknown or composite spec
         """
         if self._slices is None:
             self._slices = self._load_all(self._slice_paths, SliceSpec)  # type: ignore[arg-type]
+            self._validate_slice_cross_references()
         if name not in self._slices:
             raise SpecNotFoundError("slice", name, [str(p) for p in self._slice_paths])
         return self._slices[name]
@@ -166,6 +233,27 @@ class SpecCache:
         if name not in self._segments:
             raise SpecNotFoundError("segment", name, [str(p) for p in self._segment_paths])
         return self._segments[name]
+
+    def add_spec(self, new_spec: MetricSpec | SliceSpec | SegmentSpec) -> None:
+        """Add a spec to the cache if its name is not already present.
+
+        Triggers lazy-load for the relevant spec type if not yet loaded, so
+        manually added specs coexist with path-loaded specs.
+        A spec whose name already exists is silently ignored (first-write-wins).
+        """
+        if isinstance(new_spec, MetricSpec):
+            if self._metrics is None:
+                self._metrics = self._load_all(self._metric_paths, MetricSpec)  # type: ignore[arg-type]
+            self._metrics.setdefault(new_spec.name, new_spec)
+        elif isinstance(new_spec, SliceSpec):
+            if self._slices is None:
+                self._slices = self._load_all(self._slice_paths, SliceSpec)  # type: ignore[arg-type]
+                self._validate_slice_cross_references()
+            self._slices.setdefault(new_spec.name, new_spec)
+        elif isinstance(new_spec, SegmentSpec):
+            if self._segments is None:
+                self._segments = self._load_all(self._segment_paths, SegmentSpec)  # type: ignore[arg-type]
+            self._segments.setdefault(new_spec.name, new_spec)
 
     def clear(self) -> None:
         """Clear all cached specs (forces re-scan on next access)."""

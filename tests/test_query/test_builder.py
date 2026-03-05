@@ -423,6 +423,52 @@ class TestBuildMetricSegmentQuery:
 
 
 # ---------------------------------------------------------------------------
+# 10b. _resolve_slice_components
+# ---------------------------------------------------------------------------
+
+
+class TestResolveSliceComponents:
+    """Tests for QueryBuilder._resolve_slice_components()."""
+
+    def test_none_returns_none(self):
+        result = QueryBuilder._resolve_slice_components(None)
+        assert result is None
+
+    def test_leaf_spec_returns_list_of_one(self):
+        ss = make_slice("geo")
+        result = QueryBuilder._resolve_slice_components(ss)
+        assert result == [ss]
+
+    def test_composite_spec_resolves_from_cache(self):
+        from aitaem.specs.loader import SpecCache
+        from aitaem.specs.slice import SliceValue
+
+        geo = SliceSpec(name="geo", values=(SliceValue(name="USA", where="country='USA'"),))
+        device = SliceSpec(name="device", values=(SliceValue(name="mobile", where="device='mobile'"),))
+        composite = SliceSpec(name="geo_x_device", cross_product=("geo", "device"))
+
+        cache = SpecCache()
+        cache.add_spec(geo)
+        cache.add_spec(device)
+        cache.add_spec(composite)
+        SpecCache.set_global(cache)
+
+        try:
+            result = QueryBuilder._resolve_slice_components(composite)
+            assert result == [geo, device]
+        finally:
+            SpecCache._global_instance = None
+
+    def test_composite_spec_missing_cache_raises(self):
+        from aitaem.specs.loader import SpecCache
+
+        SpecCache._global_instance = None
+        composite = SliceSpec(name="geo_x_device", cross_product=("geo", "device"))
+        with pytest.raises(RuntimeError, match="No global SpecCache"):
+            QueryBuilder._resolve_slice_components(composite)
+
+
+# ---------------------------------------------------------------------------
 # 11. _build_queries_for_metric
 # ---------------------------------------------------------------------------
 
@@ -450,7 +496,8 @@ class TestBuildQueriesForMetric:
         )
         assert len(queries) == 3
 
-    def test_no_segments_returns_one_query(self):
+    def test_no_segments_returns_two_queries(self):
+        # 1 slice spec + no-slice baseline = (1+1) × (0+1) = 2
         metric = make_metric()
         queries = QueryBuilder._build_queries_for_metric(
             metric=metric,
@@ -461,7 +508,7 @@ class TestBuildQueriesForMetric:
             period_start=None,
             period_end=None,
         )
-        assert len(queries) == 1
+        assert len(queries) == 2
 
 
 # ---------------------------------------------------------------------------

@@ -189,7 +189,11 @@ def _validate_values_list(values: list, item_type: str, errors: list[ValidationE
 
 
 def validate_slice_spec(spec_dict: dict) -> ValidationResult:
-    """Validate a slice spec dict. Returns ValidationResult with all errors found."""
+    """Validate a slice spec dict. Returns ValidationResult with all errors found.
+
+    A SliceSpec is either a leaf spec (has 'values') or a composite spec (has
+    'cross_product'). Exactly one must be present.
+    """
     errors: list[ValidationError] = []
 
     name = spec_dict.get("name")
@@ -201,14 +205,60 @@ def validate_slice_spec(spec_dict: dict) -> ValidationResult:
         )
 
     values = spec_dict.get("values")
-    if values is None or not isinstance(values, list) or len(values) == 0:
+    cross_product = spec_dict.get("cross_product")
+
+    if values is not None and cross_product is not None:
         errors.append(
             ValidationError(
-                field="values", message="'values' must contain at least one slice value"
+                field="values",
+                message="SliceSpec must have exactly one of 'values' or 'cross_product', not both",
             )
         )
+    elif values is not None:
+        # Leaf spec: validate values list
+        if not isinstance(values, list) or len(values) == 0:
+            errors.append(
+                ValidationError(
+                    field="values", message="'values' must contain at least one slice value"
+                )
+            )
+        else:
+            _validate_values_list(values, "Slice", errors)
+    elif cross_product is not None:
+        # Composite spec: validate cross_product list
+        if not isinstance(cross_product, list) or len(cross_product) < 2:
+            errors.append(
+                ValidationError(
+                    field="cross_product",
+                    message="'cross_product' must be a list of at least 2 slice spec names",
+                )
+            )
+        else:
+            seen: set[str] = set()
+            for item in cross_product:
+                if not isinstance(item, str) or not item.strip():
+                    errors.append(
+                        ValidationError(
+                            field="cross_product",
+                            message="Each entry in 'cross_product' must be a non-empty string",
+                        )
+                    )
+                elif item in seen:
+                    errors.append(
+                        ValidationError(
+                            field="cross_product",
+                            message=f"Duplicate name in 'cross_product': '{item}'",
+                        )
+                    )
+                else:
+                    seen.add(item)
     else:
-        _validate_values_list(values, "Slice", errors)
+        errors.append(
+            ValidationError(
+                field="values",
+                message="SliceSpec must have exactly one of 'values' or 'cross_product'",
+            )
+        )
 
     return ValidationResult(valid=len(errors) == 0, errors=errors)
 

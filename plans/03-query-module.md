@@ -18,6 +18,9 @@ MetricSpec + SliceSpec + SegmentSpec
     Standard output DataFrame
 ```
 
+NOTE (Breaking change): Each SliceSpec in the input list is now processed independently.
+To get a cross-product of multiple slices, use a composite SliceSpec (cross_product field).
+
 ---
 
 ## Design Decisions
@@ -41,19 +44,27 @@ Builder takes specs + parameters, returns QueryGroup objects with SQL strings. N
 connection required — all work is string manipulation and iteration.
 
 ### CASE WHEN + GROUP BY for slices and segments
-Instead of one SELECT per (slice_value_combo, segment_value), each query covers all slice
-values via CASE WHEN expressions in a CTE, with GROUP BY producing the cross-product
-naturally. Segment values are handled the same way: one CASE WHEN per segment spec.
 
-**Why**: The UNION ALL approach produces O(slice_combos × segment_values × metrics) SELECT
-statements, which is combinatorially explosive and hits SQL length limits in BigQuery and
-similar backends. The CASE WHEN approach produces O(metrics × segment_specs) queries regardless
-of how many values each spec has.
+Each element in `slice_specs` is treated independently — one SQL query is generated per slice per segment combination, plus one no-slice/all baseline. A composite `SliceSpec` (with `cross_product`) produces one query that internally has multiple CASE WHEN columns and GROUP BY on all of them, giving the cross-product within that single spec.
 
-**One SQL query per (metric_group, segment_spec | None)**:
-- All slice specs for a metric are encoded as CASE WHEN columns in a single CTE
-- The outer SELECT GROUP BY's on those labeled columns to produce the cross-product
-- Rows with NULL label (no matching slice condition) are filtered out in the outer WHERE
+**One SQL query per (slice_spec | None) × (segment_spec | None)**:
+- A leaf `SliceSpec` → one CASE WHEN column in the CTE, GROUP BY that column
+- A composite `SliceSpec` → one CASE WHEN column per referenced component spec, GROUP BY all of them → cross-product scoped to this spec
+- `None` slot for slices → `slice_type='none'`, `slice_value='all'` (no-slice baseline)
+- `None` slot for segments → `segment_name='none'`, `segment_value='all'` (no-segment baseline, already existing)
+
+**Query count formula**: `(n_slice_specs + 1) × (n_segment_specs + 1)` per metric.
+- A composite spec counts as 1 in this formula regardless of how many component specs it references.
+
+**(Breaking change from previous design)**: Previously, all slice specs were combined into a single query (cross-product of all). Now each slice spec is independent. Users who want cross-product behavior must define a composite `SliceSpec`.
+
+### Composite SliceSpec resolution via SpecCache
+
+When `_build_queries_for_metric()` encounters a composite `SliceSpec` (where `spec.is_composite` is True), it resolves the component specs by calling `SpecCache.get_global().get_slice(name)` for each name in `spec.cross_product`. The resolved component specs are then passed together to `_build_metric_segment_query()` as its `slice_specs` list — the existing cross-product SQL generation logic handles the rest unchanged.
+
+`SpecCache.get_global()` must be set before calling `QueryBuilder.build_queries()` with composite slice specs. If not set, a `RuntimeError` propagates. This is consistent with `ConnectionManager.get_global()` being required before `QueryExecutor.execute()`.
+
+**Slice `slice_type` for composite specs**: Uses the component specs' names joined with `|` (e.g., `"industry|geo"`), not the composite spec's own name. This is consistent with how multiple leaf slices were previously formatted.
 
 ### Python-side concat instead of UNION ALL over segment specs
 Each segment spec (plus the "no segment" baseline) produces a separate SQL query. The
@@ -100,9 +111,11 @@ When no time_window: `period_type='all_time'`, `period_start_date=None`, `period
 Per-period granularity (daily/weekly/monthly) is Phase 2.
 
 ### "All" sentinel values
-When no slices are requested: `slice_type='none'`, `slice_value='all'` (no CASE WHEN, no GROUP BY for slices).
-When no segments are requested: `segment_name='none'`, `segment_value='all'` (no CASE WHEN, no GROUP BY for segments).
-No automatic "all" baseline rows are added when slices/segments ARE provided.
+
+- No slices requested OR the no-slice baseline row: `slice_type='none'`, `slice_value='all'`
+- No segments requested OR the no-segment baseline row: `segment_name='none'`, `segment_value='all'`
+
+Both the no-slice and no-segment baselines are generated automatically for every metric, regardless of whether slices/segments are provided. This mirrors the segment baseline that was already implemented and extends it symmetrically to slices.
 
 ---
 
@@ -192,9 +205,25 @@ class QueryBuilder:
     ) -> list[str]:
         """
         Build all SQL queries for one metric.
-        Returns one query per segment spec, plus one for the no-segment baseline.
+        Processes each SliceSpec independently (+ a no-slice/all baseline).
+        For each (slice_spec | None) × (segment_spec | None) combination, one SQL query is generated.
 
-        len(result) == len(segment_specs) + 1  (or 1 if no segment_specs)
+        For composite SliceSpecs, resolves component specs via SpecCache.get_global().
+
+        len(result) == (len(slice_specs) + 1) × (len(segment_specs) + 1)
+                       (or 1 if both are None/empty)
+        """
+
+    @staticmethod
+    def _resolve_slice_components(slice_spec: SliceSpec) -> list[SliceSpec]:
+        """
+        For a leaf SliceSpec, return [slice_spec].
+        For a composite SliceSpec, fetch each referenced SliceSpec from SpecCache.get_global()
+        and return the list of component specs.
+
+        Raises:
+            RuntimeError: if composite spec is used and SpecCache.get_global() is not set
+            SpecNotFoundError: if a referenced slice name is not in the cache
         """
 
     @staticmethod
@@ -326,19 +355,35 @@ class QueryBuilder:
 
 ### SQL generation example
 
+**Example with independent slices (new default behavior)**
+
 Given:
 - metric: `revenue` (SUM(amount), from `duckdb://analytics.db/transactions`)
-- slices: `geography=[North America, Europe]`, `device=[mobile, desktop]`
-- segments: `user_tier=[premium, free]`, `login_status=[logged_in, visitor]`
+- slices: `geography=[North America, Europe]` (leaf), `device=[mobile, desktop]` (leaf)
+- segments: `user_tier=[premium, free]`
 - time_window: `('2026-01-01', '2026-02-01')`, timestamp_col: `event_ts`
 
-**Number of SQL queries generated**: 1 metric × (2 segment specs + 1 no-segment) = **3 queries**
+**Number of SQL queries generated**: 1 metric × (2 slice specs + 1 no-slice) × (1 segment spec + 1 no-segment) = **6 queries**
 
-Old approach would have generated: 4 slice combos × 4 segment values × 1 metric = **16 SELECT statements**.
+| Query | Slice | Segment |
+|---|---|---|
+| 1 | geography | user_tier |
+| 2 | geography | none/all |
+| 3 | device | user_tier |
+| 4 | device | none/all |
+| 5 | none/all | user_tier |
+| 6 | none/all | none/all |
+
+**Example with composite slice**
+
+If instead `geography` and `device` are combined into a composite slice `geo_device` (`cross_product: [geography, device]`):
+- slices: `geo_device` (composite, references geography + device)
+
+**Number of SQL queries generated**: 1 metric × (1 slice spec + 1 no-slice) × (1 segment spec + 1 no-segment) = **4 queries**
 
 ---
 
-**Query 1 of 3**: metric=revenue, segment=user_tier
+**Query 1 of 4: slice=geo_device, segment=user_tier**
 ```sql
 WITH _labeled AS (
     SELECT
@@ -378,65 +423,9 @@ WHERE _slice_geography IS NOT NULL
 GROUP BY _slice_geography, _slice_device, _segment
 ```
 
-This one query produces rows for all 4 slice × 2 segment combinations that have data:
-`North America|mobile/premium`, `North America|desktop/premium`, `Europe|mobile/free`, etc.
-
 ---
 
-**Query 2 of 3**: metric=revenue, segment=login_status
-```sql
-WITH _labeled AS (
-    SELECT
-        *,
-        CASE ... END AS _slice_geography,
-        CASE ... END AS _slice_device,
-        CASE
-            WHEN is_logged_in = TRUE THEN 'logged_in'
-            WHEN is_logged_in = FALSE THEN 'visitor'
-            ELSE NULL
-        END AS _segment
-    FROM transactions
-    WHERE event_ts >= '2026-01-01' AND event_ts < '2026-02-01'
-)
-SELECT
-    ...
-    'login_status' AS segment_name,
-    _segment       AS segment_value,
-    SUM(amount)    AS metric_value
-FROM _labeled
-WHERE _slice_geography IS NOT NULL AND _slice_device IS NOT NULL AND _segment IS NOT NULL
-GROUP BY _slice_geography, _slice_device, _segment
-```
-
----
-
-**Query 3 of 3**: metric=revenue, no segment
-```sql
-WITH _labeled AS (
-    SELECT
-        *,
-        CASE ... END AS _slice_geography,
-        CASE ... END AS _slice_device
-        -- no segment CASE WHEN
-    FROM transactions
-    WHERE event_ts >= '2026-01-01' AND event_ts < '2026-02-01'
-)
-SELECT
-    ...
-    'geography|device'                       AS slice_type,
-    _slice_geography || '|' || _slice_device AS slice_value,
-    'none'                                   AS segment_name,
-    'all'                                    AS segment_value,
-    SUM(amount)                              AS metric_value
-FROM _labeled
-WHERE _slice_geography IS NOT NULL AND _slice_device IS NOT NULL
-GROUP BY _slice_geography, _slice_device
--- no _segment in GROUP BY
-```
-
----
-
-**No-slice, no-segment case** (for reference):
+**Query 4 of 4 (or any baseline): no slice, no segment**
 ```sql
 WITH _labeled AS (
     SELECT *
@@ -590,14 +579,20 @@ Each sub-feature is independently testable. Implement and test in this order:
 - Returns one query per segment spec + one no-segment query
 - **Test**: 2 segment specs → list of 3 SQL strings; 0 segment specs → list of 1 SQL string
 
+### 11b. `_resolve_slice_components()`
+- For leaf spec: return `[spec]`
+- For composite spec: call `SpecCache.get_global().get_slice(name)` for each name; return list
+- **Test**: leaf spec → list of 1; composite spec with mocked SpecCache → list of component specs; missing name raises SpecNotFoundError
+
 ### 12. `QueryBuilder.build_queries()` (integration)
-- Group by source; call `_build_queries_for_metric()` for each metric in each group
-- Collect all queries into QueryGroup.sql_queries
+- Group by source; for each metric, call `_build_queries_for_metric()`
+- Total sql_queries count per group = num_metrics_in_group × (num_slice_specs + 1) × (num_segment_specs + 1)
 - Validate time_window + timestamp_col consistency
 - **Test**:
-  - Correct number of QueryGroups (one per unique source)
-  - Total sql_queries count per group = num_metrics_in_group × (num_segment_specs + 1)
-  - `QueryBuildError` raised when time_window is provided without timestamp_col
+  - 0 slices, 0 segments → 1 query per metric
+  - 2 slices, 1 segment → (2+1)×(1+1)=6 queries per metric
+  - 1 composite slice (2 components), 1 segment → (1+1)×(1+1)=4 queries per metric
+  - `QueryBuildError` raised when time_window provided without timestamp_col
 
 ### 13. `QueryExecutor._execute_query_group()`
 - Fetch connector; execute each SQL via `connector.connection.sql()`; pd.concat
@@ -622,12 +617,13 @@ Use DuckDB in-memory for integration testing:
 # Rows cover: US/mobile/premium, US/desktop/free, EU/mobile/premium, EU/desktop/free
 ```
 
-End-to-end assertions:
-1. Correct number of rows: 4 slice combos (NA|mobile, NA|desktop, EU|mobile, EU|desktop)
-   × (2 segment specs + 1 no-segment) = 12 rows per metric
+End-to-end assertions (1 metric, 2 leaf slices=[geo, device], 1 segment=[user_tier]):
+1. **Query count**: (2 slices + 1 no-slice) × (1 segment + 1 no-segment) = 6 queries → 6 result batches before concat
 2. `metric_value` is non-null and numerically correct
-3. `slice_type = 'geography|device'` throughout; `slice_value` uses `|` separator
-4. All standard output columns present with correct dtypes
+3. `slice_type` values: `'geography'`, `'device'`, `'none'`
+4. `slice_value='all'` on all no-slice rows; `'|'`-separated values for composite slices
+5. `segment_value='all'` on all no-segment rows
+6. All standard output columns present with correct dtypes
 
 ---
 

@@ -110,7 +110,7 @@ class TestExecute:
         assert df["metric_value"].notna().all()
 
     def test_full_integration_with_slices_and_segment(self, ad_campaigns_connection_manager):
-        """Integration: 1 metric × 1 slice × 1 segment + baseline = 2 queries."""
+        """Integration: 1 metric × 1 slice (+ no-slice) × 1 segment (+ no-segment) = 4 queries."""
         ConnectionManager.set_global(ad_campaigns_connection_manager)
 
         metric = MetricSpec(
@@ -144,14 +144,18 @@ class TestExecute:
             slice_specs=[campaign_type_slice],
             segment_specs=[platform_segment],
         )
+        # (1 slice + 1 no-slice) × (1 segment + 1 no-segment) = 4 queries
+        assert len(groups[0].sql_queries) == 4
 
         executor = QueryExecutor()
         df = executor.execute(groups)
 
         assert EXPECTED_OUTPUT_COLUMNS.issubset(set(df.columns))
         assert df["metric_value"].notna().all()
-        # slice_type should be 'campaign_type' throughout
-        assert (df["slice_type"] == "campaign_type").all()
+        # slice_type is either 'campaign_type' (slice rows) or 'none' (baseline rows)
+        slice_types = set(df["slice_type"].unique())
+        assert "campaign_type" in slice_types
+        assert "none" in slice_types
         # segment results should have both 'platform' and 'none' segment_name values
         segment_names = set(df["segment_name"].unique())
         assert "platform" in segment_names
@@ -272,12 +276,12 @@ class TestEndToEndIntegration:
         self, ad_campaigns_connection_manager
     ):
         """
-        1 metric (ctr) × 1 slice (geo) × 1 slice (campaign_type)
-        × 1 segment (platform) + no-segment baseline = 2 queries.
+        1 metric (ctr) × 2 independent slices (geo, campaign_type) × 1 segment (platform).
+
+        New independent slicing: (2 slices + 1 no-slice) × (1 segment + 1 no-segment) = 6 queries.
 
         Assertions:
-        - slice_type = 'geo|campaign_type' throughout
-        - slice_value uses '|' separator
+        - slice_type contains 'geo', 'campaign_type', and 'none'
         - segment rows have platform values OR 'none'
         - metric_value non-null
         - all standard output columns present
@@ -327,9 +331,9 @@ class TestEndToEndIntegration:
             slice_specs=[geo_slice, campaign_type_slice],
             segment_specs=[platform_segment],
         )
-        # 1 metric × (1 segment spec + 1 no-segment) = 2 queries in 1 group
+        # 1 metric × (2 slices + 1 no-slice) × (1 segment + 1 no-segment) = 6 queries in 1 group
         assert len(groups) == 1
-        assert len(groups[0].sql_queries) == 2
+        assert len(groups[0].sql_queries) == 6
 
         executor = QueryExecutor()
         df = executor.execute(groups)
@@ -337,11 +341,11 @@ class TestEndToEndIntegration:
         assert EXPECTED_OUTPUT_COLUMNS.issubset(set(df.columns))
         assert df["metric_value"].notna().all()
 
-        # slice_type must always be 'geo|campaign_type'
-        assert (df["slice_type"] == "geo|campaign_type").all()
-
-        # slice_value should always contain '|'
-        assert df["slice_value"].str.contains("|", regex=False).all()
+        # slice_type is one of 'geo', 'campaign_type', or 'none' (independent slicing)
+        slice_types = set(df["slice_type"].unique())
+        assert "geo" in slice_types
+        assert "campaign_type" in slice_types
+        assert "none" in slice_types
 
         # segment rows
         segment_names = set(df["segment_name"].unique())

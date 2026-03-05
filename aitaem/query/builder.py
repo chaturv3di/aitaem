@@ -54,6 +54,7 @@ class QueryBuilder:
         # Build time filter SQL once
         time_filter_sql: str | None = None
         if time_window is not None:
+            assert timestamp_col is not None
             time_filter_sql = QueryBuilder._build_time_filter_sql(time_window, timestamp_col)
 
         # Period metadata
@@ -102,20 +103,29 @@ class QueryBuilder:
     ) -> list[str]:
         """Build all SQL queries for one metric.
 
-        Returns one query per segment spec, plus one for the no-segment baseline.
-        len(result) == len(segment_specs) + 1  (or 1 if no segment_specs)
+        Each SliceSpec is processed independently (+ a no-slice/all baseline).
+        For each (slice_spec | None) × (segment_spec | None) combination, one SQL
+        query is generated. Composite SliceSpecs are resolved via SpecCache.get_global().
+
+        len(result) == (len(slice_specs) + 1) × (len(segment_specs) + 1)
         """
         table_name = QueryBuilder._parse_table_name_from_uri(metric.source)
         queries: list[str] = []
 
-        # One query per segment spec
-        if segment_specs:
-            for seg_spec in segment_specs:
+        all_slice_specs: list[SliceSpec | None] = list(slice_specs) if slice_specs else []
+        all_slice_specs.append(None)  # no-slice baseline
+
+        all_segment_specs: list[SegmentSpec | None] = list(segment_specs) if segment_specs else []
+        all_segment_specs.append(None)  # no-segment baseline
+
+        for slice_spec in all_slice_specs:
+            resolved_slices = QueryBuilder._resolve_slice_components(slice_spec)
+            for seg_spec in all_segment_specs:
                 queries.append(
                     QueryBuilder._build_metric_segment_query(
                         metric=metric,
                         table_name=table_name,
-                        slice_specs=slice_specs,
+                        slice_specs=resolved_slices,
                         segment_spec=seg_spec,
                         time_filter_sql=time_filter_sql,
                         period_type=period_type,
@@ -124,21 +134,28 @@ class QueryBuilder:
                     )
                 )
 
-        # No-segment baseline query
-        queries.append(
-            QueryBuilder._build_metric_segment_query(
-                metric=metric,
-                table_name=table_name,
-                slice_specs=slice_specs,
-                segment_spec=None,
-                time_filter_sql=time_filter_sql,
-                period_type=period_type,
-                period_start=period_start,
-                period_end=period_end,
-            )
-        )
-
         return queries
+
+    @staticmethod
+    def _resolve_slice_components(slice_spec: SliceSpec | None) -> list[SliceSpec] | None:
+        """Return component specs for a SliceSpec.
+
+        - None → None (no-slice baseline)
+        - Leaf spec → [slice_spec]
+        - Composite spec → fetch each referenced SliceSpec from SpecCache.get_global()
+
+        Raises:
+            RuntimeError: if composite spec used and SpecCache.get_global() not set
+            SpecNotFoundError: if a referenced name is not in the cache
+        """
+        if slice_spec is None:
+            return None
+        if not slice_spec.is_composite:
+            return [slice_spec]
+        from aitaem.specs.loader import SpecCache
+
+        cache = SpecCache.get_global()
+        return [cache.get_slice(name) for name in slice_spec.cross_product]
 
     @staticmethod
     def _build_metric_segment_query(
