@@ -4,7 +4,6 @@ import pytest
 
 from aitaem.specs.segment import SegmentSpec, SegmentValue
 from aitaem.utils.exceptions import SpecValidationError
-from tests.test_specs.conftest import FIXTURES_DIR
 
 
 class TestSegmentSpecFromYamlString:
@@ -145,7 +144,6 @@ source: duckdb://db/tbl
             SegmentSpec.from_yaml("segment:\n  name: [unclosed")
 
     def test_nonexistent_path_object_raises_file_not_found(self, tmp_path):
-        from pathlib import Path
 
         with pytest.raises(FileNotFoundError):
             SegmentSpec.from_yaml(tmp_path / "nonexistent.yaml")

@@ -5,7 +5,6 @@ Test coverage for YAML loading, environment variable substitution, URI parsing,
 connection management, and global singleton pattern.
 """
 
-
 import pytest
 
 from aitaem.connectors import ConnectionManager, IbisConnector
@@ -364,41 +363,6 @@ class TestConnectionRouting:
 
         with pytest.raises(ConnectionNotFoundError):
             manager.get_connection_for_source("bigquery://project.dataset.table")
-
-
-class TestGlobalSingleton:
-    """Test global singleton pattern."""
-
-    def test_set_global(self):
-        """Test setting global ConnectionManager instance."""
-        manager = ConnectionManager()
-        ConnectionManager.set_global(manager)
-
-        global_manager = ConnectionManager.get_global()
-        assert global_manager is manager
-
-    def test_get_global_before_set(self):
-        """Test that getting global before set raises RuntimeError."""
-        # Reset global instance
-        ConnectionManager._global_instance = None
-
-        with pytest.raises(RuntimeError) as exc_info:
-            ConnectionManager.get_global()
-
-        assert "No global ConnectionManager set" in str(exc_info.value)
-
-    def test_global_singleton_persistence(self):
-        """Test that global singleton persists across get_global() calls."""
-        manager = ConnectionManager()
-        manager.add_connection("duckdb", path=":memory:")
-
-        ConnectionManager.set_global(manager)
-
-        global1 = ConnectionManager.get_global()
-        global2 = ConnectionManager.get_global()
-
-        assert global1 is global2
-        assert "duckdb" in global1._connections
 
 
 class TestIntegration:

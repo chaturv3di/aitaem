@@ -2,16 +2,14 @@
 aitaem.specs.loader - Spec loading and caching utilities
 
 Provides functions to load specs from files, strings, or directories,
-and a SpecCache for lazy, session-scoped caching.
-
-Note: SpecCache is not thread-safe in Phase 1.
+and a SpecCache for eagerly-loaded, session-scoped caching.
 """
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import ClassVar, Union
+from typing import Union
 
 from aitaem.specs.metric import MetricSpec
 from aitaem.specs.segment import SegmentSpec
@@ -85,98 +83,162 @@ def load_specs_from_directory(
 
 
 class SpecCache:
-    """Lazy, session-scoped cache for specs loaded from configured directories.
+    """Eagerly-loaded cache for metric, slice, and segment specs.
 
-    Specs are loaded on first access (by name) and cached for the duration
-    of the session. Supports metrics, slices, and segments.
-
-    Provides a global singleton via set_global() / get_global(), mirroring
-    the ConnectionManager pattern.
-
-    Note: Not thread-safe in Phase 1.
+    Use from_yaml() or from_string() as the primary entry points.
+    The constructor creates an empty cache; specs can be added via add().
     """
 
-    _global_instance: ClassVar[SpecCache | None] = None
+    def __init__(self) -> None:
+        """Empty cache. Use from_yaml() or from_string() to load specs."""
+        self._metrics: dict[str, MetricSpec] = {}
+        self._slices: dict[str, SliceSpec] = {}
+        self._segments: dict[str, SegmentSpec] = {}
 
     @classmethod
-    def set_global(cls, cache: SpecCache) -> None:
-        """Set global singleton instance."""
-        cls._global_instance = cache
+    def from_yaml(
+        cls,
+        metric_paths: str | list[str] | None = None,
+        slice_paths: str | list[str] | None = None,
+        segment_paths: str | list[str] | None = None,
+    ) -> "SpecCache":
+        """Load and validate all specs from YAML files or directories.
 
-    @classmethod
-    def get_global(cls) -> SpecCache:
-        """Get global singleton instance.
+        Loading is eager — all specs are loaded and validated before returning.
 
         Raises:
-            RuntimeError: If set_global() has not been called.
+            FileNotFoundError: if a path does not exist
+            SpecValidationError: if any spec is invalid
         """
-        if cls._global_instance is None:
-            raise RuntimeError(
-                "No global SpecCache set. Call SpecCache.set_global() first.\n\n"
-                "Example:\n"
-                "  cache = SpecCache(slice_paths=['examples/slices'])\n"
-                "  SpecCache.set_global(cache)"
-            )
-        return cls._global_instance
+        cache = cls()
+        cache._metrics = cls._load_paths_strict(metric_paths, MetricSpec)  # type: ignore[arg-type]
+        cache._slices = cls._load_paths_strict(slice_paths, SliceSpec)  # type: ignore[arg-type]
+        cache._segments = cls._load_paths_strict(segment_paths, SegmentSpec)  # type: ignore[arg-type]
+        cache._validate_slice_cross_references()
+        return cache
 
-    def __init__(
-        self,
-        metric_paths: list[str | Path] | None = None,
-        slice_paths: list[str | Path] | None = None,
-        segment_paths: list[str | Path] | None = None,
-    ) -> None:
-        """Initialize with paths to search. Loading is deferred until first access."""
-        self._metric_paths: list[Path] = [Path(p) for p in (metric_paths or [])]
-        self._slice_paths: list[Path] = [Path(p) for p in (slice_paths or [])]
-        self._segment_paths: list[Path] = [Path(p) for p in (segment_paths or [])]
+    @classmethod
+    def from_string(
+        cls,
+        metric_yaml: str | list[str] | None = None,
+        slice_yaml: str | list[str] | None = None,
+        segment_yaml: str | list[str] | None = None,
+    ) -> "SpecCache":
+        """Load specs from YAML strings. Validates eagerly.
 
-        self._metrics: dict[str, MetricSpec] | None = None
-        self._slices: dict[str, SliceSpec] | None = None
-        self._segments: dict[str, SegmentSpec] | None = None
+        Each argument can be a single YAML string or a list of YAML strings.
 
-    def _load_all(self, paths: list[Path], spec_type: SpecType) -> dict[str, AnySpec]:
-        """Load all specs from the configured paths."""
-        result: dict[str, AnySpec] = {}
-        for path in paths:
-            if path.is_dir():
-                loaded = load_specs_from_directory(path, spec_type)
-                for name, spec in loaded.items():
-                    if name in result:
-                        logger.warning(
-                            "Duplicate spec name '%s' found across paths. Overwriting.", name
-                        )
-                    result[name] = spec
-            elif path.suffix in (".yaml", ".yml"):
-                try:
-                    spec = load_spec_from_file(path, spec_type)
-                    if spec.name in result:
-                        logger.warning(
-                            "Duplicate spec name '%s' found across paths. Overwriting.", spec.name
-                        )
-                    result[spec.name] = spec
-                except (FileNotFoundError, SpecValidationError, Exception) as e:
-                    logger.warning("Skipping '%s': %s", path, e)
-        return result
+        Raises:
+            SpecValidationError: if any spec is invalid
+        """
+        cache = cls()
+        for yaml_str in cls._normalize_strings(metric_yaml):
+            spec = load_spec_from_string(yaml_str, MetricSpec)
+            cache._metrics.setdefault(spec.name, spec)
+        for yaml_str in cls._normalize_strings(slice_yaml):
+            spec = load_spec_from_string(yaml_str, SliceSpec)
+            cache._slices.setdefault(spec.name, spec)
+        for yaml_str in cls._normalize_strings(segment_yaml):
+            spec = load_spec_from_string(yaml_str, SegmentSpec)
+            cache._segments.setdefault(spec.name, spec)
+        cache._validate_slice_cross_references()
+        return cache
+
+    def add(self, spec: MetricSpec | SliceSpec | SegmentSpec) -> None:
+        """Add a spec programmatically. First-write-wins for duplicate names."""
+        if isinstance(spec, MetricSpec):
+            self._metrics.setdefault(spec.name, spec)
+        elif isinstance(spec, SliceSpec):
+            self._slices.setdefault(spec.name, spec)
+        elif isinstance(spec, SegmentSpec):
+            self._segments.setdefault(spec.name, spec)
 
     def get_metric(self, name: str) -> MetricSpec:
-        """Return MetricSpec for the given name. Loads and caches on first call.
+        """Return MetricSpec for the given name.
 
         Raises:
-            SpecNotFoundError: if name not found in any configured path
+            SpecNotFoundError: if name not found
         """
-        if self._metrics is None:
-            self._metrics = self._load_all(self._metric_paths, MetricSpec)  # type: ignore[arg-type]
         if name not in self._metrics:
-            raise SpecNotFoundError("metric", name, [str(p) for p in self._metric_paths])
+            raise SpecNotFoundError("metric", name, [])
         return self._metrics[name]
 
+    def get_slice(self, name: str) -> SliceSpec:
+        """Return SliceSpec for the given name.
+
+        Raises:
+            SpecNotFoundError: if name not found
+        """
+        if name not in self._slices:
+            raise SpecNotFoundError("slice", name, [])
+        return self._slices[name]
+
+    def get_segment(self, name: str) -> SegmentSpec:
+        """Return SegmentSpec for the given name.
+
+        Raises:
+            SpecNotFoundError: if name not found
+        """
+        if name not in self._segments:
+            raise SpecNotFoundError("segment", name, [])
+        return self._segments[name]
+
+    def clear(self) -> None:
+        """Clear all cached specs."""
+        self._metrics = {}
+        self._slices = {}
+        self._segments = {}
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _normalize_paths(paths: str | list[str] | None) -> list[Path]:
+        if paths is None:
+            return []
+        if isinstance(paths, (str, Path)):
+            return [Path(paths)]
+        return [Path(p) for p in paths]
+
+    @staticmethod
+    def _normalize_strings(strings: str | list[str] | None) -> list[str]:
+        if strings is None:
+            return []
+        if isinstance(strings, str):
+            return [strings]
+        return list(strings)
+
+    @classmethod
+    def _load_paths_strict(
+        cls, paths: str | list[str] | None, spec_type: SpecType
+    ) -> dict[str, AnySpec]:
+        """Load specs from paths/directories, raising on any error."""
+        result: dict[str, AnySpec] = {}
+        for path in cls._normalize_paths(paths):
+            if not path.exists():
+                raise FileNotFoundError(f"Spec path not found: {path}")
+            if path.is_dir():
+                yaml_files = sorted(list(path.glob("*.yaml")) + list(path.glob("*.yml")))
+                for yaml_file in yaml_files:
+                    spec = spec_type.from_yaml(yaml_file)
+                    if spec.name in result:
+                        logger.warning("Duplicate spec name '%s'. Overwriting.", spec.name)
+                    result[spec.name] = spec
+            else:
+                spec = spec_type.from_yaml(path)
+                if spec.name in result:
+                    logger.warning("Duplicate spec name '%s'. Overwriting.", spec.name)
+                result[spec.name] = spec
+        return result
+
     def _validate_slice_cross_references(self) -> None:
-        """After loading all slices, validate that composite specs' references resolve.
+        """Validate that composite specs' cross-product references resolve.
 
         Raises:
             SpecValidationError: if a referenced name is missing or is itself composite.
         """
-        for spec_name, spec in (self._slices or {}).items():
+        for spec_name, spec in self._slices.items():
             if not spec.is_composite:
                 continue
             for ref_name in spec.cross_product:
@@ -204,59 +266,3 @@ class SpecCache:
                             )
                         ],
                     )
-
-    def get_slice(self, name: str) -> SliceSpec:
-        """Return SliceSpec by name. Same lazy-load semantics.
-
-        On first call, loads all slices from configured paths and validates
-        cross-references in composite specs.
-
-        Raises:
-            SpecNotFoundError: if name not found in any configured path
-            SpecValidationError: if a composite spec references an unknown or composite spec
-        """
-        if self._slices is None:
-            self._slices = self._load_all(self._slice_paths, SliceSpec)  # type: ignore[arg-type]
-            self._validate_slice_cross_references()
-        if name not in self._slices:
-            raise SpecNotFoundError("slice", name, [str(p) for p in self._slice_paths])
-        return self._slices[name]
-
-    def get_segment(self, name: str) -> SegmentSpec:
-        """Return SegmentSpec by name. Same lazy-load semantics.
-
-        Raises:
-            SpecNotFoundError: if name not found in any configured path
-        """
-        if self._segments is None:
-            self._segments = self._load_all(self._segment_paths, SegmentSpec)  # type: ignore[arg-type]
-        if name not in self._segments:
-            raise SpecNotFoundError("segment", name, [str(p) for p in self._segment_paths])
-        return self._segments[name]
-
-    def add_spec(self, new_spec: MetricSpec | SliceSpec | SegmentSpec) -> None:
-        """Add a spec to the cache if its name is not already present.
-
-        Triggers lazy-load for the relevant spec type if not yet loaded, so
-        manually added specs coexist with path-loaded specs.
-        A spec whose name already exists is silently ignored (first-write-wins).
-        """
-        if isinstance(new_spec, MetricSpec):
-            if self._metrics is None:
-                self._metrics = self._load_all(self._metric_paths, MetricSpec)  # type: ignore[arg-type]
-            self._metrics.setdefault(new_spec.name, new_spec)
-        elif isinstance(new_spec, SliceSpec):
-            if self._slices is None:
-                self._slices = self._load_all(self._slice_paths, SliceSpec)  # type: ignore[arg-type]
-                self._validate_slice_cross_references()
-            self._slices.setdefault(new_spec.name, new_spec)
-        elif isinstance(new_spec, SegmentSpec):
-            if self._segments is None:
-                self._segments = self._load_all(self._segment_paths, SegmentSpec)  # type: ignore[arg-type]
-            self._segments.setdefault(new_spec.name, new_spec)
-
-    def clear(self) -> None:
-        """Clear all cached specs (forces re-scan on next access)."""
-        self._metrics = None
-        self._slices = None
-        self._segments = None

@@ -4,7 +4,6 @@ import pytest
 
 from aitaem.specs.slice import SliceSpec, SliceValue
 from aitaem.utils.exceptions import SpecValidationError
-from tests.test_specs.conftest import FIXTURES_DIR
 
 
 class TestSliceSpecFromYamlString:
@@ -120,7 +119,6 @@ slice:
             SliceSpec.from_yaml("slice:\n  name: [unclosed")
 
     def test_nonexistent_path_object_raises_file_not_found(self, tmp_path):
-        from pathlib import Path
 
         with pytest.raises(FileNotFoundError):
             SliceSpec.from_yaml(tmp_path / "nonexistent.yaml")
@@ -217,8 +215,10 @@ slice:
 """
         with pytest.raises(SpecValidationError) as exc_info:
             SliceSpec.from_yaml(yaml_str)
-        assert any("cross_product" in e.message.lower() or "values" in e.message.lower()
-                   for e in exc_info.value.errors)
+        assert any(
+            "cross_product" in e.message.lower() or "values" in e.message.lower()
+            for e in exc_info.value.errors
+        )
 
     def test_cross_product_with_one_item_raises(self):
         yaml_str = """

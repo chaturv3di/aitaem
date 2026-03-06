@@ -431,12 +431,12 @@ class TestResolveSliceComponents:
     """Tests for QueryBuilder._resolve_slice_components()."""
 
     def test_none_returns_none(self):
-        result = QueryBuilder._resolve_slice_components(None)
+        result = QueryBuilder._resolve_slice_components(None, None)
         assert result is None
 
     def test_leaf_spec_returns_list_of_one(self):
         ss = make_slice("geo")
-        result = QueryBuilder._resolve_slice_components(ss)
+        result = QueryBuilder._resolve_slice_components(ss, None)
         assert result == [ss]
 
     def test_composite_spec_resolves_from_cache(self):
@@ -444,28 +444,23 @@ class TestResolveSliceComponents:
         from aitaem.specs.slice import SliceValue
 
         geo = SliceSpec(name="geo", values=(SliceValue(name="USA", where="country='USA'"),))
-        device = SliceSpec(name="device", values=(SliceValue(name="mobile", where="device='mobile'"),))
+        device = SliceSpec(
+            name="device", values=(SliceValue(name="mobile", where="device='mobile'"),)
+        )
         composite = SliceSpec(name="geo_x_device", cross_product=("geo", "device"))
 
         cache = SpecCache()
-        cache.add_spec(geo)
-        cache.add_spec(device)
-        cache.add_spec(composite)
-        SpecCache.set_global(cache)
+        cache.add(geo)
+        cache.add(device)
+        cache.add(composite)
 
-        try:
-            result = QueryBuilder._resolve_slice_components(composite)
-            assert result == [geo, device]
-        finally:
-            SpecCache._global_instance = None
+        result = QueryBuilder._resolve_slice_components(composite, cache)
+        assert result == [geo, device]
 
     def test_composite_spec_missing_cache_raises(self):
-        from aitaem.specs.loader import SpecCache
-
-        SpecCache._global_instance = None
         composite = SliceSpec(name="geo_x_device", cross_product=("geo", "device"))
-        with pytest.raises(RuntimeError, match="No global SpecCache"):
-            QueryBuilder._resolve_slice_components(composite)
+        with pytest.raises(QueryBuildError, match="requires a SpecCache"):
+            QueryBuilder._resolve_slice_components(composite, None)
 
 
 # ---------------------------------------------------------------------------
@@ -576,3 +571,15 @@ class TestBuildQueriesIntegration:
         )
         assert len(groups) == 1
         assert "event_ts >= '2026-01-01'" in groups[0].sql_queries[0]
+
+    def test_build_queries_composite_slice_without_cache_raises(self):
+        """QueryBuildError raised with clear message when composite slice used without cache."""
+        composite = SliceSpec(name="geo_device", cross_product=("geo", "device"))
+        metric = make_metric()
+        with pytest.raises(QueryBuildError, match="requires a SpecCache"):
+            QueryBuilder.build_queries(
+                [metric],
+                slice_specs=[composite],
+                segment_specs=None,
+                spec_cache=None,
+            )

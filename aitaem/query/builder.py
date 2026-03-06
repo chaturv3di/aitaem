@@ -35,15 +35,20 @@ class QueryBuilder:
         segment_specs: list[SegmentSpec] | None,
         time_window: tuple[str, str] | None = None,
         timestamp_col: str | None = None,
+        spec_cache: "SpecCache | None" = None,  # type: ignore[name-defined]  # noqa: F821
     ) -> list[QueryGroup]:
         """Build optimized query groups (one per unique source table).
 
         Each QueryGroup contains all SQL queries for that source:
         one per (metric × (each segment_spec + the no-segment baseline)).
 
+        Args:
+            spec_cache: Required only when composite slices are present.
+
         Raises:
             QueryBuildError: if metric_specs is empty
             QueryBuildError: if time_window provided but timestamp_col is None
+            QueryBuildError: if a composite slice is used but spec_cache is None
         """
         if not metric_specs:
             raise QueryBuildError("metric_specs must not be empty")
@@ -77,6 +82,7 @@ class QueryBuilder:
                         period_type=period_type,
                         period_start=period_start,
                         period_end=period_end,
+                        spec_cache=spec_cache,
                     )
                 )
             query_groups.append(QueryGroup(source=source, metrics=metrics, sql_queries=sql_queries))
@@ -100,12 +106,13 @@ class QueryBuilder:
         period_type: str,
         period_start: str | None,
         period_end: str | None,
+        spec_cache: "SpecCache | None" = None,  # type: ignore[name-defined]  # noqa: F821
     ) -> list[str]:
         """Build all SQL queries for one metric.
 
         Each SliceSpec is processed independently (+ a no-slice/all baseline).
         For each (slice_spec | None) × (segment_spec | None) combination, one SQL
-        query is generated. Composite SliceSpecs are resolved via SpecCache.get_global().
+        query is generated. Composite SliceSpecs are resolved via spec_cache.
 
         len(result) == (len(slice_specs) + 1) × (len(segment_specs) + 1)
         """
@@ -119,7 +126,7 @@ class QueryBuilder:
         all_segment_specs.append(None)  # no-segment baseline
 
         for slice_spec in all_slice_specs:
-            resolved_slices = QueryBuilder._resolve_slice_components(slice_spec)
+            resolved_slices = QueryBuilder._resolve_slice_components(slice_spec, spec_cache)
             for seg_spec in all_segment_specs:
                 queries.append(
                     QueryBuilder._build_metric_segment_query(
@@ -137,25 +144,31 @@ class QueryBuilder:
         return queries
 
     @staticmethod
-    def _resolve_slice_components(slice_spec: SliceSpec | None) -> list[SliceSpec] | None:
+    def _resolve_slice_components(
+        slice_spec: SliceSpec | None,
+        spec_cache: "SpecCache | None",  # type: ignore[name-defined]  # noqa: F821
+    ) -> list[SliceSpec] | None:
         """Return component specs for a SliceSpec.
 
         - None → None (no-slice baseline)
         - Leaf spec → [slice_spec]
-        - Composite spec → fetch each referenced SliceSpec from SpecCache.get_global()
+        - Composite spec → fetch each referenced SliceSpec from spec_cache
 
         Raises:
-            RuntimeError: if composite spec used and SpecCache.get_global() not set
+            QueryBuildError: if composite spec used and spec_cache is None
             SpecNotFoundError: if a referenced name is not in the cache
         """
         if slice_spec is None:
             return None
         if not slice_spec.is_composite:
             return [slice_spec]
-        from aitaem.specs.loader import SpecCache
-
-        cache = SpecCache.get_global()
-        return [cache.get_slice(name) for name in slice_spec.cross_product]
+        if spec_cache is None:
+            raise QueryBuildError(
+                f"Composite slice '{slice_spec.name}' requires a SpecCache to resolve its "
+                f"components {list(slice_spec.cross_product)}, but no spec_cache was provided "
+                f"to build_queries()."
+            )
+        return [spec_cache.get_slice(name) for name in slice_spec.cross_product]
 
     @staticmethod
     def _build_metric_segment_query(
