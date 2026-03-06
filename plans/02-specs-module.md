@@ -106,7 +106,7 @@ If `sqlglot` raises a parse error, a `ValidationError` is recorded for that fiel
 | Spec | Required Fields | Optional Fields | Field Constraints |
 |------|----------------|-----------------|-------------------|
 | Metric | `name`, `source`, `aggregation`, `numerator` | `description`, `denominator` | `aggregation` in `{sum, avg, count, ratio, min, max}`; `denominator` required when `aggregation == 'ratio'`; `source` must match `scheme://...` URI format |
-| Slice | `name`, `values` | `description` | `values` must be non-empty list; each value must have `name` and `where` |
+| Slice | `name` | `description`, `values`, `cross_product` | Exactly one of `values` or `cross_product` must be present; `values` must be non-empty list when present; each value must have `name` and `where`; `cross_product` must be a list of at least 2 unique non-empty strings |
 | Segment | `name`, `source`, `values` | `description` | `source` must match `scheme://...` URI format; `values` must be non-empty list; each value must have `name` and `where` |
 
 ---
@@ -202,6 +202,16 @@ slice:
       where: "country_code NOT IN ('US', 'CA', 'MX', 'DE', 'FR', 'UK', 'ES', 'IT')"
 ```
 
+```yaml
+# Composite slice — cross-product of two referenced leaf slices
+slice:
+  name: industry_geo
+  description: Cross-product of industry and geo breakdowns
+  cross_product: [industry, geo]
+```
+
+> **Note**: Exactly one of `values` or `cross_product` must be present. A composite slice references other leaf SliceSpecs by name. Referenced specs must be available in the SpecCache at query-build time.
+
 ### 3.2 Class Definition
 
 ```python
@@ -213,12 +223,20 @@ class SliceValue:
 @dataclass(frozen=True)
 class SliceSpec:
     name: str
-    values: tuple[SliceValue, ...]   # Tuple for immutability (frozen dataclass)
+    values: tuple[SliceValue, ...] = ()       # Leaf spec — direct WHERE-based values
+    cross_product: tuple[str, ...] = ()       # Composite spec — names of other SliceSpecs
     description: str = ""
+
+    @property
+    def is_composite(self) -> bool:
+        """True if this spec references other SliceSpecs via cross_product."""
+        return bool(self.cross_product)
 
     @classmethod
     def from_yaml(cls, yaml_input: str | Path) -> 'SliceSpec':
-        """Load and validate a SliceSpec. Expects top-level key 'slice:'."""
+        """Load and validate a SliceSpec. Expects top-level key 'slice:'.
+        Accepts either values (leaf) or cross_product (composite), not both.
+        """
 
     def validate(self) -> ValidationResult:
         """Validate spec fields and return a ValidationResult."""
@@ -227,7 +245,11 @@ class SliceSpec:
 ### 3.3 Implementation Details
 
 - Parse YAML, extract `slice:` top-level key.
-- `values` list must be non-empty; each item must have `name` and `where`.
+- Exactly one of `values` or `cross_product` must be present; having both or neither is a `SpecValidationError`.
+- `values` list must be non-empty when `cross_product` is absent; each item must have `name` and `where`.
+- `cross_product` must be a list of at least 2 unique, non-empty strings (spec names). A single-name cross_product is rejected: just use a leaf spec.
+- When `cross_product` is present, `values` is stored as an empty tuple. `from_yaml()` skips `SliceValue` construction.
+- Reference resolution (looking up the named specs) is NOT performed in `from_yaml()`. Resolution happens at query-build time via `SpecCache.get_global()`.
 - Convert `values` list to `tuple[SliceValue, ...]` for frozen dataclass compatibility.
 - `SliceValue.where` is SQL syntax-validated by wrapping in `SELECT 1 WHERE {expr}` and parsing with `sqlglot`. A parse failure adds a `ValidationError` for `values[N].where`.
 - Duplicate `name` values in `values` list: raise `SpecValidationError` with clear message.
@@ -363,6 +385,33 @@ class SpecCache:
 
     def clear(self) -> None:
         """Clear all cached specs (useful for testing)."""
+
+    # --- Singleton / global instance ---
+
+    _global_instance: ClassVar['SpecCache | None'] = None
+
+    @classmethod
+    def set_global(cls, cache: 'SpecCache') -> None:
+        """Set global singleton instance (mirrors ConnectionManager.set_global)."""
+
+    @classmethod
+    def get_global(cls) -> 'SpecCache':
+        """Get global singleton instance.
+
+        Raises:
+            RuntimeError: If set_global() has not been called.
+        """
+
+    # --- Manual spec registration ---
+
+    def add_spec(self, new_spec: MetricSpec | SliceSpec | SegmentSpec) -> None:
+        """Add a spec to the cache if its name is not already present.
+
+        Triggers lazy-load of the relevant spec type if not yet loaded,
+        so manually added specs coexist with path-loaded specs.
+        A spec whose name already exists in the cache is silently ignored
+        (first-write-wins, consistent with explicit registration intent).
+        """
 ```
 
 ### 5.3 Implementation Details
@@ -378,6 +427,22 @@ class SpecCache:
 **Cache invalidation**: None in Phase 1. Cache lives for the lifetime of the `SpecCache` instance.
 
 **Thread safety**: Not required in Phase 1. Note in docstring.
+
+**`add_spec()` implementation:**
+1. Determine the spec type (MetricSpec, SliceSpec, SegmentSpec) via `isinstance`.
+2. Trigger lazy-load for that spec type if its internal cache dict is still `None` (call `_load_all()` to populate it first, so path-loaded specs are present).
+3. Call `setdefault(new_spec.name, new_spec)` — if the name already exists, the existing spec is kept (silent no-op).
+
+**Cross-reference validation (composite SliceSpecs):**
+After all slices are loaded in `_load_all()` for the SliceSpec type, call `_validate_slice_cross_references()`:
+- For each composite SliceSpec in `_slices`, verify every name in `cross_product` maps to a key in `_slices`.
+- If any name is missing, raise `SpecValidationError('slice', composite_spec_name, [ValidationError(field='cross_product', message="Referenced slice '{name}' not found")])`.
+- Composite specs referencing other composite specs (nesting) are NOT supported in Phase 1; raise a `SpecValidationError` if a referenced spec is itself composite.
+
+**`set_global()` / `get_global()` implementation:**
+Mirror `ConnectionManager` exactly:
+- `set_global(cache)`: `cls._global_instance = cache`
+- `get_global()`: if `_global_instance is None`, raise `RuntimeError("No global SpecCache set. Call SpecCache.set_global() first.")`. Otherwise return `cls._global_instance`.
 
 ---
 
@@ -448,6 +513,13 @@ __all__ = [
 | A slice value missing `name` | FAIL | `SpecValidationError`: "Slice value at index N is missing required field 'name'" |
 | A slice value missing `where` | FAIL | `SpecValidationError`: "Slice value 'X' is missing required field 'where'" |
 | Duplicate `name` values in `values` list | FAIL | `SpecValidationError`: "Duplicate slice value name: 'X'" |
+| Both `values` and `cross_product` present | FAIL | `SpecValidationError`: "SliceSpec must have exactly one of 'values' or 'cross_product', not both" |
+| Neither `values` nor `cross_product` present | FAIL | `SpecValidationError`: "SliceSpec must have exactly one of 'values' or 'cross_product'" |
+| `cross_product` with only 1 name | FAIL | `SpecValidationError`: "'cross_product' must reference at least 2 slice specs" |
+| `cross_product` with duplicate names | FAIL | `SpecValidationError`: "Duplicate name in 'cross_product'" |
+| `cross_product` references unknown spec name (at SpecCache load time) | FAIL | `SpecValidationError`: "Referenced slice 'X' not found" |
+| `cross_product` references another composite spec | FAIL | `SpecValidationError`: "Nested composite slices not supported (Phase 1)" |
+| Valid composite with 2 names | SUCCESS | `SliceSpec(name=..., cross_product=('industry', 'geo'), values=())` |
 
 ### 7.5 SegmentSpec Edge Cases
 
@@ -527,6 +599,12 @@ tests/test_specs/
 - ✗ A value missing `where` → `SpecValidationError`
 - ✗ Duplicate slice value names → `SpecValidationError`
 - ✗ Missing top-level `slice:` key → `SpecValidationError`
+- ✓ Load composite slice with `cross_product: [industry, geo]` → `is_composite == True`, `cross_product == ('industry', 'geo')`, `values == ()`
+- ✓ Composite spec YAML string parses correctly without error
+- ✗ Both `values` and `cross_product` present → `SpecValidationError`
+- ✗ Neither `values` nor `cross_product` present → `SpecValidationError`
+- ✗ `cross_product` with only 1 element → `SpecValidationError`
+- ✗ `cross_product` with duplicate names → `SpecValidationError`
 
 **SegmentSpec (`test_segment_spec.py`)**:
 - ✓ Load valid segment with 3 values → `values` is tuple of `SegmentValue`
@@ -556,6 +634,12 @@ tests/test_specs/
 - ✓ `SpecCache` accepts single file path as `metric_paths`
 - ✓ `SpecCache` accepts directory as `metric_paths`
 - ✓ `SpecCache.clear()` causes re-load on next access
+- ✓ `SpecCache.set_global(cache)` → `SpecCache.get_global()` returns same instance
+- ✗ `SpecCache.get_global()` without `set_global()` → `RuntimeError`
+- ✓ `add_spec(SliceSpec.from_yaml(...))` adds spec to cache; second call with same name is silent no-op
+- ✓ `add_spec` triggers lazy-load before inserting (path-loaded specs coexist)
+- ✗ SpecCache with composite slice referencing unknown name → `SpecValidationError` at first `get_slice()` call
+- ✗ SpecCache with composite referencing another composite → `SpecValidationError`
 
 ### 8.3 Test Fixtures (`conftest.py`)
 
@@ -722,6 +806,18 @@ Implement in this order (each step is testable before moving to the next):
 - [ ] `SpecNotFoundError.searched_paths` contains all paths that were searched
 - [ ] `SpecCache.clear()` forces re-scan on next access
 
+### SliceSpec Composite Support
+- [ ] `SliceSpec.is_composite` returns `True` when `cross_product` is non-empty
+- [ ] Leaf SliceSpec: `values` non-empty, `cross_product` empty tuple
+- [ ] Composite SliceSpec: `cross_product` non-empty, `values` empty tuple
+- [ ] `from_yaml()` handles both leaf and composite correctly
+- [ ] Mutual exclusivity of `values` and `cross_product` enforced
+
+### SpecCache Singleton and Manual Registration
+- [ ] `SpecCache.set_global()` / `get_global()` work correctly
+- [ ] `SpecCache.add_spec()` coexists with path-loaded specs
+- [ ] Cross-reference validation fires at first `get_slice()` call
+
 ### Imports
 - [ ] `from aitaem.specs import MetricSpec, SliceSpec, SegmentSpec` works (depth-2 import)
 - [ ] `from aitaem.specs import SpecCache` works
@@ -824,6 +920,8 @@ ruff format aitaem/specs/ aitaem/utils/
 - Database-backed spec storage (`SpecCache` reading from a DB rather than files)
 - Spec versioning and schema evolution
 - Auto-discovery of spec directories (convention over configuration)
+- Nested composite SliceSpecs (composites referencing other composites)
+- Inline sub-spec values in composite YAML (alternative to name references)
 
 ---
 

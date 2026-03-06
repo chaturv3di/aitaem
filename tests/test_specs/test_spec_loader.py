@@ -175,7 +175,7 @@ class TestSpecCache:
         f = tmp_path / "metric.yaml"
         f.write_text(VALID_METRIC_RATIO_YAML)
         cache = SpecCache(metric_paths=[tmp_path])
-        spec1 = cache.get_metric("homepage_ctr")
+        cache.get_metric("homepage_ctr")
         cache.clear()
         # Overwrite with a new spec
         f2 = tmp_path / "metric2.yaml"
@@ -194,3 +194,157 @@ class TestSpecCache:
         cache = SpecCache(metric_paths=[tmp_path])
         cache.get_metric("homepage_ctr")
         assert cache._metrics is not None
+
+
+class TestSpecCacheSingleton:
+    """Tests for SpecCache.set_global() / get_global() singleton pattern."""
+
+    def setup_method(self):
+        # Reset global before each test to avoid state leakage
+        SpecCache._global_instance = None
+
+    def teardown_method(self):
+        # Reset after each test as well
+        SpecCache._global_instance = None
+
+    def test_get_global_raises_before_set(self):
+        with pytest.raises(RuntimeError, match="No global SpecCache set"):
+            SpecCache.get_global()
+
+    def test_set_and_get_global_returns_same_instance(self, tmp_path):
+        cache = SpecCache(metric_paths=[tmp_path])
+        SpecCache.set_global(cache)
+        assert SpecCache.get_global() is cache
+
+    def test_set_global_overrides_previous(self, tmp_path):
+        cache1 = SpecCache()
+        cache2 = SpecCache()
+        SpecCache.set_global(cache1)
+        SpecCache.set_global(cache2)
+        assert SpecCache.get_global() is cache2
+
+
+class TestSpecCacheAddSpec:
+    """Tests for SpecCache.add_spec()."""
+
+    def test_add_metric_spec(self):
+        cache = SpecCache()
+        metric = MetricSpec(
+            name="my_metric",
+            source="duckdb://db/table",
+            aggregation="sum",
+            numerator="SUM(x)",
+        )
+        cache.add_spec(metric)
+        result = cache.get_metric("my_metric")
+        assert result is metric
+
+    def test_add_slice_spec(self):
+        cache = SpecCache()
+        spec = SliceSpec(
+            name="my_slice",
+            values=({"name": "a", "where": "x = 1"},),  # type: ignore
+        )
+        from aitaem.specs.slice import SliceValue
+        spec = SliceSpec(name="my_slice", values=(SliceValue(name="a", where="x = 1"),))
+        cache.add_spec(spec)
+        result = cache.get_slice("my_slice")
+        assert result is spec
+
+    def test_add_segment_spec(self):
+        from aitaem.specs.segment import SegmentSpec as SS, SegmentValue as SV
+
+        cache = SpecCache()
+        seg = SS(name="my_seg", source="duckdb://db/table", values=(SV(name="a", where="x=1"),))
+        cache.add_spec(seg)
+        result = cache.get_segment("my_seg")
+        assert result is seg
+
+    def test_add_spec_first_write_wins(self):
+        from aitaem.specs.slice import SliceValue
+        cache = SpecCache()
+        spec1 = SliceSpec(name="geo", values=(SliceValue(name="USA", where="country='USA'"),))
+        spec2 = SliceSpec(name="geo", values=(SliceValue(name="EU", where="country='EU'"),))
+        cache.add_spec(spec1)
+        cache.add_spec(spec2)  # should be silently ignored
+        result = cache.get_slice("geo")
+        assert result is spec1
+
+    def test_add_spec_coexists_with_path_loaded_specs(self, tmp_path):
+        (tmp_path / "metric.yaml").write_text(VALID_METRIC_RATIO_YAML)
+        cache = SpecCache(metric_paths=[tmp_path])
+        manual = MetricSpec(
+            name="manual_metric",
+            source="duckdb://db/table",
+            aggregation="sum",
+            numerator="SUM(x)",
+        )
+        cache.add_spec(manual)
+        # Both path-loaded and manually-added should be accessible
+        assert cache.get_metric("homepage_ctr").name == "homepage_ctr"
+        assert cache.get_metric("manual_metric") is manual
+
+
+class TestSpecCacheCompositeSliceValidation:
+    """Tests for cross-reference validation in composite SliceSpecs."""
+
+    LEAF_GEO_YAML = """
+slice:
+  name: geo
+  values:
+    - name: USA
+      where: "country = 'USA'"
+"""
+    LEAF_DEVICE_YAML = """
+slice:
+  name: device
+  values:
+    - name: mobile
+      where: "device_type = 'mobile'"
+"""
+    COMPOSITE_YAML = """
+slice:
+  name: geo_x_device
+  cross_product:
+    - geo
+    - device
+"""
+
+    def test_get_slice_validates_composite_cross_references(self, tmp_path):
+        (tmp_path / "geo.yaml").write_text(self.LEAF_GEO_YAML)
+        (tmp_path / "device.yaml").write_text(self.LEAF_DEVICE_YAML)
+        (tmp_path / "composite.yaml").write_text(self.COMPOSITE_YAML)
+        cache = SpecCache(slice_paths=[tmp_path])
+        # Should load and validate without error
+        composite = cache.get_slice("geo_x_device")
+        assert composite.is_composite
+        assert composite.cross_product == ("geo", "device")
+
+    def test_missing_referenced_slice_raises(self, tmp_path):
+        from aitaem.utils.exceptions import SpecValidationError
+        # Composite references 'device' which doesn't exist
+        (tmp_path / "geo.yaml").write_text(self.LEAF_GEO_YAML)
+        (tmp_path / "composite.yaml").write_text(self.COMPOSITE_YAML)
+        cache = SpecCache(slice_paths=[tmp_path])
+        with pytest.raises(SpecValidationError) as exc_info:
+            cache.get_slice("geo_x_device")
+        assert any("device" in e.message for e in exc_info.value.errors)
+
+    def test_nested_composite_raises(self, tmp_path):
+        from aitaem.utils.exceptions import SpecValidationError
+        nested_yaml = """
+slice:
+  name: nested
+  cross_product:
+    - geo
+    - geo_x_device
+"""
+        (tmp_path / "geo.yaml").write_text(self.LEAF_GEO_YAML)
+        (tmp_path / "device.yaml").write_text(self.LEAF_DEVICE_YAML)
+        (tmp_path / "composite.yaml").write_text(self.COMPOSITE_YAML)
+        (tmp_path / "nested.yaml").write_text(nested_yaml)
+        cache = SpecCache(slice_paths=[tmp_path])
+        with pytest.raises(SpecValidationError) as exc_info:
+            cache.get_slice("nested")
+        assert any("composite" in e.message.lower() or "nested" in e.message.lower()
+                   for e in exc_info.value.errors)

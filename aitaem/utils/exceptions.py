@@ -77,6 +77,12 @@ class UnsupportedBackendError(AitaemError):
     pass
 
 
+class QueryBuildError(AitaemError):
+    """Raised when query construction fails due to invalid or incompatible specs."""
+
+    pass
+
+
 class QueryExecutionError(AitaemError):
     """Raised when query execution fails.
 

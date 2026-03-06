@@ -27,8 +27,14 @@ class SliceValue:
 @dataclass(frozen=True)
 class SliceSpec:
     name: str
-    values: tuple[SliceValue, ...]
+    values: tuple[SliceValue, ...] = ()       # Leaf spec — direct WHERE-based values
+    cross_product: tuple[str, ...] = ()       # Composite spec — names of other SliceSpecs
     description: str = ""
+
+    @property
+    def is_composite(self) -> bool:
+        """True if this spec references other SliceSpecs via cross_product."""
+        return bool(self.cross_product)
 
     @classmethod
     def from_yaml(cls, yaml_input: str | Path) -> "SliceSpec":
@@ -95,23 +101,32 @@ class SliceSpec:
         if not result.valid:
             raise SpecValidationError("slice", name, result.errors)
 
-        values = tuple(SliceValue(name=v["name"], where=v["where"]) for v in spec_dict["values"])
+        raw_cross_product = spec_dict.get("cross_product")
+        if raw_cross_product is not None:
+            # Composite spec
+            cross_product = tuple(raw_cross_product)
+            values = ()
+        else:
+            # Leaf spec
+            values = tuple(SliceValue(name=v["name"], where=v["where"]) for v in spec_dict["values"])
+            cross_product = ()
 
-        unknown_fields = set(spec_dict.keys()) - {"name", "values", "description"}
+        unknown_fields = set(spec_dict.keys()) - {"name", "values", "cross_product", "description"}
         if unknown_fields:
             logger.debug("SliceSpec '%s': ignoring unknown fields: %s", name, unknown_fields)
 
         return cls(
             name=spec_dict["name"],
             values=values,
+            cross_product=cross_product,
             description=spec_dict.get("description", ""),
         )
 
     def validate(self) -> ValidationResult:
         """Validate spec fields and return a ValidationResult (does not raise)."""
-        spec_dict = {
-            "name": self.name,
-            "values": [{"name": v.name, "where": v.where} for v in self.values],
-            "description": self.description,
-        }
+        spec_dict: dict = {"name": self.name, "description": self.description}
+        if self.is_composite:
+            spec_dict["cross_product"] = list(self.cross_product)
+        else:
+            spec_dict["values"] = [{"name": v.name, "where": v.where} for v in self.values]
         return validate_slice_spec(spec_dict)
