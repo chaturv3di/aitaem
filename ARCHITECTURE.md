@@ -60,8 +60,8 @@ All `compute()` calls return a single DataFrame in this standardized long format
 | `period_start_date` | date/str | Start of period | '2026-02-01' |
 | `period_end_date` | date/str | End of period | '2026-02-08' |
 | `metric_name` | str | Name of the metric | 'click_rate', 'revenue', etc. |
-| `slice_type` | str | Dimension(s) sliced (pipe-delimited) | 'geo', 'geo\|device', 'none' |
-| `slice_value` | str | Value(s) of slice (pipe-delimited) | 'US', 'US\|mobile', 'all' |
+| `slice_type` | str | Slice name; pipe-delimited for composite slices | 'geo', 'geo\|device', 'none' |
+| `slice_value` | str | Slice value; pipe-delimited for composite slices | 'US', 'US\|mobile', 'all' |
 | `segment_name` | str | Segment applied | 'user_tier', 'login_status' |
 | `segment_value` | str | Segment applied | 'premium_users', 'all_users', 'logged_in', 'visitors', etc. |
 | `metric_value` | float | Computed metric value | 0.045, 12500.0, etc. |
@@ -72,7 +72,13 @@ All `compute()` calls return a single DataFrame in this standardized long format
 - **Combining analyses**: Stack results from multiple queries
 - **Narrow & deep**: Scalable format for large result sets
 
-**Example Row**:
+**Example Rows** (independent slices — one row per slice per metric):
+```python
+['weekly', '2026-02-01', '2026-02-08', 'click_rate', 'geo',    'US',     'user_tier', 'premium_users', 0.045]
+['weekly', '2026-02-01', '2026-02-08', 'click_rate', 'device', 'mobile', 'user_tier', 'premium_users', 0.038]
+```
+
+**Example Row** (composite slice — `cross_product: [geo, device]` defined in YAML):
 ```python
 ['weekly', '2026-02-01', '2026-02-08', 'click_rate', 'geo|device', 'US|mobile', 'user_tier', 'premium_users', 0.045]
 ```
@@ -112,11 +118,11 @@ aitaem/
 
 ```python
 # Depth 1 - Primary interface
-from aitaem import compute, set_connections
+from aitaem import MetricCompute, SpecCache, ConnectionManager
 
 # Depth 2 - Specific functionality
 from aitaem.insights import MetricCompute
-from aitaem.specs import MetricSpec, SliceSpec, SegmentSpec
+from aitaem.specs import SpecCache, MetricSpec, SliceSpec, SegmentSpec
 from aitaem.connectors import IbisConnector, ConnectionManager
 ```
 
@@ -133,24 +139,14 @@ from aitaem.connectors import IbisConnector, ConnectionManager
 #### `MetricCompute`
 ```python
 class MetricCompute:
-    def __init__(self, metric_paths=None, slice_paths=None, segment_paths=None):
+    def __init__(self, spec_cache: SpecCache, connection_manager: ConnectionManager):
         """
-        Initialize with paths for lazy loading.
-        Uses global ConnectionManager set via set_connections().
+        Initialize with a SpecCache and ConnectionManager.
 
         Args:
-            metric_paths: str or list[str] - paths to metric YAML files/directories
-            slice_paths: str or list[str] - paths to slice YAML files/directories
-            segment_paths: str or list[str] - paths to segment YAML files/directories
+            spec_cache: SpecCache - loaded and validated metric, slice, and segment specs
+            connection_manager: ConnectionManager - backend connections for query execution
         """
-
-    @classmethod
-    def from_yaml(cls, metric_paths, slice_paths=None, segment_paths=None):
-        """Create instance from YAML file paths."""
-
-    @classmethod
-    def from_string(cls, metric_yaml, slice_yaml=None, segment_yaml=None):
-        """Create instance from YAML strings."""
 
     def compute(self, metrics, slices=None, segments=None,
                 time_window=None, filters=None, output_format='pandas'):
@@ -170,41 +166,30 @@ class MetricCompute:
         """
 ```
 
-**Top-level convenience functions**:
-```python
-def compute(metrics, slices=None, segments=None, **kwargs):
-    """One-shot computation from spec names (requires prior setup)."""
-
-def set_connections(connections_yaml_path):
-    """
-    Load backend connections from YAML file.
-    Sets global ConnectionManager instance.
-
-    Args:
-        connections_yaml_path: Path to connections.yaml file
-    """
-```
-
 **Design Decisions**:
+- **Explicit dependencies**: Takes `SpecCache` and `ConnectionManager` directly — no global state, no path management
 - **Single `compute()` method**: Accepts both single string and list of metric names
-- **Lazy spec loading**: Specs loaded on-demand, cached for session
 - **Standard output**: Always returns single DataFrame in standardized format
 - **No metadata in output**: Keep DataFrame simple (metadata support in Phase 2)
 
 **Usage Example**:
 ```python
-from aitaem import set_connections
+from aitaem.specs import SpecCache
+from aitaem.connectors import ConnectionManager
 from aitaem.insights import MetricCompute
 
-# Load backend connections from YAML
-set_connections('config/connections.yaml')
-
-# Load specs (lazy - files read during compute)
-mc = MetricCompute.from_yaml(
+# Step 1: Load and validate specs (fail fast on invalid YAML)
+cache = SpecCache.from_yaml(
     metric_paths='metrics/',
     slice_paths='slices/',
     segment_paths='segments/'
 )
+
+# Step 2: Set up backend connections
+conn_mgr = ConnectionManager.from_yaml('config/connections.yaml')
+
+# Step 3: Compute metrics
+mc = MetricCompute(cache, conn_mgr)
 
 # Compute single metric
 df = mc.compute('revenue', slices='country')
@@ -212,16 +197,18 @@ df = mc.compute('revenue', slices='country')
 # Compute multiple metrics (same slicing)
 df = mc.compute(
     metrics=['revenue', 'orders', 'conversion_rate'],
-    slices=['country', 'device'],  # Cross-product: country|device
+    slices=['country', 'device'],  # Each slice computed independently
     segments='premium_users',
     time_window=('2026-01-01', '2026-02-01'),
     output_format='pandas'
 )
 
-# Result is single DataFrame:
+# Result is single DataFrame (one block of rows per slice):
 #   period_type | period_start_date | period_end_date | metric_name | slice_type | slice_value | segment_name | metric_value
-#   all_time    | 2026-01-01        | 2026-02-01      | revenue     | country|device | US|mobile | premium_users | 125000.50
-#   all_time    | 2026-01-01        | 2026-02-01      | revenue     | country|device | US|desktop | premium_users | 87500.25
+#   all_time    | 2026-01-01        | 2026-02-01      | revenue     | country    | US          | premium_users | 125000.50
+#   all_time    | 2026-01-01        | 2026-02-01      | revenue     | country    | EU          | premium_users |  87500.25
+#   all_time    | 2026-01-01        | 2026-02-01      | revenue     | device     | mobile      | premium_users |  63000.00
+#   all_time    | 2026-01-01        | 2026-02-01      | revenue     | device     | desktop     | premium_users |  45000.00
 #   ...
 ```
 
@@ -287,19 +274,13 @@ class ConnectionManager:
             → Extracts 'bigquery' → Returns bigquery connection
         """
 
-    @classmethod
-    def get_global(cls) -> 'ConnectionManager':
-        """
-        Get global ConnectionManager instance.
-        Set via set_connections() function.
-        """
 ```
 
 **Design Decisions**:
 - **YAML-based configuration**: Separates infrastructure config from logic
 - **One connection per backend**: Fully qualified table names handle multi-table scenarios
 - **Environment variable substitution**: Secure credential management (${VAR_NAME})
-- **Global singleton**: Set once via set_connections(), accessible throughout session
+- **Explicit, injected**: Passed directly to `MetricCompute` — no global state
 - **Explicit connection setup**: Fail fast with clear errors if connections missing
 
 **Usage Example**:
@@ -315,9 +296,6 @@ conn_mgr.add_connection('duckdb', path='analytics.db')
 conn_mgr.add_connection('bigquery',
                        project_id='my-project',
                        credentials_path='~/.config/gcloud/credentials.json')
-
-# Access global instance (set via set_connections)
-conn_mgr = ConnectionManager.get_global()
 ```
 
 ---
@@ -481,18 +459,45 @@ def load_specs_from_directory(directory: str, spec_type: type) -> dict[str, Spec
 
 class SpecCache:
     """
-    Cache for loaded specs.
-    Lazy loading: specs loaded on first access, cached for session.
+    First-class cache of loaded and validated specs.
+    Primary entry point for defining metrics, slices, and segments.
+    Specs are validated eagerly at load time (fail fast).
     """
-    def get_metric(self, name: str) -> MetricSpec
-    def get_slice(self, name: str) -> SliceSpec
-    def get_segment(self, name: str) -> SegmentSpec
+
+    @classmethod
+    def from_yaml(cls, metric_paths=None, slice_paths=None, segment_paths=None) -> 'SpecCache':
+        """
+        Load and validate all specs from YAML files or directories.
+
+        Args:
+            metric_paths: str or list[str] - paths to metric YAML files/directories
+            slice_paths: str or list[str] - paths to slice YAML files/directories
+            segment_paths: str or list[str] - paths to segment YAML files/directories
+        """
+
+    @classmethod
+    def from_string(cls, metric_yaml=None, slice_yaml=None, segment_yaml=None) -> 'SpecCache':
+        """Load specs from YAML strings."""
+
+    def add(self, spec: MetricSpec | SliceSpec | SegmentSpec) -> None:
+        """Add a spec programmatically."""
+
+    def get_metric(self, name: str) -> MetricSpec:
+        """Retrieve metric spec by name. Raises SpecNotFoundError if not found."""
+
+    def get_slice(self, name: str) -> SliceSpec:
+        """Retrieve slice spec by name. Raises SpecNotFoundError if not found."""
+
+    def get_segment(self, name: str) -> SegmentSpec:
+        """Retrieve segment spec by name. Raises SpecNotFoundError if not found."""
 ```
 
 **Design Decisions**:
-- **Lazy loading**: Specs loaded on first access during `compute()`
+- **First-class public type**: Primary interface for defining and inspecting specs, not an internal detail
+- **Eager validation**: Specs validated at load time so errors surface before any query is built
 - **Caching**: Loaded specs cached for session to avoid re-parsing
 - **Clear errors**: `SpecNotFoundError` if spec not found in configured paths
+- **Programmatic add**: `add()` supports building a cache without YAML files
 - **Phase 2 DB support**: Future extension to load specs from database
 
 ---
@@ -578,8 +583,10 @@ class QueryBuilder:
         slice_specs: list[SliceSpec]
     ) -> ibis.Expr:
         """
-        Build slice cross-product (e.g., country x device).
-        Returns expression with slice_type and slice_value columns.
+        Build slice expression for a single SliceSpec.
+        For a leaf SliceSpec, returns rows for each named value.
+        For a composite SliceSpec (cross_product), returns the cross-product of its component slices,
+        with pipe-delimited slice_type and slice_value columns.
         """
 
     @staticmethod
@@ -603,7 +610,7 @@ class QueryBuilder:
 - **Grouping by source**: Metrics from same source table combined into single query
 - **Clear separation**: QueryBuilder builds expressions, QueryExecutor executes them
 - **Standard output generation**: Builder adds standard columns (period_type, metric_name, etc.)
-- **Cross-product slicing**: Multiple slices create hierarchical combinations
+- **Independent slicing**: Multiple slices passed to `compute()` are each computed independently, producing separate result rows per slice; cross-product is achieved by defining a composite `SliceSpec` with `cross_product` in YAML
 
 #### 4.2 `query/executor.py` - QueryExecutor
 
@@ -614,8 +621,13 @@ class QueryBuilder:
 class QueryExecutor:
     """
     Executes Ibis queries and formats results in standard output format.
-    Uses global ConnectionManager for backend connections.
     """
+
+    def __init__(self, connection_manager: ConnectionManager):
+        """
+        Args:
+            connection_manager: ConnectionManager - backend connections for query execution
+        """
 
     def execute(
         self,
@@ -625,7 +637,6 @@ class QueryExecutor:
         """
         Execute query groups (in parallel if multiple sources).
         Combine results into single DataFrame in standard format.
-        Uses global ConnectionManager set via set_connections().
 
         Args:
             query_groups: List of QueryGroups from QueryBuilder.build_queries()
@@ -651,8 +662,7 @@ class QueryExecutor:
 
         Example:
             try:
-                conn_mgr = ConnectionManager.get_global()
-                connector = conn_mgr.get_connection_for_source(query_group.source)
+                connector = self.connection_manager.get_connection_for_source(query_group.source)
                 result_df = connector.execute(query_group.query_expr, output_format)
                 return result_df
             except ConnectionNotFoundError as e:
@@ -668,7 +678,7 @@ class QueryExecutor:
 ```
 
 **Design Decisions**:
-- **Global ConnectionManager**: Accesses connections via ConnectionManager.get_global()
+- **Injected ConnectionManager**: Receives `ConnectionManager` via constructor — no global state
 - **Partial computation**: Gracefully handles missing connections, returns partial results
 - **Warning logs**: Failed metrics logged with clear warnings (Phase 1)
 - **Lazy execution**: Queries built but not executed until `execute()` called
@@ -991,28 +1001,19 @@ clickhouse:
 
 **Usage with ConnectionManager**:
 ```python
-from aitaem import set_connections
+from aitaem.specs import SpecCache
+from aitaem.connectors import ConnectionManager
 from aitaem.insights import MetricCompute
 
-# Load connections from YAML (one-time setup)
-set_connections('connections.yaml')
+# Step 1: Load and validate specs
+cache = SpecCache.from_yaml(metric_paths='metrics/')
 
-# Initialize MetricCompute
-mc = MetricCompute.from_yaml(metric_paths='metrics/')
+# Step 2: Set up backend connections
+conn_mgr = ConnectionManager.from_yaml('connections.yaml')
 
-# Compute metrics across multiple backends (uses global connections)
+# Step 3: Compute metrics across multiple backends
+mc = MetricCompute(cache, conn_mgr)
 df = mc.compute(['duckdb_metric', 'bigquery_metric', 'clickhouse_metric'])
-```
-
-**Advanced: Direct ConnectionManager Access**:
-```python
-from aitaem.connectors import ConnectionManager
-
-# For advanced use cases, access global ConnectionManager directly
-conn_mgr = ConnectionManager.get_global()
-
-# Or create/use custom ConnectionManager instance (not typical)
-custom_conn_mgr = ConnectionManager.from_yaml('connections.yaml')
 ```
 
 **Connection-to-Metric Mapping**:
@@ -1026,35 +1027,35 @@ custom_conn_mgr = ConnectionManager.from_yaml('connections.yaml')
 
 ## Usage Workflow
 
-### 1. Setup Connection
+### 1. Load Specs
 
 ```python
-from aitaem import set_connections
-# Or: from aitaem.connectors import ConnectionManager
+from aitaem.specs import SpecCache
 
-# Load all backend connections from YAML
-set_connections('config/connections.yaml')
-
-# Or use ConnectionManager directly (advanced)
-conn_mgr = ConnectionManager.from_yaml('config/connections.yaml')
-```
-
-### 2. Load Specs
-
-```python
-from aitaem.insights import MetricCompute
-
-# Load specs from YAML files (lazy loading)
-mc = MetricCompute.from_yaml(
+# Load and validate specs (fail fast on invalid YAML)
+cache = SpecCache.from_yaml(
     metric_paths='config/metrics/',
     slice_paths='config/slices/',
     segment_paths='config/segments/'
 )
 ```
 
+### 2. Setup Connection
+
+```python
+from aitaem.connectors import ConnectionManager
+
+# Load backend connections from YAML
+conn_mgr = ConnectionManager.from_yaml('config/connections.yaml')
+```
+
 ### 3. Compute Metrics
 
 ```python
+from aitaem.insights import MetricCompute
+
+mc = MetricCompute(cache, conn_mgr)
+
 # Compute single metric
 df = mc.compute('revenue')
 
@@ -1064,7 +1065,7 @@ df = mc.compute('revenue', slices='geography')
 # Compute multiple metrics with multiple slices and segment
 df = mc.compute(
     metrics=['revenue', 'orders', 'avg_order_value'],
-    slices=['geography', 'device_type'],  # Cross-product
+    slices=['geography', 'device_type'],  # Each slice computed independently
     segments='high_value_customers',
     time_window=('2026-01-01', '2026-02-01'),
     output_format='pandas'
@@ -1151,7 +1152,7 @@ Based on this architecture, here are the critical files needed for implementatio
 ### Package Structure
 ```
 aitaem/
-├── __init__.py                          # Top-level imports, set_connections() function
+├── __init__.py                          # Top-level imports (MetricCompute, SpecCache, ConnectionManager)
 ├── insights.py                          # MetricCompute class, compute() function
 ├── specs/
 │   ├── __init__.py                      # Export MetricSpec, SliceSpec, SegmentSpec
@@ -1237,7 +1238,7 @@ all = ["aitaem[clickhouse,druid,dev]"]
 - Ibis expression generation from specs
 - Query optimization (grouping by table)
 - Standard output formatting
-- Cross-product slicing
+- Independent slicing and composite (cross-product) slicing via `cross_product` SliceSpec
 
 **Connectors** (`tests/test_connectors/`):
 - DuckDB connection and query execution
@@ -1273,12 +1274,14 @@ all = ["aitaem[clickhouse,druid,dev]"]
 | **Ibis + DuckDB** | Backend portability, mature OLAP support, DuckDB federation, negligible overhead, LLM-friendly API |
 | **pandas default** | LLM-friendly (abundant training data), ubiquity, stability, ecosystem compatibility |
 | **Standard output format** | LLM integration, visualization simplicity, combining analyses, scalable narrow format |
-| **Lazy spec loading** | Scalability for Phase 2 DB storage, fail fast on missing specs, session caching |
+| **SpecCache as first-class type** | Separates spec management from computation; enables pre-validation before any query runs; specs reusable across contexts |
+| **MetricCompute(cache, conn_mgr)** | Explicit dependencies, no global state, independently testable components; clear single responsibility |
 | **Single compute() method** | Simpler API, handles both single and multiple metrics elegantly |
 | **SQL expressions in YAML** | No custom DSL, familiar syntax, direct mapping to backends, LLM-friendly |
 | **numerator/denominator split** | Explicit ratio definition, supports complex CASE expressions, clear semantics |
 | **ConnectionManager with YAML** | Separates infrastructure from logic, secure credential management, explicit setup, supports multi-backend cleanly |
 | **One connection per backend** | Simplifies configuration, fully qualified table names handle multi-table scenarios, aligns with typical backend usage |
+| **No global state** | `ConnectionManager` injected explicitly; eliminates `set_connections()` global singleton anti-pattern; each component is independently testable |
 | **Unified QueryBuilder** | Eliminates artificial separation, optimization is part of building, clearer responsibilities, better testability |
 | **Static QueryBuilder methods** | Ibis expressions are lazy (no connection needed), pure transformation, no instance state required |
 | **Partial computation** | Graceful degradation when connections unavailable, user gets computable results, warnings logged (Phase 1 metadata Phase 2) |
