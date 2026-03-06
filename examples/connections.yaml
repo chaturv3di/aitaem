@@ -2,5 +2,13 @@
 # Run `python examples/data/setup_db.py` first to create the DuckDB file.
 # Paths are relative to the project root.
 
+# DuckDB - local ad campaigns database
 duckdb:
   path: examples/data/ad_campaigns.duckdb
+
+# BigQuery - cloud data warehouse
+# Requires Application Default Credentials: gcloud auth application-default login
+# Set the environment variable before loading:
+#   export GCP_PROJECT_ID=your-gcp-project-id
+bigquery:
+  project_id: ${GCP_PROJECT_ID}
