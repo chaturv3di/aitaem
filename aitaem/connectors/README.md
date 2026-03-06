@@ -14,7 +14,6 @@ Key features:
 - YAML configuration with environment variable substitution
 - URI-based table routing
 - Clear, actionable error messages
-- Global singleton pattern for session-wide access
 
 ## Installation
 
@@ -165,22 +164,6 @@ Load connections from YAML configuration file.
 
 ```python
 manager = ConnectionManager.from_yaml('connections.yaml')
-```
-
-**`set_global(manager: ConnectionManager) -> None`**
-
-Set global singleton instance.
-
-```python
-ConnectionManager.set_global(manager)
-```
-
-**`get_global() -> ConnectionManager`**
-
-Get global singleton instance.
-
-```python
-manager = ConnectionManager.get_global()
 ```
 
 #### Instance Methods
@@ -404,14 +387,8 @@ from aitaem.connectors import ConnectionManager
 # Set environment variable
 os.environ['GCP_PROJECT_ID'] = 'my-production-project'
 
-# Load configuration
+# Load configuration and pass explicitly to consumers
 manager = ConnectionManager.from_yaml('connections.yaml')
-
-# Set as global for easy access
-ConnectionManager.set_global(manager)
-
-# Use anywhere in your application
-manager = ConnectionManager.get_global()
 connector = manager.get_connection('bigquery')
 
 table = connector.get_table('analytics.user_events')
