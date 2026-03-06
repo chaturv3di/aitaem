@@ -39,8 +39,6 @@ EXPECTED_OUTPUT_COLUMNS = {
 class TestExecuteQueryGroup:
     def test_basic_output_schema(self, ad_campaigns_connection_manager):
         """Verify output DataFrame has all expected columns and non-null metric_value."""
-        ConnectionManager.set_global(ad_campaigns_connection_manager)
-
         metric = MetricSpec(
             name="ctr",
             source=AD_CAMPAIGNS_SOURCE_URI,
@@ -50,7 +48,7 @@ class TestExecuteQueryGroup:
         )
         groups = QueryBuilder.build_queries([metric], slice_specs=None, segment_specs=None)
 
-        executor = QueryExecutor()
+        executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         df = executor._execute_query_group(groups[0], "pandas")
 
         assert df is not None
@@ -60,16 +58,14 @@ class TestExecuteQueryGroup:
 
     def test_returns_none_on_missing_connection(self, caplog):
         """Returns None and logs warning when source has no configured connection."""
-        # Use an isolated manager with no connections
         isolated_manager = ConnectionManager()
-        ConnectionManager.set_global(isolated_manager)
 
         group = QueryGroup(
             source="duckdb://nonexistent.db/some_table",
             metrics=[],
             sql_queries=["SELECT 1"],
         )
-        executor = QueryExecutor()
+        executor = QueryExecutor(connection_manager=isolated_manager)
         import logging
 
         with caplog.at_level(logging.WARNING):
@@ -87,8 +83,6 @@ class TestExecuteQueryGroup:
 class TestExecute:
     def test_full_integration_no_slice_no_segment(self, ad_campaigns_connection_manager):
         """End-to-end: single metric, no slices, no segments → 1 row with correct schema."""
-        ConnectionManager.set_global(ad_campaigns_connection_manager)
-
         metric = MetricSpec(
             name="ctr",
             source=AD_CAMPAIGNS_SOURCE_URI,
@@ -98,7 +92,7 @@ class TestExecute:
         )
         groups = QueryBuilder.build_queries([metric], slice_specs=None, segment_specs=None)
 
-        executor = QueryExecutor()
+        executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         df = executor.execute(groups)
 
         assert EXPECTED_OUTPUT_COLUMNS.issubset(set(df.columns))
@@ -111,8 +105,6 @@ class TestExecute:
 
     def test_full_integration_with_slices_and_segment(self, ad_campaigns_connection_manager):
         """Integration: 1 metric × 1 slice (+ no-slice) × 1 segment (+ no-segment) = 4 queries."""
-        ConnectionManager.set_global(ad_campaigns_connection_manager)
-
         metric = MetricSpec(
             name="ctr",
             source=AD_CAMPAIGNS_SOURCE_URI,
@@ -147,16 +139,14 @@ class TestExecute:
         # (1 slice + 1 no-slice) × (1 segment + 1 no-segment) = 4 queries
         assert len(groups[0].sql_queries) == 4
 
-        executor = QueryExecutor()
+        executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         df = executor.execute(groups)
 
         assert EXPECTED_OUTPUT_COLUMNS.issubset(set(df.columns))
         assert df["metric_value"].notna().all()
-        # slice_type is either 'campaign_type' (slice rows) or 'none' (baseline rows)
         slice_types = set(df["slice_type"].unique())
         assert "campaign_type" in slice_types
         assert "none" in slice_types
-        # segment results should have both 'platform' and 'none' segment_name values
         segment_names = set(df["segment_name"].unique())
         assert "platform" in segment_names
         assert "none" in segment_names
@@ -164,7 +154,6 @@ class TestExecute:
     def test_raises_when_all_groups_fail(self):
         """QueryExecutionError raised when all groups fail (no connection)."""
         isolated_manager = ConnectionManager()
-        ConnectionManager.set_global(isolated_manager)
 
         groups = [
             QueryGroup(
@@ -173,14 +162,12 @@ class TestExecute:
                 sql_queries=["SELECT 1"],
             )
         ]
-        executor = QueryExecutor()
+        executor = QueryExecutor(connection_manager=isolated_manager)
         with pytest.raises(QueryExecutionError):
             executor.execute(groups)
 
     def test_partial_failure_returns_partial_result(self, ad_campaigns_connection_manager, caplog):
         """One failing group + one succeeding group → partial result + warning."""
-        ConnectionManager.set_global(ad_campaigns_connection_manager)
-
         good_metric = MetricSpec(
             name="ctr",
             source=AD_CAMPAIGNS_SOURCE_URI,
@@ -199,7 +186,7 @@ class TestExecute:
             sql_queries=["SELECT 1"],
         )
 
-        executor = QueryExecutor()
+        executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         import logging
 
         with caplog.at_level(logging.WARNING):
@@ -211,8 +198,6 @@ class TestExecute:
 
     def test_multiple_metrics_combined(self, ad_campaigns_connection_manager):
         """Multiple metrics from same source are combined into single DataFrame."""
-        ConnectionManager.set_global(ad_campaigns_connection_manager)
-
         ctr = MetricSpec(
             name="ctr",
             source=AD_CAMPAIGNS_SOURCE_URI,
@@ -229,7 +214,7 @@ class TestExecute:
         )
 
         groups = QueryBuilder.build_queries([ctr, roas], slice_specs=None, segment_specs=None)
-        executor = QueryExecutor()
+        executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         df = executor.execute(groups)
 
         assert set(df["metric_name"].unique()) == {"ctr", "roas"}
@@ -237,8 +222,6 @@ class TestExecute:
 
     def test_time_window_filters_data(self, ad_campaigns_connection_manager):
         """Results differ with time_window vs without (data is filtered)."""
-        ConnectionManager.set_global(ad_campaigns_connection_manager)
-
         metric = MetricSpec(
             name="impressions_sum",
             source=AD_CAMPAIGNS_SOURCE_URI,
@@ -255,7 +238,7 @@ class TestExecute:
             timestamp_col="date",
         )
 
-        executor = QueryExecutor()
+        executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         df_all = executor.execute(groups_all)
         df_windowed = executor.execute(groups_windowed)
 
@@ -286,8 +269,6 @@ class TestEndToEndIntegration:
         - metric_value non-null
         - all standard output columns present
         """
-        ConnectionManager.set_global(ad_campaigns_connection_manager)
-
         ctr = MetricSpec(
             name="ctr",
             source=AD_CAMPAIGNS_SOURCE_URI,
@@ -335,29 +316,25 @@ class TestEndToEndIntegration:
         assert len(groups) == 1
         assert len(groups[0].sql_queries) == 6
 
-        executor = QueryExecutor()
+        executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         df = executor.execute(groups)
 
         assert EXPECTED_OUTPUT_COLUMNS.issubset(set(df.columns))
         assert df["metric_value"].notna().all()
 
-        # slice_type is one of 'geo', 'campaign_type', or 'none' (independent slicing)
         slice_types = set(df["slice_type"].unique())
         assert "geo" in slice_types
         assert "campaign_type" in slice_types
         assert "none" in slice_types
 
-        # segment rows
         segment_names = set(df["segment_name"].unique())
         assert "platform" in segment_names
         assert "none" in segment_names
 
-        # platform segment values
         platform_rows = df[df["segment_name"] == "platform"]
         assert set(platform_rows["segment_value"].unique()).issubset(
             {"Google Ads", "Meta Ads", "TikTok Ads"}
         )
 
-        # baseline rows have 'all' segment value
         baseline_rows = df[df["segment_name"] == "none"]
         assert (baseline_rows["segment_value"] == "all").all()

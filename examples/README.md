@@ -82,20 +82,22 @@ duckdb:
 ## Usage
 
 ```python
-from aitaem import set_connections
+from aitaem.specs import SpecCache
+from aitaem.connectors import ConnectionManager
 from aitaem.insights import MetricCompute
 
-# Load connections (run from project root)
-set_connections('examples/connections.yaml')
-
-# Load specs
-mc = MetricCompute.from_yaml(
+# Step 1: Load and validate specs (run from project root)
+cache = SpecCache.from_yaml(
     metric_paths='examples/metrics/',
     slice_paths='examples/slices/',
     segment_paths='examples/segments/',
 )
 
-# Compute CTR sliced by campaign type, segmented by platform
+# Step 2: Set up backend connections
+conn_mgr = ConnectionManager.from_yaml('examples/connections.yaml')
+
+# Step 3: Compute CTR sliced by campaign type, segmented by platform
+mc = MetricCompute(cache, conn_mgr)
 df = mc.compute(
     metrics='ctr',
     slices='campaign_type',

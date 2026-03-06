@@ -29,10 +29,7 @@ class ConnectionManager:
         - Environment variable substitution
         - Store and retrieve connectors by backend type
         - Parse source URIs and route to appropriate connector
-        - Global singleton pattern for session-wide access
     """
-
-    _global_instance: "ConnectionManager | None" = None
 
     def __init__(self) -> None:
         """Initialize empty connection manager."""
@@ -383,34 +380,6 @@ class ConnectionManager:
         table = ".".join(parts[1:])
 
         return ("bigquery", project, table)
-
-    @classmethod
-    def set_global(cls, manager: "ConnectionManager") -> None:
-        """Set global singleton instance.
-
-        Args:
-            manager: ConnectionManager instance to set as global
-        """
-        cls._global_instance = manager
-
-    @classmethod
-    def get_global(cls) -> "ConnectionManager":
-        """Get global singleton instance.
-
-        Returns:
-            Global ConnectionManager instance
-
-        Raises:
-            RuntimeError: If global instance not set
-        """
-        if cls._global_instance is None:
-            raise RuntimeError(
-                "No global ConnectionManager set. Call set_global() first.\n\n"
-                "Example:\n"
-                "  manager = ConnectionManager.from_yaml('connections.yaml')\n"
-                "  ConnectionManager.set_global(manager)"
-            )
-        return cls._global_instance
 
     def close_all(self) -> None:
         """Close all connections."""

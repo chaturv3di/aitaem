@@ -27,8 +27,8 @@ class SliceValue:
 @dataclass(frozen=True)
 class SliceSpec:
     name: str
-    values: tuple[SliceValue, ...] = ()       # Leaf spec — direct WHERE-based values
-    cross_product: tuple[str, ...] = ()       # Composite spec — names of other SliceSpecs
+    values: tuple[SliceValue, ...] = ()  # Leaf spec — direct WHERE-based values
+    cross_product: tuple[str, ...] = ()  # Composite spec — names of other SliceSpecs
     description: str = ""
 
     @property
@@ -108,7 +108,9 @@ class SliceSpec:
             values = ()
         else:
             # Leaf spec
-            values = tuple(SliceValue(name=v["name"], where=v["where"]) for v in spec_dict["values"])
+            values = tuple(
+                SliceValue(name=v["name"], where=v["where"]) for v in spec_dict["values"]
+            )
             cross_product = ()
 
         unknown_fields = set(spec_dict.keys()) - {"name", "values", "cross_product", "description"}

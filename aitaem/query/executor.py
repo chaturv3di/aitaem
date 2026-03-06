@@ -1,7 +1,7 @@
 """
 aitaem.query.executor - QueryExecutor
 
-Executes QueryGroups using the global ConnectionManager.
+Executes QueryGroups using an injected ConnectionManager.
 Gets one connector per source, executes each SQL string, pd.concat results.
 """
 
@@ -19,7 +19,14 @@ logger = logging.getLogger(__name__)
 
 
 class QueryExecutor:
-    """Execute QueryGroups using the global ConnectionManager."""
+    """Execute QueryGroups using an injected ConnectionManager."""
+
+    def __init__(self, connection_manager: ConnectionManager) -> None:
+        """
+        Args:
+            connection_manager: Provides backend connections for query execution.
+        """
+        self.connection_manager = connection_manager
 
     def execute(
         self,
@@ -59,7 +66,7 @@ class QueryExecutor:
         Returns None (with warning) if connection is unavailable.
         """
         try:
-            connector = ConnectionManager.get_global().get_connection_for_source(query_group.source)
+            connector = self.connection_manager.get_connection_for_source(query_group.source)
         except (ConnectionNotFoundError, RuntimeError) as e:
             logger.warning("Skipping query group for source '%s': %s", query_group.source, e)
             return None

@@ -63,9 +63,7 @@ def bigquery_connector():
 
     # Cleanup: drop test table if it exists
     try:
-        connector.connection.raw_sql(
-            f"DROP TABLE IF EXISTS {DATASET_ID}.{TEST_TABLE_NAME}"
-        )
+        connector.connection.raw_sql(f"DROP TABLE IF EXISTS {DATASET_ID}.{TEST_TABLE_NAME}")
     except Exception:
         pass  # Ignore cleanup errors
 

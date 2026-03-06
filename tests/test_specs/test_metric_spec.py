@@ -4,7 +4,6 @@ import pytest
 
 from aitaem.specs.metric import MetricSpec
 from aitaem.utils.exceptions import SpecValidationError
-from tests.test_specs.conftest import FIXTURES_DIR
 
 
 class TestMetricSpecFromYamlString:
