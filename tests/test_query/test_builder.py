@@ -484,7 +484,7 @@ class TestBuildQueriesForMetric:
             metric=metric,
             slice_specs=None,
             segment_specs=[seg1, seg2],
-            time_filter_sql=None,
+            time_window=None,
             period_type="all_time",
             period_start=None,
             period_end=None,
@@ -498,7 +498,7 @@ class TestBuildQueriesForMetric:
             metric=metric,
             slice_specs=[make_slice()],
             segment_specs=None,
-            time_filter_sql=None,
+            time_window=None,
             period_type="all_time",
             period_start=None,
             period_end=None,
@@ -550,24 +550,28 @@ class TestBuildQueriesIntegration:
             QueryBuilder.build_queries([], slice_specs=None, segment_specs=None)
 
     def test_raises_on_time_window_without_timestamp_col(self):
-        metric = make_metric()
-        with pytest.raises(QueryBuildError, match="timestamp_col is required"):
+        metric = make_metric()  # no timestamp_col
+        with pytest.raises(QueryBuildError, match="has no timestamp_col"):
             QueryBuilder.build_queries(
                 [metric],
                 slice_specs=None,
                 segment_specs=None,
                 time_window=("2026-01-01", "2026-02-01"),
-                timestamp_col=None,
             )
 
     def test_time_window_with_timestamp_col_ok(self):
-        metric = make_metric()
+        metric = MetricSpec(
+            name="revenue",
+            source=DUCKDB_URI,
+            aggregation="sum",
+            numerator="SUM(amount)",
+            timestamp_col="event_ts",
+        )
         groups = QueryBuilder.build_queries(
             [metric],
             slice_specs=None,
             segment_specs=None,
             time_window=("2026-01-01", "2026-02-01"),
-            timestamp_col="event_ts",
         )
         assert len(groups) == 1
         assert "event_ts >= '2026-01-01'" in groups[0].sql_queries[0]

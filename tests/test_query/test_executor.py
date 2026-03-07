@@ -227,6 +227,7 @@ class TestExecute:
             source=AD_CAMPAIGNS_SOURCE_URI,
             aggregation="sum",
             numerator="SUM(impressions)",
+            timestamp_col="date",
         )
 
         groups_all = QueryBuilder.build_queries([metric], slice_specs=None, segment_specs=None)
@@ -235,7 +236,6 @@ class TestExecute:
             slice_specs=None,
             segment_specs=None,
             time_window=("2024-01-01", "2024-04-01"),
-            timestamp_col="date",
         )
 
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)

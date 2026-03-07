@@ -5,3 +5,4 @@ metric:
   aggregation: ratio
   numerator: "SUM(revenue)"
   denominator: "SUM(ad_spend)"
+  timestamp_col: date
