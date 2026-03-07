@@ -231,6 +231,7 @@ class TestSpecCacheAdd:
             source="duckdb://db/table",
             aggregation="sum",
             numerator="SUM(x)",
+            timestamp_col="created_at",
         )
         cache.add(metric)
         result = cache.get_metric("my_metric")
@@ -273,6 +274,7 @@ class TestSpecCacheAdd:
             source="duckdb://db/table",
             aggregation="sum",
             numerator="SUM(x)",
+            timestamp_col="created_at",
         )
         cache.add(manual)
         assert cache.get_metric("homepage_ctr").name == "homepage_ctr"

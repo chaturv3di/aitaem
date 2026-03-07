@@ -97,7 +97,7 @@ metric:
   aggregation: ratio              # Required: sum | avg | count | ratio | min | max
   numerator: "SUM(clicks)"        # Required: SQL aggregation expression
   denominator: "SUM(impressions)" # Required when aggregation is 'ratio'
-  timestamp_col: event_date       # Optional: date/timestamp column for time_window filtering
+  timestamp_col: event_date       # Required: date/timestamp column for time_window filtering
 ```
 
 **Aggregation types**:
@@ -303,7 +303,7 @@ MetricSpec(
     numerator: str,
     description: str = "",
     denominator: str | None = None,
-    timestamp_col: str | None = None,
+    timestamp_col: str,
 )
 ```
 

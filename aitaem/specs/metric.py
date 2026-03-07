@@ -24,9 +24,9 @@ class MetricSpec:
     source: str
     aggregation: str
     numerator: str
+    timestamp_col: str
     description: str = ""
     denominator: str | None = None
-    timestamp_col: str | None = None
 
     @classmethod
     def from_yaml(cls, yaml_input: str | Path) -> "MetricSpec":
@@ -109,16 +109,14 @@ class MetricSpec:
         if unknown_fields:
             logger.debug("MetricSpec '%s': ignoring unknown fields: %s", name, unknown_fields)
 
-        timestamp_col = spec_dict.get("timestamp_col") or None
-
         return cls(
             name=spec_dict["name"],
             source=spec_dict["source"],
             aggregation=aggregation,
             numerator=spec_dict["numerator"],
+            timestamp_col=spec_dict["timestamp_col"],
             description=spec_dict.get("description", ""),
             denominator=denominator,
-            timestamp_col=timestamp_col,
         )
 
     def validate(self) -> ValidationResult:
@@ -128,6 +126,7 @@ class MetricSpec:
             "source": self.source,
             "aggregation": self.aggregation,
             "numerator": self.numerator,
+            "timestamp_col": self.timestamp_col,
             "description": self.description,
         }
         if self.denominator is not None:

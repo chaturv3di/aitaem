@@ -14,6 +14,7 @@ metric:
   aggregation: ratio
   numerator: "SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END)"
   denominator: "SUM(CASE WHEN event_type = 'impression' THEN 1 ELSE 0 END)"
+  timestamp_col: event_ts
 """
 
 VALID_METRIC_SUM_YAML = """
@@ -22,6 +23,7 @@ metric:
   source: duckdb://analytics.db/transactions
   aggregation: sum
   numerator: "SUM(amount)"
+  timestamp_col: transaction_date
 """
 
 VALID_SLICE_YAML = """

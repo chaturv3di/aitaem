@@ -46,7 +46,6 @@ class QueryBuilder:
 
         Raises:
             QueryBuildError: if metric_specs is empty
-            QueryBuildError: if time_window provided but a metric has no timestamp_col
             QueryBuildError: if a composite slice is used but spec_cache is None
         """
         if not metric_specs:
@@ -108,11 +107,6 @@ class QueryBuilder:
         """
         time_filter_sql: str | None = None
         if time_window is not None:
-            if metric.timestamp_col is None:
-                raise QueryBuildError(
-                    f"Metric '{metric.name}' has no timestamp_col but time_window was provided. "
-                    "Add `timestamp_col: <col_name>` to the metric YAML."
-                )
             time_filter_sql = QueryBuilder._build_time_filter_sql(time_window, metric.timestamp_col)
         table_name = QueryBuilder._parse_table_name_from_uri(metric.source)
         queries: list[str] = []
