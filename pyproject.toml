@@ -1,6 +1,6 @@
 [project]
 name = "aitaem"
-version = "0.1.0"
+version = "0.1.1"
 description = "All Interesting Things Are Essentially Metrics - A Python library for generating data insights"
 requires-python = ">=3.9"
 dependencies = [
