@@ -34,6 +34,7 @@ metric:
   aggregation: ratio
   numerator: "SUM(clicks)"
   denominator: "SUM(impressions)"
+  timestamp_col: event_ts
 ```
 
 ```yaml
