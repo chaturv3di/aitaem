@@ -315,6 +315,7 @@ metric:
   aggregation: ratio  # sum, avg, count, ratio, etc.
   numerator: "SUM(CASE WHEN event_type = 'click' AND page = 'home_page' THEN 1 ELSE 0 END)"
   denominator: "SUM(CASE WHEN event_type = 'impression' AND page = 'home_page' THEN 1 ELSE 0 END)"
+  timestamp_col: event_date  # Required: date/timestamp column for time_window filtering
 ```
 
 For simple aggregations:
@@ -340,6 +341,7 @@ class MetricSpec:
     aggregation: str  # sum, avg, count, ratio, min, max
     numerator: str  # SQL expression
     denominator: str | None  # SQL expression (None for sum/count)
+    timestamp_col: str  # Required: date/timestamp column for time_window filtering
 
     @classmethod
     def from_yaml(cls, yaml_string_or_path):

@@ -121,6 +121,16 @@ def validate_metric_spec(spec_dict: dict) -> ValidationResult:
         if sql_error:
             errors.append(sql_error)
 
+    timestamp_col = spec_dict.get("timestamp_col")
+    if not timestamp_col or not isinstance(timestamp_col, str) or not timestamp_col.strip():
+        errors.append(
+            ValidationError(
+                field="timestamp_col",
+                message="'timestamp_col' is required and must be a non-empty string",
+                suggestion="Add the date/timestamp column name used for time filtering, e.g. 'timestamp_col: created_at'",
+            )
+        )
+
     denominator = spec_dict.get("denominator")
     aggregation_lower = (aggregation or "").lower()
     if aggregation_lower == "ratio":

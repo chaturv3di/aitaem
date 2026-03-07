@@ -34,7 +34,6 @@ class QueryBuilder:
         slice_specs: list[SliceSpec] | None,
         segment_specs: list[SegmentSpec] | None,
         time_window: tuple[str, str] | None = None,
-        timestamp_col: str | None = None,
         spec_cache: "SpecCache | None" = None,  # type: ignore[name-defined]  # noqa: F821
     ) -> list[QueryGroup]:
         """Build optimized query groups (one per unique source table).
@@ -47,20 +46,10 @@ class QueryBuilder:
 
         Raises:
             QueryBuildError: if metric_specs is empty
-            QueryBuildError: if time_window provided but timestamp_col is None
             QueryBuildError: if a composite slice is used but spec_cache is None
         """
         if not metric_specs:
             raise QueryBuildError("metric_specs must not be empty")
-
-        if time_window is not None and timestamp_col is None:
-            raise QueryBuildError("timestamp_col is required when time_window is provided")
-
-        # Build time filter SQL once
-        time_filter_sql: str | None = None
-        if time_window is not None:
-            assert timestamp_col is not None
-            time_filter_sql = QueryBuilder._build_time_filter_sql(time_window, timestamp_col)
 
         # Period metadata
         period_type = "all_time"
@@ -78,7 +67,7 @@ class QueryBuilder:
                         metric=metric,
                         slice_specs=slice_specs,
                         segment_specs=segment_specs,
-                        time_filter_sql=time_filter_sql,
+                        time_window=time_window,
                         period_type=period_type,
                         period_start=period_start,
                         period_end=period_end,
@@ -102,7 +91,7 @@ class QueryBuilder:
         metric: MetricSpec,
         slice_specs: list[SliceSpec] | None,
         segment_specs: list[SegmentSpec] | None,
-        time_filter_sql: str | None,
+        time_window: tuple[str, str] | None,
         period_type: str,
         period_start: str | None,
         period_end: str | None,
@@ -116,6 +105,9 @@ class QueryBuilder:
 
         len(result) == (len(slice_specs) + 1) × (len(segment_specs) + 1)
         """
+        time_filter_sql: str | None = None
+        if time_window is not None:
+            time_filter_sql = QueryBuilder._build_time_filter_sql(time_window, metric.timestamp_col)
         table_name = QueryBuilder._parse_table_name_from_uri(metric.source)
         queries: list[str] = []
 

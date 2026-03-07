@@ -45,6 +45,7 @@ class TestExecuteQueryGroup:
             aggregation="ratio",
             numerator="SUM(clicks)",
             denominator="SUM(impressions)",
+            timestamp_col="date",
         )
         groups = QueryBuilder.build_queries([metric], slice_specs=None, segment_specs=None)
 
@@ -89,6 +90,7 @@ class TestExecute:
             aggregation="ratio",
             numerator="SUM(clicks)",
             denominator="SUM(impressions)",
+            timestamp_col="date",
         )
         groups = QueryBuilder.build_queries([metric], slice_specs=None, segment_specs=None)
 
@@ -111,6 +113,7 @@ class TestExecute:
             aggregation="ratio",
             numerator="SUM(clicks)",
             denominator="SUM(impressions)",
+            timestamp_col="date",
         )
         campaign_type_slice = SliceSpec(
             name="campaign_type",
@@ -174,6 +177,7 @@ class TestExecute:
             aggregation="ratio",
             numerator="SUM(clicks)",
             denominator="SUM(impressions)",
+            timestamp_col="date",
         )
         good_groups = QueryBuilder.build_queries(
             [good_metric], slice_specs=None, segment_specs=None
@@ -204,6 +208,7 @@ class TestExecute:
             aggregation="ratio",
             numerator="SUM(clicks)",
             denominator="SUM(impressions)",
+            timestamp_col="date",
         )
         roas = MetricSpec(
             name="roas",
@@ -211,6 +216,7 @@ class TestExecute:
             aggregation="ratio",
             numerator="SUM(revenue)",
             denominator="SUM(ad_spend)",
+            timestamp_col="date",
         )
 
         groups = QueryBuilder.build_queries([ctr, roas], slice_specs=None, segment_specs=None)
@@ -227,6 +233,7 @@ class TestExecute:
             source=AD_CAMPAIGNS_SOURCE_URI,
             aggregation="sum",
             numerator="SUM(impressions)",
+            timestamp_col="date",
         )
 
         groups_all = QueryBuilder.build_queries([metric], slice_specs=None, segment_specs=None)
@@ -235,7 +242,6 @@ class TestExecute:
             slice_specs=None,
             segment_specs=None,
             time_window=("2024-01-01", "2024-04-01"),
-            timestamp_col="date",
         )
 
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
@@ -275,6 +281,7 @@ class TestEndToEndIntegration:
             aggregation="ratio",
             numerator="SUM(clicks)",
             denominator="SUM(impressions)",
+            timestamp_col="date",
         )
         geo_slice = SliceSpec(
             name="geo",

@@ -32,6 +32,7 @@ metric:
   aggregation: RATIO
   numerator: "SUM(a)"
   denominator: "SUM(b)"
+  timestamp_col: created_at
 """
         spec = MetricSpec.from_yaml(yaml_str)
         assert spec.aggregation == "ratio"
@@ -156,6 +157,7 @@ metric:
   aggregation: sum
   numerator: "SUM(a)"
   denominator: "SUM(b)"
+  timestamp_col: created_at
 """
         with caplog.at_level(logging.WARNING):
             spec = MetricSpec.from_yaml(yaml_str)
@@ -204,6 +206,7 @@ class TestMetricSpecValidate:
             source="duckdb://db/tbl",
             aggregation="sum",
             numerator="SUM(a)",
+            timestamp_col="created_at",
         )
         result = spec.validate()
         assert result.valid is True
