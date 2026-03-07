@@ -98,6 +98,19 @@ Strictly follow the instructions below.
     3. Follow the testing strategy defined above to test the sub-feature
 3. After each sub-feature implementation, proactively manage context to stay focused
 
+## Release Process
+When creating a release:
+
+  1. Create a `release/vX.Y.Z` branch from `main`
+  2. Commit the version bump in `pyproject.toml` on that branch
+  3. Push the branch and open a PR into `main`
+  4. Wait for PR approval and merge — do NOT proceed until the PR is merged
+  5. After merge, create an annotated tag on `main`: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
+  6. Push the tag: `git push origin vX.Y.Z`
+  7. Create a GitHub release using `gh release create`
+
+  Never commit version bumps or release prep directly to `main`.
+
 ## Common Commands
 - Running tests: `python -m pytest`
 - Dependency management: `uv`
