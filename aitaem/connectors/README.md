@@ -20,13 +20,13 @@ Key features:
 ### Core (DuckDB only)
 
 ```bash
-pip install aitaem
+pip install git+https://github.com/chaturv3di/aitaem.git@v0.1.1
 ```
 
 ### With BigQuery support
 
 ```bash
-pip install aitaem[bigquery]
+pip install "aitaem[bigquery] @ git+https://github.com/chaturv3di/aitaem.git@v0.1.1"
 ```
 
 ### Development installation
