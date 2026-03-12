@@ -1,4 +1,4 @@
-# All Interesting Things Are Essentially Metrics
+# AITÆM: All Interesting Things Are Essentially Metrics
 This is the `aitaem` library, pronounced "i-tame".
 
 ## Why?
