@@ -20,13 +20,13 @@ Key features:
 ### Core (DuckDB only)
 
 ```bash
-pip install git+https://github.com/chaturv3di/aitaem.git@v0.1.1
+pip install aitaem
 ```
 
 ### With BigQuery support
 
 ```bash
-pip install "aitaem[bigquery] @ git+https://github.com/chaturv3di/aitaem.git@v0.1.1"
+pip install "aitaem[bigquery]"
 ```
 
 ### Development installation
@@ -461,5 +461,5 @@ Planned for Phase 2:
 ## Support
 
 For issues and questions:
-- Report bugs: https://github.com/anthropics/aitaem/issues
+- Report bugs: https://github.com/chaturv3di/aitaem/issues
 - Documentation: See main README.md

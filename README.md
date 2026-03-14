@@ -24,7 +24,7 @@ Additionally, there are utilities to connect to various data backends (simultane
 ### Installation
 
 ```bash
-pip install git+https://github.com/chaturv3di/aitaem.git@v0.1.1
+pip install aitaem
 ```
 
 ### Three-Step API
