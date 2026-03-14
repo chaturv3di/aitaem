@@ -40,12 +40,19 @@ dev = [
     "mypy>=1.8.0",
     "build>=1.0.0",
 ]
-all = ["aitaem[bigquery,dev]"]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.27",
+    "mkdocs-autorefs>=1.2",
+]
+all = ["aitaem[bigquery,dev,docs]"]
 
 [project.urls]
 Homepage = "https://github.com/chaturv3di/aitaem"
 Repository = "https://github.com/chaturv3di/aitaem"
 Issues = "https://github.com/chaturv3di/aitaem/issues"
+Documentation = "https://chaturv3di.github.io/aitaem"
 
 [build-system]
 requires = ["hatchling"]
