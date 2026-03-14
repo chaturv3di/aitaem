@@ -5,7 +5,7 @@ description = "All Interesting Things Are Essentially Metrics - A Python library
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
-    {name = "Namit Chaturvedi", email = "namit.chaturvedi@gmail.com"},
+    {name = "Namit Chaturvedi", email = "22843902+chaturv3di@users.noreply.github.com"},
 ]
 keywords = ["metrics", "analytics", "OLAP", "data", "insights", "ibis"]
 classifiers = [
