@@ -72,6 +72,7 @@ class QueryExecutor:
             return None
 
         dfs: list[pd.DataFrame] = []
+        assert connector.connection is not None
         for sql in query_group.sql_queries:
             ibis_expr = connector.connection.sql(sql)
             df = connector.execute(ibis_expr, output_format)

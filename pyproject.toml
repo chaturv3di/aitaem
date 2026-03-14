@@ -1,7 +1,25 @@
 [project]
 name = "aitaem"
 version = "0.1.1"
-description = "All Interesting Things Are Essentially Metrics - A Python library for generating data insights"
+description = "AITÆM: All Interesting Things Are Essentially Metrics - A Python library for generating data insights"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Namit Chaturvedi", email = "22843902+chaturv3di@users.noreply.github.com"},
+]
+keywords = ["metrics", "analytics", "OLAP", "data", "insights", "ibis"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 requires-python = ">=3.9"
 dependencies = [
     "ibis-framework[duckdb]>=9.0.0",
@@ -21,8 +39,14 @@ dev = [
     "pytest-mock>=3.12.0",
     "ruff>=0.3.0",
     "mypy>=1.8.0",
+    "build>=1.0.0",
 ]
 all = ["aitaem[bigquery,dev]"]
+
+[project.urls]
+Homepage = "https://github.com/chaturv3di/aitaem"
+Repository = "https://github.com/chaturv3di/aitaem"
+Issues = "https://github.com/chaturv3di/aitaem/issues"
 
 [build-system]
 requires = ["hatchling"]
@@ -35,6 +59,10 @@ markers = [
 ]
 # By default, skip integration tests unless explicitly requested
 addopts = "-m 'not integration'"
+
+[tool.mypy]
+ignore_missing_imports = true
+disable_error_code = ["import-untyped"]
 
 [tool.ruff]
 line-length = 100

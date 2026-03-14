@@ -47,7 +47,7 @@ class SliceSpec:
             FileNotFoundError: if path provided but file does not exist
         """
         is_path = isinstance(yaml_input, Path)
-        path = yaml_input if is_path else Path(str(yaml_input))
+        path: Path = yaml_input if isinstance(yaml_input, Path) else Path(str(yaml_input))
 
         if is_path or path.exists():
             if not path.exists():
@@ -102,16 +102,16 @@ class SliceSpec:
             raise SpecValidationError("slice", name, result.errors)
 
         raw_cross_product = spec_dict.get("cross_product")
+        values: tuple[SliceValue, ...] = ()
+        cross_product: tuple[str, ...] = ()
         if raw_cross_product is not None:
             # Composite spec
             cross_product = tuple(raw_cross_product)
-            values = ()
         else:
             # Leaf spec
             values = tuple(
                 SliceValue(name=v["name"], where=v["where"]) for v in spec_dict["values"]
             )
-            cross_product = ()
 
         unknown_fields = set(spec_dict.keys()) - {"name", "values", "cross_product", "description"}
         if unknown_fields:

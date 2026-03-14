@@ -107,7 +107,7 @@ class ConnectionManager:
         Raises:
             ConfigurationError: If referenced environment variable is not set
         """
-        result = {}
+        result: dict[str, Any] = {}
         for key, value in config.items():
             if isinstance(value, str):
                 result[key] = self._substitute_env_vars(value, yaml_path)

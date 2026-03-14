@@ -108,6 +108,7 @@ When creating a release:
   5. After merge, create an annotated tag on `main`: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
   6. Push the tag: `git push origin vX.Y.Z`
   7. Create a GitHub release using `gh release create`
+  8. Publishing the GitHub release automatically triggers the `publish.yml` GitHub Actions workflow, which builds the package and uploads it to PyPI via Trusted Publishing (OIDC). A reviewer must approve the deployment in the GitHub Actions UI (under the `pypi` environment) before the upload proceeds. Monitor progress in the repository's Actions tab.
 
   Never commit version bumps or release prep directly to `main`.
 
