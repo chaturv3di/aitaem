@@ -1,4 +1,9 @@
 # AITÆM: All Interesting Things Are Essentially Metrics
+
+[![CI](https://github.com/chaturv3di/aitaem/actions/workflows/ci.yml/badge.svg)](https://github.com/chaturv3di/aitaem/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/aitaem)](https://pypi.org/project/aitaem/)
+[![Python versions](https://img.shields.io/pypi/pyversions/aitaem)](https://pypi.org/project/aitaem/)
+
 This is the `aitaem` library, pronounced "i-tame".
 
 ## Why?
