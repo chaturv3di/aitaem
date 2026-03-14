@@ -111,9 +111,9 @@ class SpecCache:
             SpecValidationError: if any spec is invalid
         """
         cache = cls()
-        cache._metrics = cls._load_paths_strict(metric_paths, MetricSpec)  # type: ignore[arg-type]
-        cache._slices = cls._load_paths_strict(slice_paths, SliceSpec)  # type: ignore[arg-type]
-        cache._segments = cls._load_paths_strict(segment_paths, SegmentSpec)  # type: ignore[arg-type]
+        cache._metrics = cls._load_paths_strict(metric_paths, MetricSpec)  # type: ignore[arg-type, assignment]
+        cache._slices = cls._load_paths_strict(slice_paths, SliceSpec)  # type: ignore[arg-type, assignment]
+        cache._segments = cls._load_paths_strict(segment_paths, SegmentSpec)  # type: ignore[arg-type, assignment]
         cache._validate_slice_cross_references()
         return cache
 
@@ -134,13 +134,13 @@ class SpecCache:
         cache = cls()
         for yaml_str in cls._normalize_strings(metric_yaml):
             spec = load_spec_from_string(yaml_str, MetricSpec)
-            cache._metrics.setdefault(spec.name, spec)
+            cache._metrics.setdefault(spec.name, spec)  # type: ignore[arg-type]
         for yaml_str in cls._normalize_strings(slice_yaml):
             spec = load_spec_from_string(yaml_str, SliceSpec)
-            cache._slices.setdefault(spec.name, spec)
+            cache._slices.setdefault(spec.name, spec)  # type: ignore[arg-type]
         for yaml_str in cls._normalize_strings(segment_yaml):
             spec = load_spec_from_string(yaml_str, SegmentSpec)
-            cache._segments.setdefault(spec.name, spec)
+            cache._segments.setdefault(spec.name, spec)  # type: ignore[arg-type]
         cache._validate_slice_cross_references()
         return cache
 

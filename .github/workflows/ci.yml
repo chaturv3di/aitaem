@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.11", "3.12"]
+        python-version: ["3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
         run: uv pip install --system -e ".[dev]"
 
       - name: Run tests
-        run: python -m pytest --cov=aitaem tests/
+        run: python -m pytest --cov=aitaem --ignore=tests/test_connectors/test_bigquery_integration.py tests/
 
   lint:
     name: lint

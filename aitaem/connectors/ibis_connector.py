@@ -155,6 +155,7 @@ class IbisConnector(Connector):
             if self.backend_type == "bigquery":
                 table_name = self._parse_bigquery_table_name(table_name)
 
+            assert self.connection is not None
             return self.connection.table(table_name)
         except IbisError as e:
             # Check if it's a table not found error

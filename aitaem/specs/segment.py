@@ -42,7 +42,7 @@ class SegmentSpec:
             FileNotFoundError: if path provided but file does not exist
         """
         is_path = isinstance(yaml_input, Path)
-        path = yaml_input if is_path else Path(str(yaml_input))
+        path: Path = yaml_input if isinstance(yaml_input, Path) else Path(str(yaml_input))
 
         if is_path or path.exists():
             if not path.exists():

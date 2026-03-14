@@ -60,5 +60,9 @@ markers = [
 # By default, skip integration tests unless explicitly requested
 addopts = "-m 'not integration'"
 
+[tool.mypy]
+ignore_missing_imports = true
+disable_error_code = ["import-untyped"]
+
 [tool.ruff]
 line-length = 100
