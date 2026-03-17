@@ -54,6 +54,7 @@ nav:
       - MetricCompute: api/insights.md
       - Specs: api/specs.md
       - Connectors: api/connectors.md
+      - Helpers: api/helpers.md
   - Changelog: changelog.md
 
 markdown_extensions:

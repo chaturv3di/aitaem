@@ -1,9 +1,15 @@
 # API Reference
 
-All public classes are importable directly from `aitaem`:
+Core classes are importable directly from `aitaem`:
 
 ```python
 from aitaem import SpecCache, ConnectionManager, MetricCompute
+```
+
+Helpers are importable from `aitaem.helpers`:
+
+```python
+from aitaem.helpers import load_csvs_to_duckdb
 ```
 
 ## Class Overview
@@ -16,3 +22,9 @@ from aitaem import SpecCache, ConnectionManager, MetricCompute
 | [`SliceSpec`](specs.md#aitaem.specs.slice.SliceSpec) | `aitaem.specs.slice` | Slice spec dataclass |
 | [`SegmentSpec`](specs.md#aitaem.specs.segment.SegmentSpec) | `aitaem.specs.segment` | Segment spec dataclass |
 | [`ConnectionManager`](connectors.md) | `aitaem.connectors.connection` | Manage backend connections |
+
+## Helpers Overview
+
+| Function | Module | Purpose |
+|----------|--------|---------|
+| [`load_csvs_to_duckdb`](helpers.md) | `aitaem.helpers` | Load CSV file(s) into a DuckDB database |

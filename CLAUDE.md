@@ -30,7 +30,10 @@ aitaem/
 │   ├── base.py             # Abstract Connector interface
 │   ├── connection.py       # ConnectionManager for multiple backends
 │   └── ibis_connector.py   # Ibis-based multi-backend connector
-└── utils/                   # Utilities
+├── helpers/                 # User-facing convenience functions
+│   ├── __init__.py
+│   └── csv_to_duckdb.py    # load_csvs_to_duckdb utility
+└── utils/                   # Internal utilities (not user-facing)
 │   ├── __init__.py
 │   ├── validation.py        # YAML validation with clear errors
 │   ├── exceptions.py        # Custom exception classes
@@ -55,6 +58,14 @@ tests/                         # All test cases go here
 
 ## Development Instructions
 Strictly follow the instructions in the relevant section(s).
+
+### Documentation Instructions
+After any change that adds or removes a public-facing module or function:
+1. Check `aitaem/__init__.py` and each subpackage's `__init__.py` (e.g. `aitaem/helpers/__init__.py`) for new or removed exports
+2. Create or remove the corresponding page under `docs/api/`
+3. Add or remove the page from the `nav` in `mkdocs.yml`
+4. Update `docs/api/index.md` to reflect the change in the overview tables
+5. Add a `docs/changelog.md` entry for the release
 
 ### Common Instructions
 These instructions apply regardless of the nature of implementation task, whether it's implementing a plan, an ad-hoc feature, a bug-fix, or anything else.
