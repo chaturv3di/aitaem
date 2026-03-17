@@ -166,7 +166,8 @@ class TestBigQueryTableOperations:
         filtered = table.filter(table.id > 1)
         result = bigquery_connector.execute(filtered, output_format="pandas")
 
-        # Verify results
+        # Verify results (sort by id since order is not guaranteed)
+        result = result.sort_values("id").reset_index(drop=True)
         assert len(result) == 2
         assert list(result["id"]) == [2, 3]
 
