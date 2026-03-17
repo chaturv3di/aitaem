@@ -10,8 +10,6 @@ from pathlib import Path
 
 import duckdb
 
-from aitaem.connectors.ibis_connector import IbisConnector
-
 logger = logging.getLogger(__name__)
 
 _VALID_TABLE_NAME = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
@@ -107,6 +105,8 @@ def load_csvs_to_duckdb(
                     logger.debug("Created table '%s' from '%s'.", table_name, csv_file.name)
     finally:
         con.close()
+
+    from aitaem.connectors.ibis_connector import IbisConnector
 
     connector = IbisConnector("duckdb")
     connector.connect(str(db_path))
