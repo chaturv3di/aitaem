@@ -5,7 +5,7 @@ tests.test_utils.test_csv_to_duckdb - Tests for load_csvs_to_duckdb utility.
 import pytest
 
 from aitaem.connectors.ibis_connector import IbisConnector
-from aitaem.utils.csv_to_duckdb import load_csvs_to_duckdb
+from aitaem.helpers.csv_to_duckdb import load_csvs_to_duckdb
 
 
 @pytest.fixture
