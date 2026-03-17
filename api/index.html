@@ -696,6 +696,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#helpers-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Helpers Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -789,6 +800,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="helpers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Helpers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -860,6 +899,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#helpers-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Helpers Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -881,8 +931,11 @@
 
 
 <h1 id="api-reference">API Reference</h1>
-<p>All public classes are importable directly from <code>aitaem</code>:</p>
+<p>Core classes are importable directly from <code>aitaem</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecCache</span><span class="p">,</span> <span class="n">ConnectionManager</span><span class="p">,</span> <span class="n">MetricCompute</span>
+</code></pre></div>
+<p>Helpers are importable from <code>aitaem.helpers</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.helpers</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_csvs_to_duckdb</span>
 </code></pre></div>
 <h2 id="class-overview">Class Overview</h2>
 <table>
@@ -923,6 +976,23 @@
 <td><a href="connectors/"><code>ConnectionManager</code></a></td>
 <td><code>aitaem.connectors.connection</code></td>
 <td>Manage backend connections</td>
+</tr>
+</tbody>
+</table>
+<h2 id="helpers-overview">Helpers Overview</h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Module</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="helpers/"><code>load_csvs_to_duckdb</code></a></td>
+<td><code>aitaem.helpers</code></td>
+<td>Load CSV file(s) into a DuckDB database</td>
 </tr>
 </tbody>
 </table>
