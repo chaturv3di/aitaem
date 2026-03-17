@@ -63,15 +63,13 @@ Every `compute()` call returns a pandas DataFrame with exactly these 9 columns:
 The `examples/` directory contains sample YAML specs and a DuckDB dataset for an ad campaigns use case.
 
 ```python
-import ibis
 from aitaem import SpecCache, ConnectionManager, MetricCompute
-from aitaem.connectors.ibis_connector import IbisConnector
+from aitaem.helpers import load_csvs_to_duckdb
 
-# Load in-memory DuckDB with the sample CSV
-connector = IbisConnector("duckdb")
-connector.connect(":memory:")
-connector.connection.raw_sql(
-    "CREATE TABLE ad_campaigns AS SELECT * FROM read_csv_auto('examples/data/ad_campaigns.csv')"
+# Load the sample CSV into a DuckDB database
+connector = load_csvs_to_duckdb(
+    csv_path="examples/data/ad_campaigns.csv",
+    db_path="/tmp/ad_campaigns.duckdb",
 )
 
 conn = ConnectionManager()
