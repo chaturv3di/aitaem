@@ -7,7 +7,7 @@ Pure parsing/validation layer. No Ibis or database dependencies.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 
 import yaml
@@ -97,15 +97,7 @@ class MetricSpec:
         aggregation = spec_dict["aggregation"].lower()
         denominator = spec_dict.get("denominator") or None
 
-        unknown_fields = set(spec_dict.keys()) - {
-            "name",
-            "source",
-            "aggregation",
-            "numerator",
-            "description",
-            "denominator",
-            "timestamp_col",
-        }
+        unknown_fields = set(spec_dict.keys()) - {f.name for f in fields(cls)}
         if unknown_fields:
             logger.debug("MetricSpec '%s': ignoring unknown fields: %s", name, unknown_fields)
 
