@@ -7,8 +7,12 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import duckdb
+
+if TYPE_CHECKING:
+    from aitaem.connectors.ibis_connector import IbisConnector
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +110,7 @@ def load_csvs_to_duckdb(
     finally:
         con.close()
 
-    from aitaem.connectors.ibis_connector import IbisConnector
+    from aitaem.connectors.ibis_connector import IbisConnector  # noqa: PLC0415
 
     connector = IbisConnector("duckdb")
     connector.connect(str(db_path))
