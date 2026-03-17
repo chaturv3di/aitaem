@@ -38,9 +38,10 @@ except (ImportError, AttributeError):
 # Get project ID from environment - REQUIRED for integration tests
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 if not GCP_PROJECT_ID:
-    raise EnvironmentError(
-        "GCP_PROJECT_ID environment variable must be set to run BigQuery integration tests.\n"
-        "Set it with: export GCP_PROJECT_ID=your-project-id"
+    pytest.skip(
+        "GCP_PROJECT_ID not set — skipping BigQuery integration tests. "
+        "Set it with: export GCP_PROJECT_ID=your-project-id",
+        allow_module_level=True,
     )
 
 DATASET_ID = os.environ.get("DATASET_ID", "aggregate_tables")
