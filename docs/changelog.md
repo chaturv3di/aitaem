@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.3 — 2026-03-17
+
+- New `aitaem.helpers` module for user-facing convenience functions
+- New `load_csvs_to_duckdb(csv_path, db_path, overwrite=True)` helper — loads a single CSV or all top-level CSVs in a folder into a DuckDB file and returns a connected `IbisConnector`
+- `MetricSpec`: unknown-fields check now uses `dataclasses.fields()` instead of a hard-coded set
+- README: updated CSV loading example to use `load_csvs_to_duckdb`
+
 ## v0.1.2 — 2025-05-xx
 
 - Updated installation instructions to use PyPI
