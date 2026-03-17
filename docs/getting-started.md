@@ -69,7 +69,7 @@ from aitaem.helpers import load_csvs_to_duckdb
 # Load the sample CSV into a DuckDB database
 connector = load_csvs_to_duckdb(
     csv_path="examples/data/ad_campaigns.csv",
-    db_path=":memory:",
+    db_path="/tmp/ad_campaigns.duckdb",
 )
 
 conn = ConnectionManager()
