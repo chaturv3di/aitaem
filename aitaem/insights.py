@@ -37,6 +37,7 @@ class MetricCompute:
         slices: str | list[str] | None = None,
         segments: str | list[str] | None = None,
         time_window: tuple[str, str] | None = None,
+        period_type: str = "all_time",
         output_format: str = "pandas",
     ) -> pd.DataFrame:
         """Compute one or more metrics with optional slicing and segmentation.
@@ -47,6 +48,9 @@ class MetricCompute:
             segments: Segment name(s). Each segment is computed independently.
             time_window: (start_date, end_date) ISO strings for period filter.
                          Requires ``timestamp_col`` to be set on each metric spec.
+            period_type: Granularity for time grouping. One of 'all_time', 'daily',
+                         'weekly', 'monthly', 'yearly'. Non-'all_time' requires
+                         time_window and timestamp_col on every metric spec.
             output_format: Output format — only 'pandas' is supported in Phase 1.
 
         Returns:
@@ -56,6 +60,7 @@ class MetricCompute:
         Raises:
             SpecNotFoundError: if any metric/slice/segment name is not in the cache.
             QueryBuildError: if time_window is set but a metric has no timestamp_col.
+            QueryBuildError: if period_type is invalid or missing required time_window.
             QueryExecutionError: if all query groups fail to execute.
         """
         # 1. Normalize inputs to lists
@@ -79,6 +84,7 @@ class MetricCompute:
             segment_specs=segment_specs,
             time_window=time_window,
             spec_cache=self.spec_cache,
+            period_type=period_type,
         )
 
         # 4. Execute and return in standard column order
