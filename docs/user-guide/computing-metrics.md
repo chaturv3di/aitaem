@@ -22,10 +22,12 @@ mc = MetricCompute(cache, conn)
 
 ```python
 df = mc.compute(
-    metrics,           # required
-    slices=None,       # optional
-    segments=None,     # optional
-    time_window=None,  # optional
+    metrics,              # required
+    slices=None,          # optional
+    segments=None,        # optional
+    time_window=None,     # optional
+    period_type="all_time",  # optional
+    by_entity=None,       # optional
     output_format="pandas",
 )
 ```
@@ -39,7 +41,7 @@ One or more metric names defined in the spec cache.
 df = mc.compute(metrics="ctr")
 
 # Multiple metrics
-df = mc.compute(metrics=["ctr", "cpa", "roas"])
+df = mc.compute(metrics=["ctr", "roas", "total_revenue"])
 ```
 
 ### `slices`
@@ -83,16 +85,16 @@ Group results by an entity column declared in the metric's `entities` field. Use
 entity-level deep-dives — e.g., revenue per user, sessions per device.
 
 ```python
-# Revenue disaggregated by user
+# Total revenue disaggregated by platform
 df = mc.compute(
-    metrics="revenue",
-    by_entity="user_id",
-    time_window=("2026-01-01", "2026-04-01"),
+    metrics="total_revenue",
+    by_entity="platform",
+    time_window=("2024-01-01", "2024-04-01"),
     period_type="monthly",
 )
 
 # Default — aggregate over all entities (entity_id column is NULL)
-df = mc.compute(metrics="revenue")
+df = mc.compute(metrics="total_revenue")
 ```
 
 !!! note
@@ -126,7 +128,7 @@ Slices and segments can be combined freely. Each combination is computed as a se
 
 ```python
 df = mc.compute(
-    metrics=["ctr", "cpa"],
+    metrics=["ctr", "total_revenue"],
     slices=["campaign_type", "geo"],
     segments="platform",
     time_window=("2024-01-01", "2024-07-01"),

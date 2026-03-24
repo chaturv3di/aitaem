@@ -15,6 +15,7 @@ metric:
   numerator: "SUM(clicks)"
   denominator: "SUM(impressions)"
   timestamp_col: date
+  entities: [platform, campaign_type, country]
 ```
 
 ### Fields
@@ -23,7 +24,7 @@ metric:
 |-------|----------|-------------|
 | `name` | Yes | Unique identifier used in `MetricCompute.compute()` |
 | `source` | Yes | Source URI — see [Connectors](connectors.md) for format |
-| `aggregation` | Yes | Either `"sum"` or `"ratio"` |
+| `aggregation` | Yes | One of `"sum"`, `"avg"`, `"count"`, `"min"`, `"max"`, or `"ratio"` |
 | `numerator` | Yes | SQL aggregate expression for the numerator (or sole value for `sum`) |
 | `timestamp_col` | Yes | Column used for `time_window` filtering |
 | `denominator` | Only for `ratio` | SQL aggregate expression for the denominator |
@@ -32,28 +33,83 @@ metric:
 
 ### Aggregation types
 
+=== "ratio"
+
+    ```yaml
+    metric:
+      name: ctr
+      description: Click-through rate — ratio of clicks to impressions
+      source: duckdb://ad_campaigns.duckdb/ad_campaigns
+      aggregation: ratio
+      numerator: "SUM(clicks)"
+      denominator: "SUM(impressions)"
+      timestamp_col: date
+      entities: [platform, campaign_type, country]
+    ```
+
 === "sum"
 
     ```yaml
     metric:
       name: total_revenue
-      source: duckdb://analytics.db/orders
+      description: Total revenue generated across all campaigns
+      source: duckdb://ad_campaigns.duckdb/ad_campaigns
       aggregation: sum
       numerator: "SUM(revenue)"
-      timestamp_col: created_at
+      timestamp_col: date
+      entities: [platform, campaign_type, country]
     ```
 
-=== "ratio"
+=== "avg"
 
     ```yaml
     metric:
-      name: cpa
-      description: Cost per acquisition
+      name: avg_revenue
+      description: Average revenue per campaign row
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
-      aggregation: ratio
-      numerator: "SUM(ad_spend)"
-      denominator: "SUM(conversions)"
+      aggregation: avg
+      numerator: "AVG(revenue)"
       timestamp_col: date
+      entities: [platform, campaign_type, country]
+    ```
+
+=== "count"
+
+    ```yaml
+    metric:
+      name: campaign_count
+      description: Number of campaign rows
+      source: duckdb://ad_campaigns.duckdb/ad_campaigns
+      aggregation: count
+      numerator: "COUNT(*)"
+      timestamp_col: date
+      entities: [platform, campaign_type, country]
+    ```
+
+=== "max"
+
+    ```yaml
+    metric:
+      name: max_revenue
+      description: Peak revenue from a single campaign row
+      source: duckdb://ad_campaigns.duckdb/ad_campaigns
+      aggregation: max
+      numerator: "MAX(revenue)"
+      timestamp_col: date
+      entities: [platform, campaign_type, country]
+    ```
+
+=== "min"
+
+    ```yaml
+    metric:
+      name: min_ad_spend
+      description: Lowest ad spend entry
+      source: duckdb://ad_campaigns.duckdb/ad_campaigns
+      aggregation: min
+      numerator: "MIN(ad_spend)"
+      timestamp_col: date
+      entities: [platform, campaign_type, country]
     ```
 
 ### Entity columns
@@ -173,7 +229,7 @@ cache = SpecCache.from_yaml(
 
 # From individual files
 cache = SpecCache.from_yaml(
-    metric_paths=["metrics/ctr.yaml", "metrics/cpa.yaml"],
+    metric_paths=["metrics/ctr.yaml", "metrics/total_revenue.yaml"],
     slice_paths="slices/campaign_type.yaml",
 )
 
