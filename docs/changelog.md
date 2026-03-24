@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.4 — 2026-03-23
+
 ### Changed
 - **`MetricSpec`**: removed `aggregation` field. Aggregation type is now inferred from the SQL
   function embedded in `numerator` (and `denominator`). Ratio is implied when `denominator` is
@@ -28,7 +30,7 @@
 - `MetricSpec`: unknown-fields check now uses `dataclasses.fields()` instead of a hard-coded set
 - README: updated CSV loading example to use `load_csvs_to_duckdb`
 
-## v0.1.2 — 2025-05-xx
+## v0.1.2 — 2026-03-14
 
 - Updated installation instructions to use PyPI
 - Added CI, PyPI version, and Python version badges to README

@@ -114,12 +114,14 @@ When creating a release:
 
   1. Create a `release/vX.Y.Z` branch from `main`
   2. Commit the version bump in `pyproject.toml` on that branch
-  3. Push the branch and open a PR into `main`
-  4. Wait for PR approval and merge — do NOT proceed until the PR is merged
-  5. After merge, create an annotated tag on `main`: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
-  6. Push the tag: `git push origin vX.Y.Z`
-  7. Create a GitHub release using `gh release create`
-  8. Publishing the GitHub release automatically triggers the `publish.yml` GitHub Actions workflow, which builds the package and uploads it to PyPI via Trusted Publishing (OIDC). A reviewer must approve the deployment in the GitHub Actions UI (under the `pypi` environment) before the upload proceeds. Monitor progress in the repository's Actions tab.
+  3. In `docs/changelog.md`: rename the `## Unreleased` section to `## vX.Y.Z — YYYY-MM-DD` (use today's date) and add a new empty `## Unreleased` section above it
+  4. Update any affected docs pages under `docs/api/` and `docs/` to reflect changes in the release (new/removed exports, updated behavior, etc.)
+  5. Push the branch and open a PR into `main`
+  6. Wait for PR approval and merge — do NOT proceed until the PR is merged
+  7. After merge, create an annotated tag on `main`: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
+  8. Push the tag: `git push origin vX.Y.Z`
+  9. Create a GitHub release using `gh release create`
+  10. Publishing the GitHub release automatically triggers the `publish.yml` GitHub Actions workflow, which builds the package and uploads it to PyPI via Trusted Publishing (OIDC). A reviewer must approve the deployment in the GitHub Actions UI (under the `pypi` environment) before the upload proceeds. Monitor progress in the repository's Actions tab.
 
   Never commit version bumps or release prep directly to `main`.
 
