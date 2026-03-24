@@ -8,6 +8,7 @@ import pytest
 
 from aitaem.connectors import IbisConnector
 from aitaem.utils.exceptions import (
+    ConfigurationError,
     ConnectionError as AitaemConnectionError,
     InvalidURIError,
     TableNotFoundError,
@@ -125,9 +126,9 @@ class TestBigQueryConnection:
         connector.close()
 
     def test_connect_missing_project_id(self):
-        """Test that missing project_id raises ValueError."""
+        """Test that missing project_id raises ConfigurationError."""
         connector = IbisConnector("bigquery")
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ConfigurationError) as exc_info:
             connector.connect()
         assert "project_id" in str(exc_info.value)
 
@@ -307,6 +308,48 @@ class TestExecute:
         with pytest.raises(AitaemConnectionError) as exc_info:
             connector.execute(expr)
         assert "Not connected" in str(exc_info.value)
+
+
+class TestPostgresConnection:
+    """Test Postgres connection behaviour (mocked)."""
+
+    def test_valid_backend_postgres(self):
+        connector = IbisConnector("postgres")
+        assert connector.backend_type == "postgres"
+        assert not connector.is_connected
+
+    def test_repr_disconnected(self):
+        connector = IbisConnector("postgres")
+        assert "postgres" in repr(connector)
+        assert "disconnected" in repr(connector)
+
+    def test_connect_missing_database_raises(self):
+        connector = IbisConnector("postgres")
+        with pytest.raises(ConfigurationError) as exc_info:
+            connector.connect(user="myuser", password="secret")
+        assert "database" in str(exc_info.value)
+
+    def test_connect_missing_user_raises(self):
+        connector = IbisConnector("postgres")
+        with pytest.raises(ConfigurationError) as exc_info:
+            connector.connect(database="mydb", password="secret")
+        assert "user" in str(exc_info.value)
+
+    def test_connect_missing_password_raises(self):
+        connector = IbisConnector("postgres")
+        with pytest.raises(ConfigurationError) as exc_info:
+            connector.connect(database="mydb", user="myuser")
+        assert "password" in str(exc_info.value)
+
+    def test_connect_failure_raises_connection_error(self, mocker):
+        import aitaem.connectors.ibis_connector as ibis_connector_module
+
+        mock_ibis = mocker.MagicMock()
+        mock_ibis.postgres.connect.side_effect = Exception("connection refused")
+        mocker.patch.object(ibis_connector_module, "ibis", mock_ibis)
+        connector = IbisConnector("postgres")
+        with pytest.raises(AitaemConnectionError, match="PostgreSQL connection failed"):
+            connector.connect(database="mydb", user="myuser", password="secret")
 
 
 class TestLifecycle:

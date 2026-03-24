@@ -1,6 +1,6 @@
 # aitaem Connectors
 
-Backend connection management for the aitaem library. Provides unified connectors for DuckDB and BigQuery via the Ibis abstraction layer.
+Backend connection management for the aitaem library. Provides unified connectors for DuckDB, BigQuery, and PostgreSQL via the Ibis abstraction layer.
 
 ## Overview
 
@@ -8,6 +8,7 @@ The connector module enables aitaem to connect to various OLAP databases and dat
 
 - **DuckDB**: Fast, in-process SQL database for local analytics
 - **BigQuery**: Google Cloud's serverless data warehouse (requires optional dependencies)
+- **PostgreSQL**: Full-featured relational database (requires optional dependencies)
 
 Key features:
 - Unified API across backends via Ibis
@@ -29,6 +30,12 @@ pip install aitaem
 pip install "aitaem[bigquery]"
 ```
 
+### With PostgreSQL support
+
+```bash
+pip install "aitaem[postgres]"
+```
+
 ### Development installation
 
 ```bash
@@ -47,6 +54,13 @@ duckdb:
 
 bigquery:
   project_id: my-project
+
+postgres:
+  host: localhost
+  port: 5432
+  database: mydb
+  user: myuser
+  password: ${POSTGRES_PASSWORD}
 ```
 
 ### 2. Authenticate (BigQuery only)
@@ -108,6 +122,17 @@ bigquery:
 - Run: `gcloud auth application-default login`
 - Or set: `export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json`
 
+#### PostgreSQL
+
+```yaml
+postgres:
+  host: localhost              # Optional: default 'localhost'
+  port: 5432                  # Optional: default 5432
+  database: mydb              # Required
+  user: myuser                # Required
+  password: ${POSTGRES_PASSWORD}  # Required
+```
+
 ### Environment Variable Substitution
 
 Use `${VAR_NAME}` syntax in YAML values:
@@ -150,6 +175,16 @@ bigquery://project/dataset.table        → project='project', table='dataset.ta
 
 **Note**: BigQuery table names in URIs must have at least 3 parts (project.dataset.table). When retrieving tables, aitaem automatically extracts the `dataset.table` format needed by Ibis.
 
+### PostgreSQL URIs
+
+```
+postgres://public/events                → schema='public', table='events'
+postgres://analytics/orders             → schema='analytics', table='orders'
+postgres:///events                      → schema='' (default), table='events'
+```
+
+The schema portion is optional. When included, the table will be qualified as `schema.table` in SQL queries.
+
 ## API Reference
 
 ### ConnectionManager
@@ -175,6 +210,7 @@ Add a connection manually (without YAML).
 ```python
 manager.add_connection('duckdb', path=':memory:')
 manager.add_connection('bigquery', project_id='my-project')
+manager.add_connection('postgres', database='mydb', user='myuser', password='secret')
 ```
 
 **`get_connection(backend_type: str) -> IbisConnector`**
@@ -214,7 +250,7 @@ manager.close_all()
 
 ### IbisConnector
 
-Unified connector for DuckDB and BigQuery.
+Unified connector for DuckDB, BigQuery, and PostgreSQL.
 
 #### Constructor
 
@@ -226,7 +262,7 @@ Create connector for specified backend.
 connector = IbisConnector('duckdb')
 ```
 
-Supported backends: `'duckdb'`, `'bigquery'`
+Supported backends: `'duckdb'`, `'bigquery'`, `'postgres'`
 
 #### Methods
 
@@ -242,6 +278,10 @@ connector.connect('analytics.db', read_only=True)
 
 # BigQuery
 connector.connect(project_id='my-project')
+
+# PostgreSQL
+connector.connect(database='mydb', user='myuser', password='secret')
+connector.connect(host='db.example.com', port=5433, database='mydb', user='myuser', password='secret')
 ```
 
 **`get_table(table_name: str) -> ibis.expr.types.Table`**
@@ -338,7 +378,7 @@ Table 'events' not found in duckdb backend
 ```
 Backend type 'clickhouse' not supported
 
-Supported backends: bigquery, duckdb
+Supported backends: bigquery, duckdb, postgres
 ```
 
 All exceptions inherit from `AitaemError` base class for easy catching:
@@ -404,6 +444,12 @@ duckdb:
 
 bigquery:
   project_id: my-project
+
+postgres:
+  host: localhost
+  database: mydb
+  user: myuser
+  password: ${POSTGRES_PASSWORD}
 ```
 
 ```python
@@ -418,6 +464,31 @@ local_table = duckdb_conn.get_table('cache')
 # Use BigQuery for cloud data warehouse
 bq_conn = manager.get_connection('bigquery')
 cloud_table = bq_conn.get_table('dataset.events')
+
+# Use PostgreSQL for transactional data
+pg_conn = manager.get_connection('postgres')
+pg_table = pg_conn.get_table('public.orders')
+```
+
+### Production with PostgreSQL
+
+```yaml
+# connections.yaml
+postgres:
+  host: ${POSTGRES_HOST}
+  database: ${POSTGRES_DB}
+  user: ${POSTGRES_USER}
+  password: ${POSTGRES_PASSWORD}
+```
+
+```python
+from aitaem.connectors import ConnectionManager
+
+manager = ConnectionManager.from_yaml('connections.yaml')
+connector = manager.get_connection('postgres')
+
+table = connector.get_table('public.events')
+result = connector.execute(table.filter(table.status == 'active'))
 ```
 
 ## Testing
@@ -452,7 +523,7 @@ pytest tests/test_connectors/ -v
 ## Future Enhancements
 
 Planned for Phase 2:
-- Additional backends (ClickHouse, Snowflake, PostgreSQL)
+- Additional backends (ClickHouse, Snowflake)
 - Advanced authentication methods (service account JSON, OAuth)
 - Connection pooling and automatic reconnection
 - Remote YAML loading (HTTP/S3)

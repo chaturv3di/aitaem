@@ -21,7 +21,7 @@ from aitaem.helpers import load_csvs_to_duckdb
 | [`MetricSpec`](specs.md#aitaem.specs.metric.MetricSpec) | `aitaem.specs.metric` | Metric spec dataclass |
 | [`SliceSpec`](specs.md#aitaem.specs.slice.SliceSpec) | `aitaem.specs.slice` | Slice spec dataclass |
 | [`SegmentSpec`](specs.md#aitaem.specs.segment.SegmentSpec) | `aitaem.specs.segment` | Segment spec dataclass |
-| [`ConnectionManager`](connectors.md) | `aitaem.connectors.connection` | Manage backend connections |
+| [`ConnectionManager`](connectors.md) | `aitaem.connectors.connection` | Manage backend connections (DuckDB, BigQuery, PostgreSQL) |
 
 ## Helpers Overview
 

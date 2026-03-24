@@ -9,8 +9,10 @@ from typing import Any
 import ibis
 import pandas as pd
 
+from aitaem.connectors.backend_specs import validate_backend_config
 from aitaem.connectors.base import Connector
 from aitaem.utils.exceptions import (
+    ConfigurationError,
     ConnectionError as AitaemConnectionError,
     InvalidURIError,
     QueryExecutionError,
@@ -33,7 +35,7 @@ class IbisConnector(Connector):
         connection: Ibis backend connection object
     """
 
-    SUPPORTED_BACKENDS = {"duckdb", "bigquery"}
+    SUPPORTED_BACKENDS = {"duckdb", "bigquery", "postgres"}
 
     def __init__(self, backend_type: str):
         """Initialize connector for specified backend type.
@@ -73,8 +75,10 @@ class IbisConnector(Connector):
                 self._connect_duckdb(connection_string, **kwargs)
             elif self.backend_type == "bigquery":
                 self._connect_bigquery(**kwargs)
+            elif self.backend_type == "postgres":
+                self._connect_postgres(**kwargs)
         except Exception as e:
-            if isinstance(e, (AitaemConnectionError, ValueError)):
+            if isinstance(e, (AitaemConnectionError, ConfigurationError, ValueError)):
                 raise
             raise AitaemConnectionError(
                 f"Failed to connect to {self.backend_type}: {str(e)}"
@@ -103,20 +107,13 @@ class IbisConnector(Connector):
             **kwargs: Must include 'project_id'
 
         Raises:
-            ValueError: If project_id is missing
+            ConfigurationError: If project_id is missing
             AitaemConnectionError: If connection fails or ADC not configured
         """
-        project_id = kwargs.get("project_id")
-        if not project_id:
-            raise ValueError(
-                "Missing required parameter 'project_id' for BigQuery connection\n\n"
-                "Add the project_id to your connections.yaml:\n"
-                "  bigquery:\n"
-                "    project_id: your-project-id"
-            )
+        cfg = validate_backend_config("bigquery", kwargs)
 
         try:
-            self.connection = ibis.bigquery.connect(project_id=project_id)
+            self.connection = ibis.bigquery.connect(project_id=cfg.project_id)
         except Exception as e:
             error_msg = str(e).lower()
             if "credentials" in error_msg or "authentication" in error_msg:
@@ -128,6 +125,30 @@ class IbisConnector(Connector):
                     "  export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json"
                 ) from e
             raise AitaemConnectionError(f"BigQuery connection failed: {str(e)}") from e
+
+    def _connect_postgres(self, **kwargs: Any) -> None:
+        """Connect to PostgreSQL.
+
+        Args:
+            **kwargs: Must include 'database', 'user', 'password'.
+                Optional: 'host' (default 'localhost'), 'port' (default 5432)
+
+        Raises:
+            ConfigurationError: If required fields are missing
+            AitaemConnectionError: If connection fails
+        """
+        cfg = validate_backend_config("postgres", kwargs)
+
+        try:
+            self.connection = ibis.postgres.connect(
+                host=cfg.host,
+                port=cfg.port,
+                database=cfg.database,
+                user=cfg.user,
+                password=cfg.password,
+            )
+        except Exception as e:
+            raise AitaemConnectionError(f"PostgreSQL connection failed: {str(e)}") from e
 
     def get_table(self, table_name: str) -> ibis.expr.types.Table:
         """Get a table reference from the backend.

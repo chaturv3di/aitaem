@@ -32,6 +32,9 @@ bigquery = [
     "ibis-framework[bigquery]>=9.0.0",
     "google-cloud-bigquery>=3.0.0",
 ]
+postgres = [
+    "ibis-framework[postgres]>=9.0.0",
+]
 dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
@@ -46,7 +49,7 @@ docs = [
     "mkdocstrings[python]>=0.27",
     "mkdocs-autorefs>=1.2",
 ]
-all = ["aitaem[bigquery,dev,docs]"]
+all = ["aitaem[bigquery,postgres,dev,docs]"]
 
 [project.urls]
 Homepage = "https://github.com/chaturv3di/aitaem"

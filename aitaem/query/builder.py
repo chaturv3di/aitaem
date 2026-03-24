@@ -66,9 +66,7 @@ class QueryBuilder:
             )
 
         if period_type != "all_time" and time_window is None:
-            raise QueryBuildError(
-                f"period_type='{period_type}' requires time_window to be set"
-            )
+            raise QueryBuildError(f"period_type='{period_type}' requires time_window to be set")
 
         if period_type != "all_time":
             for metric in metric_specs:
@@ -429,8 +427,7 @@ class QueryBuilder:
         Each boundary value is wrapped in CAST('...' AS TIMESTAMP).
         """
         rows = [
-            f"        (CAST('{s}' AS TIMESTAMP), CAST('{e}' AS TIMESTAMP))"
-            for s, e in boundaries
+            f"        (CAST('{s}' AS TIMESTAMP), CAST('{e}' AS TIMESTAMP))" for s, e in boundaries
         ]
         values_str = ",\n".join(rows)
         return f"_periods(period_start, period_end) AS (\n    VALUES\n{values_str}\n)"
@@ -444,7 +441,9 @@ class QueryBuilder:
     @staticmethod
     def _parse_table_name_from_uri(source_uri: str) -> str:
         """Extract table name from source URI for use in SQL FROM clause."""
-        backend_type, _, table = ConnectionManager.parse_source_uri(source_uri)
+        backend_type, schema, table = ConnectionManager.parse_source_uri(source_uri)
         if backend_type == "bigquery":
             return table  # already 'dataset.table'
+        if backend_type == "postgres" and schema:
+            return f"{schema}.{table}"
         return table
