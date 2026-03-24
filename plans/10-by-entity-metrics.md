@@ -251,12 +251,16 @@ GROUP BY _period_start, _period_end, user_id [, _slice_geo, _segment]
 ## Files to Modify
 
 ```
-aitaem/specs/metric.py          # Add entities field; parse + validate
-aitaem/utils/validation.py      # Add optional entities validation in validate_metric_spec()
-aitaem/query/builder.py         # Accept by_entity; add entity_id to SELECT and GROUP BY;
-                                #   validate by_entity against metric.entities
-aitaem/utils/formatting.py      # Add entity_id to STANDARD_COLUMNS
-aitaem/insights.py              # Add by_entity param; update docstring
+aitaem/specs/metric.py                      # Add entities field; parse + validate
+aitaem/utils/validation.py                  # Add optional entities validation in validate_metric_spec()
+aitaem/query/builder.py                     # Accept by_entity; add entity_id to SELECT and GROUP BY;
+                                            #   validate by_entity against metric.entities
+aitaem/utils/formatting.py                  # Add entity_id to STANDARD_COLUMNS
+aitaem/insights.py                          # Add by_entity param; update docstring
+docs/user-guide/specs.md                    # Add entities field to MetricSpec field table + example
+docs/user-guide/computing-metrics.md        # Add by_entity section; update output schema table;
+                                            #   update error handling table
+docs/changelog.md                           # Add Unreleased entry
 ```
 
 No new files. No new dependencies.
@@ -348,6 +352,68 @@ Changes in `_build_metric_segment_query()`:
 - `by_entity=None` (default): `entity_id` column is `NULL` on all rows; no regression
 - `by_entity='user_id'`: output has one row per `(user_id, period×slice×segment)`;
   `entity_id` values match input `user_id` values
+
+---
+
+### 5. Update documentation
+
+#### `docs/user-guide/specs.md`
+
+- Add `entities` row to the MetricSpec **Fields** table:
+
+  | Field | Required | Description |
+  |-------|----------|-------------|
+  | `entities` | No | List of entity column names this metric supports for `by_entity` disaggregation (e.g. `[user_id, device_id]`). Must be non-empty if provided. |
+
+- Add a new **Entity columns** sub-section under MetricSpec (after Aggregation types) showing
+  a YAML example with `entities` and a brief explanation of when to use it.
+
+#### `docs/user-guide/computing-metrics.md`
+
+- Add a **`by_entity`** parameter sub-section (after `time_window`, before the Output Schema):
+
+  ```python
+  # Disaggregate revenue by user
+  df = mc.compute(metrics="revenue", by_entity="user_id",
+                  time_window=("2026-01-01", "2026-04-01"), period_type="monthly")
+
+  # Default — aggregate over all entities
+  df = mc.compute(metrics="revenue")
+  ```
+
+  Include a note:
+  > All metrics in the call must list `by_entity` in their `entities` field. A `QueryBuildError`
+  > is raised if any metric does not declare the requested entity column.
+
+- Update the **Output Schema** table: change the column count from 9 to 10; insert the
+  `entity_id` row between `period_end_date` and `metric_name`:
+
+  | Column | Description |
+  |--------|-------------|
+  | `entity_id` | Value of the entity column (e.g. a `user_id`), or `None` when `by_entity` is not set |
+
+- Update the **Error Handling** table to add:
+
+  | `QueryBuildError` | `by_entity` is set but a metric does not list it in `entities` |
+
+#### `docs/changelog.md`
+
+Add to the `## Unreleased` section:
+
+```
+- `MetricSpec`: new optional `entities` field — declares which entity columns the metric
+  supports for disaggregation (e.g. `entities: [user_id, device_id]`)
+- `MetricCompute.compute()`: new `by_entity` parameter — groups results by an entity column
+  declared in each metric's `entities` list; raises `QueryBuildError` if any metric does not
+  support the requested entity
+- Standard output schema gains an `entity_id` column (position 4, between `period_end_date`
+  and `metric_name`); `NULL` when `by_entity` is not set
+```
+
+**Note on API reference docs** (`docs/api/specs.md`, `docs/api/insights.md`): these are
+auto-rendered from docstrings via `mkdocstrings`. No manual edits are required — they will
+pick up the updated `MetricSpec` and `MetricCompute.compute()` docstrings automatically once
+the code changes (sub-features 1 and 4) are implemented.
 
 ---
 
