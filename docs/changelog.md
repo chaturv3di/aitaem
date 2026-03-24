@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Changed
+- **`MetricSpec`**: removed `aggregation` field. Aggregation type is now inferred from the SQL
+  function embedded in `numerator` (and `denominator`). Ratio is implied when `denominator` is
+  present. Validation enforces that both `numerator` and `denominator` (when present) contain a
+  recognised aggregate function call (`SUM`, `AVG`, `COUNT`, `MIN`, `MAX`).
+
+### Migration guide
+- Remove `aggregation:` from all metric YAML specs.
+- Ensure `numerator` (and `denominator` when present) contain an explicit aggregate function call
+  such as `SUM(col)`, `AVG(col)`, `COUNT(*)`, `MIN(col)`, or `MAX(col)`.
+
+### Added
 - `MetricSpec`: new optional `entities` field — declares which entity columns the metric supports for disaggregation (e.g. `entities: [user_id, device_id]`). Must be a non-empty list if provided.
 - `MetricCompute.compute()`: new `by_entity` parameter — groups results by an entity column declared in each metric's `entities` list; raises `QueryBuildError` if any metric does not support the requested entity column.
 - Standard output schema gains an `entity_id` column (position 4, between `period_end_date` and `metric_name`); `None` when `by_entity` is not set.

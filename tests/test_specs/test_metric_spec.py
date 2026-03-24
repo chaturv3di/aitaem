@@ -11,7 +11,6 @@ class TestMetricSpecFromYamlString:
         spec = MetricSpec.from_yaml(valid_metric_ratio_yaml)
         assert spec.name == "homepage_ctr"
         assert spec.source == "duckdb://analytics.db/events"
-        assert spec.aggregation == "ratio"
         assert "SUM" in spec.numerator
         assert spec.denominator is not None
         assert "SUM" in spec.denominator
@@ -20,29 +19,15 @@ class TestMetricSpecFromYamlString:
     def test_valid_sum_metric(self, valid_metric_sum_yaml):
         spec = MetricSpec.from_yaml(valid_metric_sum_yaml)
         assert spec.name == "total_revenue"
-        assert spec.aggregation == "sum"
         assert spec.denominator is None
         assert spec.description == ""
-
-    def test_aggregation_normalized_to_lowercase(self):
-        yaml_str = """
-metric:
-  name: test
-  source: duckdb://db/tbl
-  aggregation: RATIO
-  numerator: "SUM(a)"
-  denominator: "SUM(b)"
-  timestamp_col: created_at
-"""
-        spec = MetricSpec.from_yaml(yaml_str)
-        assert spec.aggregation == "ratio"
 
     def test_missing_name_raises(self):
         yaml_str = """
 metric:
   source: duckdb://db/tbl
-  aggregation: sum
   numerator: "SUM(a)"
+  timestamp_col: created_at
 """
         with pytest.raises(SpecValidationError) as exc_info:
             MetricSpec.from_yaml(yaml_str)
@@ -53,8 +38,8 @@ metric:
         yaml_str = """
 metric:
   name: foo
-  aggregation: sum
   numerator: "SUM(a)"
+  timestamp_col: created_at
 """
         with pytest.raises(SpecValidationError) as exc_info:
             MetricSpec.from_yaml(yaml_str)
@@ -65,36 +50,108 @@ metric:
 metric:
   name: foo
   source: events
-  aggregation: sum
   numerator: "SUM(a)"
+  timestamp_col: created_at
 """
         with pytest.raises(SpecValidationError) as exc_info:
             MetricSpec.from_yaml(yaml_str)
         assert any(e.field == "source" for e in exc_info.value.errors)
 
-    def test_ratio_without_denominator_raises(self):
+    def test_malformed_numerator_sql_raises(self):
         yaml_str = """
 metric:
   name: foo
   source: duckdb://db/tbl
-  aggregation: ratio
+  numerator: "SUM(amount"
+  timestamp_col: created_at
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            MetricSpec.from_yaml(yaml_str)
+        assert any(e.field == "numerator" for e in exc_info.value.errors)
+
+    def test_malformed_denominator_sql_raises(self):
+        yaml_str = """
+metric:
+  name: foo
+  source: duckdb://db/tbl
   numerator: "SUM(a)"
+  denominator: "SUM(b"
+  timestamp_col: created_at
 """
         with pytest.raises(SpecValidationError) as exc_info:
             MetricSpec.from_yaml(yaml_str)
         assert any(e.field == "denominator" for e in exc_info.value.errors)
 
-    def test_unsupported_aggregation_raises(self):
+    def test_empty_numerator_raises(self):
         yaml_str = """
 metric:
   name: foo
   source: duckdb://db/tbl
-  aggregation: window_function
-  numerator: "SUM(a)"
+  numerator: ""
+  timestamp_col: created_at
 """
         with pytest.raises(SpecValidationError) as exc_info:
             MetricSpec.from_yaml(yaml_str)
-        assert any(e.field == "aggregation" for e in exc_info.value.errors)
+        assert any(e.field == "numerator" for e in exc_info.value.errors)
+
+    def test_numerator_without_aggregate_raises(self):
+        yaml_str = """
+metric:
+  name: foo
+  source: duckdb://db/tbl
+  numerator: "amount"
+  timestamp_col: created_at
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            MetricSpec.from_yaml(yaml_str)
+        assert any(e.field == "numerator" for e in exc_info.value.errors)
+
+    def test_denominator_without_aggregate_raises(self):
+        yaml_str = """
+metric:
+  name: foo
+  source: duckdb://db/tbl
+  numerator: "SUM(clicks)"
+  denominator: "impressions"
+  timestamp_col: created_at
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            MetricSpec.from_yaml(yaml_str)
+        assert any(e.field == "denominator" for e in exc_info.value.errors)
+
+    def test_denominator_with_aggregate_is_valid(self):
+        yaml_str = """
+metric:
+  name: ctr
+  source: duckdb://db/tbl
+  numerator: "SUM(clicks)"
+  denominator: "SUM(impressions)"
+  timestamp_col: created_at
+"""
+        spec = MetricSpec.from_yaml(yaml_str)
+        assert spec.denominator == "SUM(impressions)"
+
+    def test_count_star_is_valid(self):
+        yaml_str = """
+metric:
+  name: event_count
+  source: duckdb://db/tbl
+  numerator: "COUNT(*)"
+  timestamp_col: created_at
+"""
+        spec = MetricSpec.from_yaml(yaml_str)
+        assert "COUNT" in spec.numerator
+
+    def test_count_distinct_is_valid(self):
+        yaml_str = """
+metric:
+  name: unique_users
+  source: duckdb://db/tbl
+  numerator: "COUNT(DISTINCT user_id)"
+  timestamp_col: created_at
+"""
+        spec = MetricSpec.from_yaml(yaml_str)
+        assert "COUNT" in spec.numerator
 
     def test_missing_top_level_metric_key_raises(self):
         yaml_str = """
@@ -110,67 +167,24 @@ source: duckdb://db/tbl
         with pytest.raises(SpecValidationError):
             MetricSpec.from_yaml(yaml_str)
 
-    def test_malformed_numerator_sql_raises(self):
+    def test_denominator_present_is_stored(self):
         yaml_str = """
 metric:
-  name: foo
+  name: ctr
   source: duckdb://db/tbl
-  aggregation: sum
-  numerator: "SUM(amount"
-"""
-        with pytest.raises(SpecValidationError) as exc_info:
-            MetricSpec.from_yaml(yaml_str)
-        assert any(e.field == "numerator" for e in exc_info.value.errors)
-
-    def test_malformed_denominator_sql_raises(self):
-        yaml_str = """
-metric:
-  name: foo
-  source: duckdb://db/tbl
-  aggregation: ratio
-  numerator: "SUM(a)"
-  denominator: "SUM(b"
-"""
-        with pytest.raises(SpecValidationError) as exc_info:
-            MetricSpec.from_yaml(yaml_str)
-        assert any(e.field == "denominator" for e in exc_info.value.errors)
-
-    def test_empty_numerator_raises(self):
-        yaml_str = """
-metric:
-  name: foo
-  source: duckdb://db/tbl
-  aggregation: sum
-  numerator: ""
-"""
-        with pytest.raises(SpecValidationError) as exc_info:
-            MetricSpec.from_yaml(yaml_str)
-        assert any(e.field == "numerator" for e in exc_info.value.errors)
-
-    def test_sum_with_denominator_logs_warning(self, caplog):
-        import logging
-
-        yaml_str = """
-metric:
-  name: foo
-  source: duckdb://db/tbl
-  aggregation: sum
-  numerator: "SUM(a)"
-  denominator: "SUM(b)"
+  numerator: "SUM(clicks)"
+  denominator: "SUM(impressions)"
   timestamp_col: created_at
 """
-        with caplog.at_level(logging.WARNING):
-            spec = MetricSpec.from_yaml(yaml_str)
-        assert spec.aggregation == "sum"
-        # denominator is ignored (not stored) — or stored with warning
-        # per plan: "Spec created; warning logged"
+        spec = MetricSpec.from_yaml(yaml_str)
+        assert spec.denominator == "SUM(impressions)"
 
 
 class TestMetricSpecFromFile:
     def test_load_ratio_from_file(self, fixtures_dir):
         spec = MetricSpec.from_yaml(fixtures_dir / "valid_metric_ratio.yaml")
         assert spec.name == "homepage_ctr"
-        assert spec.aggregation == "ratio"
+        assert spec.denominator is not None
 
     def test_load_sum_from_file(self, fixtures_dir):
         spec = MetricSpec.from_yaml(fixtures_dir / "valid_metric_sum.yaml")
@@ -185,10 +199,10 @@ class TestMetricSpecFromFile:
         with pytest.raises(SpecValidationError):
             MetricSpec.from_yaml(fixtures_dir / "invalid_yaml_syntax.yaml")
 
-    def test_invalid_metric_no_denominator_file(self, fixtures_dir):
+    def test_invalid_no_aggregate_in_numerator_file(self, fixtures_dir):
         with pytest.raises(SpecValidationError) as exc_info:
-            MetricSpec.from_yaml(fixtures_dir / "invalid_metric_no_denominator.yaml")
-        assert any(e.field == "denominator" for e in exc_info.value.errors)
+            MetricSpec.from_yaml(fixtures_dir / "invalid_metric_no_aggregate_in_numerator.yaml")
+        assert any(e.field == "numerator" for e in exc_info.value.errors)
 
 
 class TestMetricSpecEntities:
@@ -201,7 +215,6 @@ class TestMetricSpecEntities:
 metric:
   name: revenue
   source: duckdb://db/tbl
-  aggregation: sum
   numerator: "SUM(amount)"
   timestamp_col: event_ts
   entities: [user_id]
@@ -214,7 +227,6 @@ metric:
 metric:
   name: revenue
   source: duckdb://db/tbl
-  aggregation: sum
   numerator: "SUM(amount)"
   timestamp_col: event_ts
   entities: [user_id, device_id]
@@ -227,7 +239,6 @@ metric:
 metric:
   name: revenue
   source: duckdb://db/tbl
-  aggregation: sum
   numerator: "SUM(amount)"
   timestamp_col: event_ts
   entities: []
@@ -241,7 +252,6 @@ metric:
 metric:
   name: revenue
   source: duckdb://db/tbl
-  aggregation: sum
   numerator: "SUM(amount)"
   timestamp_col: event_ts
   entities: [""]
@@ -254,7 +264,6 @@ metric:
         spec = MetricSpec(
             name="revenue",
             source="duckdb://db/tbl",
-            aggregation="sum",
             numerator="SUM(amount)",
             timestamp_col="event_ts",
             entities=["user_id", "device_id"],
@@ -266,7 +275,6 @@ metric:
         spec = MetricSpec(
             name="revenue",
             source="duckdb://db/tbl",
-            aggregation="sum",
             numerator="SUM(amount)",
             timestamp_col="event_ts",
         )
@@ -282,12 +290,9 @@ class TestMetricSpecValidate:
         assert result.errors == []
 
     def test_validate_does_not_raise(self):
-        # Build a spec bypassing from_yaml (use object.__setattr__ to bypass frozen)
-        # Since it's frozen, use a valid one and just call validate()
         spec = MetricSpec(
             name="foo",
             source="duckdb://db/tbl",
-            aggregation="sum",
             numerator="SUM(a)",
             timestamp_col="created_at",
         )

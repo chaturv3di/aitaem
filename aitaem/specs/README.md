@@ -31,7 +31,6 @@ metric:
   name: ctr
   description: Click-through rate
   source: duckdb://analytics.db/events
-  aggregation: ratio
   numerator: "SUM(clicks)"
   denominator: "SUM(impressions)"
   timestamp_col: event_ts
@@ -95,22 +94,25 @@ metric:
   name: homepage_ctr              # Required: unique identifier
   description: "..."              # Optional
   source: duckdb://db/table       # Required: backend URI (see URI format below)
-  aggregation: ratio              # Required: sum | avg | count | ratio | min | max
-  numerator: "SUM(clicks)"        # Required: SQL aggregation expression
-  denominator: "SUM(impressions)" # Required when aggregation is 'ratio'
+  numerator: "SUM(clicks)"        # Required: SQL expression with an aggregate function call
+  denominator: "SUM(impressions)" # Optional: when present, ratio = numerator / denominator
   timestamp_col: event_date       # Required: date/timestamp column for time_window filtering
 ```
+
+The aggregation type is inferred from the SQL function in `numerator` (and `denominator`).
+There is no separate `aggregation` field. Supported aggregate functions: `SUM`, `AVG`, `COUNT`,
+`MIN`, `MAX`. When `denominator` is present, ratio is implied.
 
 **Aggregation types**:
 
 | Type | `numerator` | `denominator` |
 |------|-------------|---------------|
-| `sum` | `SUM(col)` | Not used |
-| `count` | `COUNT(*)` | Not used |
-| `avg` | `SUM(col)` | `COUNT(*)` |
-| `ratio` | Any SQL agg | Any SQL agg (required) |
-| `min` | `MIN(col)` | Not used |
-| `max` | `MAX(col)` | Not used |
+| sum | `SUM(col)` | absent |
+| count | `COUNT(*)` or `COUNT(DISTINCT col)` | absent |
+| avg | `AVG(col)` | absent |
+| ratio | Any SQL agg | Any SQL agg (required) |
+| min | `MIN(col)` | absent |
+| max | `MAX(col)` | absent |
 
 **Source URI format**: `backend://database_identifier/table_name`
 - DuckDB: `duckdb://analytics.db/events`
@@ -123,7 +125,6 @@ metric:
 metric:
   name: total_revenue
   source: duckdb://analytics.db/transactions
-  aggregation: sum
   numerator: "SUM(amount)"
 ```
 
@@ -132,7 +133,6 @@ metric:
 metric:
   name: homepage_ctr
   source: duckdb://analytics.db/events
-  aggregation: ratio
   numerator: "SUM(CASE WHEN event_type = 'click' AND page = 'home' THEN 1 ELSE 0 END)"
   denominator: "SUM(CASE WHEN event_type = 'impression' AND page = 'home' THEN 1 ELSE 0 END)"
 ```
@@ -246,7 +246,6 @@ cache = SpecCache.from_string(
 metric:
   name: ctr
   source: duckdb://analytics.db/events
-  aggregation: ratio
   numerator: "SUM(clicks)"
   denominator: "SUM(impressions)"
 """,
@@ -300,11 +299,11 @@ Raises `SpecNotFoundError` if the name is not found.
 MetricSpec(
     name: str,
     source: str,
-    aggregation: str,
     numerator: str,
+    timestamp_col: str,
     description: str = "",
     denominator: str | None = None,
-    timestamp_col: str,
+    entities: list[str] | None = None,
 )
 ```
 
@@ -411,9 +410,8 @@ All errors inherit from `AitaemError`:
 **`SpecValidationError`**: Raised when a YAML spec fails validation.
 ```
 SpecValidationError: Invalid metric spec 'homepage_ctr':
-  - field 'aggregation': 'median' is not a valid aggregation type.
-    Valid types: sum, avg, count, ratio, min, max
-  - field 'denominator': required when aggregation is 'ratio'
+  - field 'numerator': 'revenue' must contain an aggregate function (SUM, AVG, COUNT, MIN, MAX)
+  - field 'denominator': 'impressions' must contain an aggregate function (SUM, AVG, COUNT, MIN, MAX)
 ```
 
 **`SpecNotFoundError`**: Raised when a spec name cannot be found in the cache.
@@ -453,8 +451,8 @@ ctr    = cache.get_metric('ctr')
 geo    = cache.get_slice('geo')
 plat   = cache.get_segment('platform')
 
-print(ctr.aggregation)      # 'ratio'
 print(ctr.numerator)        # 'SUM(clicks)'
+print(ctr.denominator)      # 'SUM(impressions)'
 print(geo.values[0].name)   # 'USA'
 print(geo.is_composite)     # False
 ```
@@ -510,7 +508,6 @@ cache.add(MetricSpec.from_yaml("""
 metric:
   name: ctr
   source: duckdb://analytics.db/events
-  aggregation: ratio
   numerator: "SUM(clicks)"
   denominator: "SUM(impressions)"
 """))

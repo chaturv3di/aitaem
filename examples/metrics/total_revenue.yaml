@@ -2,7 +2,6 @@ metric:
   name: total_revenue
   description: Total revenue generated across all campaigns
   source: duckdb://ad_campaigns.duckdb/ad_campaigns
-  aggregation: sum
   numerator: "SUM(revenue)"
   timestamp_col: date
   entities: [platform, campaign_type, country]

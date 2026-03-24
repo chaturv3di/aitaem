@@ -312,7 +312,6 @@ metric:
   name: homepage_click_rate
   description: Click-through rate for homepage impressions
   source: duckdb://analytics.db/events  # Connection URI + table
-  aggregation: ratio  # sum, avg, count, ratio, etc.
   numerator: "SUM(CASE WHEN event_type = 'click' AND page = 'home_page' THEN 1 ELSE 0 END)"
   denominator: "SUM(CASE WHEN event_type = 'impression' AND page = 'home_page' THEN 1 ELSE 0 END)"
   timestamp_col: event_date  # Required: date/timestamp column for time_window filtering
@@ -324,9 +323,8 @@ metric:
   name: total_revenue
   description: Sum of all transaction amounts
   source: duckdb://analytics.db/transactions
-  aggregation: sum
   numerator: "SUM(amount)"
-  # denominator omitted for sum/count aggregations
+  # denominator omitted — not a ratio metric
 ```
 
 **Class Definition**:
@@ -338,9 +336,8 @@ class MetricSpec:
     name: str
     description: str
     source: str  # URI: backend://path/table
-    aggregation: str  # sum, avg, count, ratio, min, max
-    numerator: str  # SQL expression
-    denominator: str | None  # SQL expression (None for sum/count)
+    numerator: str  # SQL expression containing an aggregate function call
+    denominator: str | None  # SQL expression (ratio implied when non-null)
     timestamp_col: str  # Required: date/timestamp column for time_window filtering
 
     @classmethod
@@ -800,8 +797,8 @@ def validate_metric_spec(spec_dict: dict) -> ValidationResult:
     Validate metric YAML structure and content.
 
     Checks:
-    - Required fields present (name, source, aggregation, numerator)
-    - Valid aggregation type
+    - Required fields present (name, source, numerator, timestamp_col)
+    - numerator and denominator (when present) contain an aggregate function call
     - SQL syntax in numerator/denominator
     - Source URI format
     """
@@ -844,7 +841,7 @@ class ValidationError:
 - **Fail fast**: Validation happens at spec loading time
 - **Clear errors**: Include field name, line number, error message, suggestions
 - **SQL validation**: Check SQL syntax using DuckDB parser
-- **Helpful suggestions**: E.g., "Did you mean 'aggregation: sum' instead of 'aggregate: sum'?"
+- **Helpful suggestions**: E.g., "Wrap the column in an aggregate, e.g. 'SUM(revenue)' or 'COUNT(*)'"
 
 #### 6.2 `utils/exceptions.py` - Custom Exceptions
 
@@ -918,7 +915,6 @@ metric:
   name: homepage_ctr
   description: Click-through rate for homepage impressions
   source: duckdb://analytics.db/events
-  aggregation: ratio
   numerator: "SUM(CASE WHEN event_type = 'click' AND page = 'home_page' THEN 1 ELSE 0 END)"
   denominator: "SUM(CASE WHEN event_type = 'impression' AND page = 'home_page' THEN 1 ELSE 0 END)"
 ```
@@ -930,7 +926,6 @@ metric:
   name: total_revenue
   description: Sum of all transaction amounts
   source: duckdb://analytics.db/transactions
-  aggregation: sum
   numerator: "SUM(amount)"
 ```
 
@@ -941,9 +936,7 @@ metric:
   name: avg_order_value
   description: Average transaction amount per order
   source: clickhouse://prod.example.com/orders
-  aggregation: avg
-  numerator: "SUM(total_amount)"
-  denominator: "COUNT(*)"
+  numerator: "AVG(total_amount)"
 ```
 
 ### Complete Slice Example
@@ -1110,7 +1103,7 @@ polars_df = pl.from_pandas(df)
 
 **Scope**:
 - Single source table per metric
-- Simple aggregations (sum, avg, count, ratio)
+- Simple aggregations (SUM, AVG, COUNT, MIN, MAX, ratio)
 - Slices with SQL WHERE conditions
 - Segments with SQL WHERE conditions
 - DuckDB and ClickHouse backends via Ibis

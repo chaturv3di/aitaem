@@ -229,7 +229,6 @@ class TestSpecCacheAdd:
         metric = MetricSpec(
             name="my_metric",
             source="duckdb://db/table",
-            aggregation="sum",
             numerator="SUM(x)",
             timestamp_col="created_at",
         )
@@ -272,7 +271,6 @@ class TestSpecCacheAdd:
         manual = MetricSpec(
             name="manual_metric",
             source="duckdb://db/table",
-            aggregation="sum",
             numerator="SUM(x)",
             timestamp_col="created_at",
         )

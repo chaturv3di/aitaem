@@ -42,7 +42,6 @@ class TestExecuteQueryGroup:
         metric = MetricSpec(
             name="ctr",
             source=AD_CAMPAIGNS_SOURCE_URI,
-            aggregation="ratio",
             numerator="SUM(clicks)",
             denominator="SUM(impressions)",
             timestamp_col="date",
@@ -87,7 +86,6 @@ class TestExecute:
         metric = MetricSpec(
             name="ctr",
             source=AD_CAMPAIGNS_SOURCE_URI,
-            aggregation="ratio",
             numerator="SUM(clicks)",
             denominator="SUM(impressions)",
             timestamp_col="date",
@@ -110,7 +108,6 @@ class TestExecute:
         metric = MetricSpec(
             name="ctr",
             source=AD_CAMPAIGNS_SOURCE_URI,
-            aggregation="ratio",
             numerator="SUM(clicks)",
             denominator="SUM(impressions)",
             timestamp_col="date",
@@ -174,7 +171,6 @@ class TestExecute:
         good_metric = MetricSpec(
             name="ctr",
             source=AD_CAMPAIGNS_SOURCE_URI,
-            aggregation="ratio",
             numerator="SUM(clicks)",
             denominator="SUM(impressions)",
             timestamp_col="date",
@@ -205,7 +201,6 @@ class TestExecute:
         ctr = MetricSpec(
             name="ctr",
             source=AD_CAMPAIGNS_SOURCE_URI,
-            aggregation="ratio",
             numerator="SUM(clicks)",
             denominator="SUM(impressions)",
             timestamp_col="date",
@@ -213,7 +208,6 @@ class TestExecute:
         roas = MetricSpec(
             name="roas",
             source=AD_CAMPAIGNS_SOURCE_URI,
-            aggregation="ratio",
             numerator="SUM(revenue)",
             denominator="SUM(ad_spend)",
             timestamp_col="date",
@@ -231,7 +225,6 @@ class TestExecute:
         metric = MetricSpec(
             name="impressions_sum",
             source=AD_CAMPAIGNS_SOURCE_URI,
-            aggregation="sum",
             numerator="SUM(impressions)",
             timestamp_col="date",
         )
@@ -278,7 +271,6 @@ class TestEndToEndIntegration:
         ctr = MetricSpec(
             name="ctr",
             source=AD_CAMPAIGNS_SOURCE_URI,
-            aggregation="ratio",
             numerator="SUM(clicks)",
             denominator="SUM(impressions)",
             timestamp_col="date",

@@ -13,8 +13,6 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-VALID_AGGREGATIONS = {"sum", "avg", "count", "ratio", "min", "max"}
-
 
 @dataclass
 class ValidationError:
@@ -47,6 +45,28 @@ def _validate_sql_expression(
     except Exception as e:
         return ValidationError(field=field, message=f"Invalid SQL syntax: {e}")
     return None
+
+
+def _contains_aggregate_call(expr: str) -> bool:
+    """Return True if the SQL expression contains at least one aggregate function call.
+
+    Recognised aggregates: SUM, AVG, COUNT, MIN, MAX (case-insensitive).
+    Falls back to True (skip validation) if sqlglot is not installed.
+    """
+    try:
+        import sqlglot
+        import sqlglot.expressions as exp
+    except ImportError:
+        logger.warning("sqlglot is not installed; skipping aggregate-call validation")
+        return True
+
+    try:
+        tree = sqlglot.parse_one(f"SELECT {expr}")
+    except Exception:
+        # Syntax errors are caught separately by _validate_sql_expression
+        return True
+
+    return any(isinstance(node, exp.AggFunc) for node in tree.walk())
 
 
 def _validate_uri(value: str, field: str) -> ValidationError | None:
@@ -91,24 +111,6 @@ def validate_metric_spec(spec_dict: dict) -> ValidationResult:
         if uri_error:
             errors.append(uri_error)
 
-    aggregation = spec_dict.get("aggregation")
-    if not aggregation or not isinstance(aggregation, str) or not aggregation.strip():
-        errors.append(
-            ValidationError(
-                field="aggregation",
-                message=f"'aggregation' is required. Must be one of: {', '.join(sorted(VALID_AGGREGATIONS))}",
-            )
-        )
-    else:
-        aggregation_lower = aggregation.lower()
-        if aggregation_lower not in VALID_AGGREGATIONS:
-            errors.append(
-                ValidationError(
-                    field="aggregation",
-                    message=f"Unsupported aggregation type. Must be one of: {', '.join(sorted(VALID_AGGREGATIONS))}",
-                )
-            )
-
     numerator = spec_dict.get("numerator")
     if not numerator or not isinstance(numerator, str) or not numerator.strip():
         errors.append(
@@ -120,6 +122,14 @@ def validate_metric_spec(spec_dict: dict) -> ValidationResult:
         sql_error = _validate_sql_expression(numerator, "numerator", context="select")
         if sql_error:
             errors.append(sql_error)
+        elif not _contains_aggregate_call(numerator):
+            errors.append(
+                ValidationError(
+                    field="numerator",
+                    message="'numerator' must contain an aggregate function (SUM, AVG, COUNT, MIN, MAX)",
+                    suggestion="Wrap the column in an aggregate, e.g. 'SUM(revenue)' or 'COUNT(*)'",
+                )
+            )
 
     timestamp_col = spec_dict.get("timestamp_col")
     if not timestamp_col or not isinstance(timestamp_col, str) or not timestamp_col.strip():
@@ -132,22 +142,25 @@ def validate_metric_spec(spec_dict: dict) -> ValidationResult:
         )
 
     denominator = spec_dict.get("denominator")
-    aggregation_lower = (aggregation or "").lower()
-    if aggregation_lower == "ratio":
-        if not denominator or not isinstance(denominator, str) or not denominator.strip():
+    if denominator:
+        if not isinstance(denominator, str) or not denominator.strip():
             errors.append(
                 ValidationError(
-                    field="denominator",
-                    message="'denominator' is required when aggregation is 'ratio'",
-                    suggestion="add denominator field",
+                    field="denominator", message="'denominator' must be a non-empty SQL expression"
                 )
             )
         else:
             sql_error = _validate_sql_expression(denominator, "denominator", context="select")
             if sql_error:
                 errors.append(sql_error)
-    elif denominator:
-        logger.warning("'denominator' is ignored for '%s' aggregation", aggregation_lower)
+            elif not _contains_aggregate_call(denominator):
+                errors.append(
+                    ValidationError(
+                        field="denominator",
+                        message="'denominator' must contain an aggregate function (SUM, AVG, COUNT, MIN, MAX)",
+                        suggestion="Wrap the column in an aggregate, e.g. 'SUM(impressions)'",
+                    )
+                )
 
     entities = spec_dict.get("entities")
     if entities is not None:

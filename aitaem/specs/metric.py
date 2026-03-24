@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 class MetricSpec:
     name: str
     source: str
-    aggregation: str
     numerator: str
     timestamp_col: str
     description: str = ""
@@ -95,7 +94,6 @@ class MetricSpec:
         if not result.valid:
             raise SpecValidationError("metric", name, result.errors)
 
-        aggregation = spec_dict["aggregation"].lower()
         denominator = spec_dict.get("denominator") or None
         entities_raw = spec_dict.get("entities")
         entities = list(entities_raw) if entities_raw else None
@@ -107,7 +105,6 @@ class MetricSpec:
         return cls(
             name=spec_dict["name"],
             source=spec_dict["source"],
-            aggregation=aggregation,
             numerator=spec_dict["numerator"],
             timestamp_col=spec_dict["timestamp_col"],
             description=spec_dict.get("description", ""),
@@ -120,7 +117,6 @@ class MetricSpec:
         spec_dict: dict[str, object] = {
             "name": self.name,
             "source": self.source,
-            "aggregation": self.aggregation,
             "numerator": self.numerator,
             "timestamp_col": self.timestamp_col,
             "description": self.description,

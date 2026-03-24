@@ -381,7 +381,7 @@ class QueryBuilder:
     @staticmethod
     def _build_metric_value_expr(metric: MetricSpec) -> str:
         """Build the metric value SQL expression."""
-        if metric.aggregation == "ratio":
+        if metric.denominator is not None:
             return f"{metric.numerator} / NULLIF({metric.denominator}, 0)"
         return metric.numerator
 

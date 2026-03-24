@@ -1,5 +1,0 @@
-metric:
-  name: bad_ratio
-  source: duckdb://analytics.db/events
-  aggregation: ratio
-  numerator: "SUM(amount)"
