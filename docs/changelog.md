@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added PostgreSQL backend support via `ibis-framework[postgres]` (`pip install "aitaem[postgres]"`)
+- New `aitaem.connectors.backend_specs` module with `DuckDBConfig`, `BigQueryConfig`, and `PostgresConfig` dataclasses — centralizes backend field validation for all connectors
+- PostgreSQL source URI format: `postgres://schema/table` (e.g. `postgres://public/orders`)
+
 ## v0.1.3 — 2026-03-17
 
 - New `aitaem.helpers` module for user-facing convenience functions

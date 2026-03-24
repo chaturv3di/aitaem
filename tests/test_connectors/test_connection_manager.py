@@ -331,6 +331,80 @@ class TestURIParsing:
 
         assert "table separator" in str(exc_info.value).lower()
 
+    def test_parse_postgres_uri_with_schema(self):
+        backend, schema, table = ConnectionManager.parse_source_uri("postgres://public/events")
+        assert backend == "postgres"
+        assert schema == "public"
+        assert table == "events"
+
+    def test_parse_postgres_uri_no_schema(self):
+        backend, schema, table = ConnectionManager.parse_source_uri("postgres:///events")
+        assert backend == "postgres"
+        assert schema == ""
+        assert table == "events"
+
+    def test_parse_postgres_uri_custom_schema(self):
+        backend, schema, table = ConnectionManager.parse_source_uri("postgres://analytics/orders")
+        assert backend == "postgres"
+        assert schema == "analytics"
+        assert table == "orders"
+
+    def test_parse_postgres_uri_empty_table_raises(self):
+        with pytest.raises(InvalidURIError, match="Empty table name"):
+            ConnectionManager.parse_source_uri("postgres://public/")
+
+    def test_parse_postgres_uri_no_separator_raises(self):
+        with pytest.raises(InvalidURIError, match="table separator"):
+            ConnectionManager.parse_source_uri("postgres://events")
+
+
+class TestPostgresConnectionManagement:
+    """Test ConnectionManager behaviour for the postgres backend."""
+
+    def test_add_postgres_connection_missing_database_raises(self):
+        manager = ConnectionManager()
+        with pytest.raises(ConfigurationError, match="database"):
+            manager.add_connection("postgres", user="myuser", password="secret")
+
+    def test_add_postgres_connection_missing_user_raises(self):
+        manager = ConnectionManager()
+        with pytest.raises(ConfigurationError, match="user"):
+            manager.add_connection("postgres", database="mydb", password="secret")
+
+    def test_add_postgres_connection_missing_password_raises(self):
+        manager = ConnectionManager()
+        with pytest.raises(ConfigurationError, match="password"):
+            manager.add_connection("postgres", database="mydb", user="myuser")
+
+    def test_add_postgres_connection_success(self, mocker):
+        import aitaem.connectors.ibis_connector as ibis_connector_module
+
+        mock_ibis = mocker.MagicMock()
+        mocker.patch.object(ibis_connector_module, "ibis", mock_ibis)
+        manager = ConnectionManager()
+        manager.add_connection(
+            "postgres", database="mydb", user="myuser", password="secret"
+        )
+        assert "postgres" in manager._connections
+        assert manager._connections["postgres"].is_connected
+
+    def test_from_yaml_postgres(self, mocker, tmp_path):
+        import aitaem.connectors.ibis_connector as ibis_connector_module
+
+        mock_ibis = mocker.MagicMock()
+        mocker.patch.object(ibis_connector_module, "ibis", mock_ibis)
+        config_file = tmp_path / "connections.yaml"
+        config_file.write_text(
+            "postgres:\n"
+            "  host: localhost\n"
+            "  port: 5432\n"
+            "  database: mydb\n"
+            "  user: myuser\n"
+            "  password: secret\n"
+        )
+        manager = ConnectionManager.from_yaml(str(config_file))
+        assert "postgres" in manager._connections
+
 
 class TestConnectionRouting:
     """Test get_connection_for_source() routing functionality."""

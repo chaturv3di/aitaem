@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 import yaml
 
+from aitaem.connectors.backend_specs import validate_backend_config
 from aitaem.connectors.ibis_connector import IbisConnector
 from aitaem.utils.exceptions import (
     ConfigurationError,
@@ -175,23 +176,8 @@ class ConnectionManager:
             self._connections[backend_type] = connector
             return
 
-        # Validate required fields based on backend type
-        if backend_type == "duckdb":
-            if "path" not in config:
-                raise ConfigurationError(
-                    "Missing required field 'path' in duckdb configuration\n\n"
-                    "Add the required field:\n"
-                    "  duckdb:\n"
-                    "    path: analytics.db"
-                )
-        elif backend_type == "bigquery":
-            if "project_id" not in config:
-                raise ConfigurationError(
-                    "Missing required field 'project_id' in bigquery configuration\n\n"
-                    "Add the required field:\n"
-                    "  bigquery:\n"
-                    "    project_id: your-project-id"
-                )
+        # Validate required fields using backend spec (raises ConfigurationError if invalid)
+        validate_backend_config(backend_type, config)
 
         # Create connector
         try:
@@ -204,6 +190,8 @@ class ConnectionManager:
             path = config.pop("path")
             new_connector.connect(path, **config)
         elif backend_type == "bigquery":
+            new_connector.connect(**config)
+        elif backend_type == "postgres":
             new_connector.connect(**config)
 
         # Store connector
@@ -298,6 +286,8 @@ class ConnectionManager:
             return ConnectionManager._parse_duckdb_uri(uri, full_path)
         elif backend_type == "bigquery":
             return ConnectionManager._parse_bigquery_uri(uri, full_path)
+        elif backend_type == "postgres":
+            return ConnectionManager._parse_postgres_uri(uri, full_path)
         else:
             # For unknown backends, try generic parsing
             # This will fail later in get_connection with UnsupportedBackendError
@@ -380,6 +370,40 @@ class ConnectionManager:
         table = ".".join(parts[1:])
 
         return ("bigquery", project, table)
+
+    @staticmethod
+    def _parse_postgres_uri(uri: str, full_path: str) -> tuple[str, str, str]:
+        """Parse Postgres URI.
+
+        Format: postgres://schema/table  or  postgres:///table (no schema)
+
+        Args:
+            uri: Original URI (for error messages)
+            full_path: Combined netloc + path
+
+        Returns:
+            Tuple of ('postgres', schema, table_name)
+
+        Raises:
+            InvalidURIError: If URI is malformed
+        """
+        if "/" not in full_path:
+            raise InvalidURIError(
+                f"Missing table separator '/' in URI: '{uri}'\n\n"
+                "Postgres URI format:\n"
+                "  postgres://public/events\n"
+                "  postgres:///events  (default schema)"
+            )
+        last_slash = full_path.rfind("/")
+        schema = full_path[:last_slash]
+        table = full_path[last_slash + 1 :]
+        if not table:
+            raise InvalidURIError(
+                f"Empty table name in URI: '{uri}'\n\n"
+                "URI must include table name:\n"
+                "  postgres://public/events"
+            )
+        return ("postgres", schema, table)
 
     def close_all(self) -> None:
         """Close all connections."""

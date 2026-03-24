@@ -148,6 +148,15 @@ class TestParseTableNameFromUri:
     def test_bigquery(self):
         assert QueryBuilder._parse_table_name_from_uri(BIGQUERY_URI) == "my_dataset.my_table"
 
+    def test_postgres_with_schema(self):
+        assert QueryBuilder._parse_table_name_from_uri("postgres://public/events") == "public.events"
+
+    def test_postgres_no_schema(self):
+        assert QueryBuilder._parse_table_name_from_uri("postgres:///events") == "events"
+
+    def test_postgres_custom_schema(self):
+        assert QueryBuilder._parse_table_name_from_uri("postgres://analytics/orders") == "analytics.orders"
+
 
 # ---------------------------------------------------------------------------
 # 5. _build_time_filter_sql
