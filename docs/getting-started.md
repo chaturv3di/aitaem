@@ -44,13 +44,14 @@ print(df)
 
 ## Standard Output Format
 
-Every `compute()` call returns a pandas DataFrame with exactly these 9 columns:
+Every `compute()` call returns a pandas DataFrame with exactly these 10 columns:
 
 | Column | Description |
 |--------|-------------|
 | `period_type` | `"all_time"` or a named period |
 | `period_start_date` | ISO date string or `None` |
 | `period_end_date` | ISO date string or `None` |
+| `entity_id` | Entity column value when `by_entity` is set; `None` otherwise |
 | `metric_name` | Name of the metric (e.g. `"ctr"`) |
 | `slice_type` | Slice name or `"none"` for the all-data baseline |
 | `slice_value` | Slice value (e.g. `"Search"`) or `"all"` |
