@@ -117,7 +117,7 @@ class MetricSpec:
 
     def validate(self) -> ValidationResult:
         """Validate spec fields and return a ValidationResult (does not raise)."""
-        spec_dict = {
+        spec_dict: dict[str, object] = {
             "name": self.name,
             "source": self.source,
             "aggregation": self.aggregation,
