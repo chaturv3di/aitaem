@@ -22,10 +22,12 @@ mc = MetricCompute(cache, conn)
 
 ```python
 df = mc.compute(
-    metrics,           # required
-    slices=None,       # optional
-    segments=None,     # optional
-    time_window=None,  # optional
+    metrics,              # required
+    slices=None,          # optional
+    segments=None,        # optional
+    time_window=None,     # optional
+    period_type="all_time",  # optional
+    by_entity=None,       # optional
     output_format="pandas",
 )
 ```
@@ -39,7 +41,7 @@ One or more metric names defined in the spec cache.
 df = mc.compute(metrics="ctr")
 
 # Multiple metrics
-df = mc.compute(metrics=["ctr", "cpa", "roas"])
+df = mc.compute(metrics=["ctr", "roas", "total_revenue"])
 ```
 
 ### `slices`
@@ -77,17 +79,40 @@ df = mc.compute(
 )
 ```
 
+### `by_entity`
+
+Group results by an entity column declared in the metric's `entities` field. Use this for
+entity-level deep-dives — e.g., revenue per user, sessions per device.
+
+```python
+# Total revenue disaggregated by platform
+df = mc.compute(
+    metrics="total_revenue",
+    by_entity="platform",
+    time_window=("2024-01-01", "2024-04-01"),
+    period_type="monthly",
+)
+
+# Default — aggregate over all entities (entity_id column is NULL)
+df = mc.compute(metrics="total_revenue")
+```
+
+!!! note
+    All metrics in the call must list the requested `by_entity` column in their `entities`
+    field. A `QueryBuildError` is raised if any metric does not declare it.
+
 ---
 
 ## Output Schema
 
-Every `compute()` call returns a pandas DataFrame with exactly these 9 columns:
+Every `compute()` call returns a pandas DataFrame with exactly these 10 columns:
 
 | Column | Description |
 |--------|-------------|
-| `period_type` | `"all_time"` when no `time_window`, otherwise `"custom"` |
+| `period_type` | `"all_time"` when no `time_window`, otherwise the period granularity |
 | `period_start_date` | Start date ISO string, or `None` |
 | `period_end_date` | End date ISO string, or `None` |
+| `entity_id` | Value of the entity column (e.g. a `user_id`), or `None` when `by_entity` is not set |
 | `metric_name` | Name of the metric |
 | `slice_type` | Slice name, or `"none"` for the all-data baseline row |
 | `slice_value` | Slice value (e.g. `"Search"`), or `"all"` for the baseline |
@@ -103,7 +128,7 @@ Slices and segments can be combined freely. Each combination is computed as a se
 
 ```python
 df = mc.compute(
-    metrics=["ctr", "cpa"],
+    metrics=["ctr", "total_revenue"],
     slices=["campaign_type", "geo"],
     segments="platform",
     time_window=("2024-01-01", "2024-07-01"),
@@ -123,4 +148,5 @@ This produces rows for:
 |-----------|-------------|
 | `SpecNotFoundError` | A metric, slice, or segment name is not in the cache |
 | `QueryBuildError` | `time_window` is set but a metric has no `timestamp_col` |
+| `QueryBuildError` | `by_entity` is set but a metric does not list it in `entities` |
 | `QueryExecutionError` | All query groups fail to execute |

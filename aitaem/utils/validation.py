@@ -149,6 +149,25 @@ def validate_metric_spec(spec_dict: dict) -> ValidationResult:
     elif denominator:
         logger.warning("'denominator' is ignored for '%s' aggregation", aggregation_lower)
 
+    entities = spec_dict.get("entities")
+    if entities is not None:
+        if not isinstance(entities, list) or len(entities) == 0:
+            errors.append(
+                ValidationError(
+                    field="entities",
+                    message="'entities' must be a non-empty list of column name strings",
+                )
+            )
+        else:
+            for i, entry in enumerate(entities):
+                if not isinstance(entry, str) or not entry.strip():
+                    errors.append(
+                        ValidationError(
+                            field=f"entities[{i}]",
+                            message=f"'entities' entry at index {i} must be a non-empty string",
+                        )
+                    )
+
     return ValidationResult(valid=len(errors) == 0, errors=errors)
 
 

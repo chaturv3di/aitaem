@@ -10,6 +10,7 @@ STANDARD_COLUMNS = [
     "period_type",
     "period_start_date",
     "period_end_date",
+    "entity_id",
     "metric_name",
     "slice_type",
     "slice_value",

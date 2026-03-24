@@ -1,0 +1,8 @@
+metric:
+  name: campaign_count
+  description: Number of campaign rows — useful for understanding data density and coverage
+  source: duckdb://ad_campaigns.duckdb/ad_campaigns
+  aggregation: count
+  numerator: "COUNT(*)"
+  timestamp_col: date
+  entities: [platform, campaign_type, country]

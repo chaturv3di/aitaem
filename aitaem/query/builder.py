@@ -39,6 +39,7 @@ class QueryBuilder:
         time_window: tuple[str, str] | None = None,
         spec_cache: "SpecCache | None" = None,  # type: ignore[name-defined]  # noqa: F821
         period_type: str = "all_time",
+        by_entity: str | None = None,
     ) -> list[QueryGroup]:
         """Build optimized query groups (one per unique source table).
 
@@ -49,6 +50,8 @@ class QueryBuilder:
             spec_cache: Required only when composite slices are present.
             period_type: One of 'all_time', 'daily', 'weekly', 'monthly', 'yearly'.
                          Non-'all_time' requires time_window and timestamp_col on all metrics.
+            by_entity: Column name to group by for entity-level metrics. When set, every
+                       metric in metric_specs must list this column in its ``entities`` field.
 
         Raises:
             QueryBuildError: if metric_specs is empty
@@ -56,6 +59,7 @@ class QueryBuilder:
             QueryBuildError: if period_type is not a valid value
             QueryBuildError: if period_type != 'all_time' and time_window is None
             QueryBuildError: if period_type != 'all_time' and any metric has no timestamp_col
+            QueryBuildError: if by_entity is set and any metric does not list it in entities
         """
         if not metric_specs:
             raise QueryBuildError("metric_specs must not be empty")
@@ -74,6 +78,14 @@ class QueryBuilder:
                     raise QueryBuildError(
                         f"period_type='{period_type}' requires timestamp_col on all metrics, "
                         f"but metric '{metric.name}' has none"
+                    )
+
+        if by_entity is not None:
+            for metric in metric_specs:
+                if not metric.entities or by_entity not in metric.entities:
+                    raise QueryBuildError(
+                        f"by_entity='{by_entity}' is not supported by metric '{metric.name}'. "
+                        f"Supported entities: {metric.entities or []}"
                     )
 
         # Period metadata (used for all_time only; non-all_time uses dynamic SQL expressions)
@@ -96,6 +108,7 @@ class QueryBuilder:
                         period_start=period_start,
                         period_end=period_end,
                         spec_cache=spec_cache,
+                        by_entity=by_entity,
                     )
                 )
             query_groups.append(QueryGroup(source=source, metrics=metrics, sql_queries=sql_queries))
@@ -120,6 +133,7 @@ class QueryBuilder:
         period_start: str | None,
         period_end: str | None,
         spec_cache: "SpecCache | None" = None,  # type: ignore[name-defined]  # noqa: F821
+        by_entity: str | None = None,
     ) -> list[str]:
         """Build all SQL queries for one metric.
 
@@ -155,6 +169,7 @@ class QueryBuilder:
                         period_start=period_start,
                         period_end=period_end,
                         time_window=time_window,
+                        by_entity=by_entity,
                     )
                 )
 
@@ -198,6 +213,7 @@ class QueryBuilder:
         period_start: str | None,
         period_end: str | None,
         time_window: tuple[str, str] | None = None,
+        by_entity: str | None = None,
     ) -> str:
         """Build a single SQL query for one (metric, segment_spec | None) combination."""
         # --- CTE SELECT columns ---
@@ -237,8 +253,10 @@ class QueryBuilder:
             null_filters.append(f"{segment_alias} IS NOT NULL")
         outer_where = "WHERE " + "\n  AND ".join(null_filters) if null_filters else ""
 
+        entity_id_expr = f"{by_entity}" if by_entity else "NULL"
+
         if period_type == "all_time":
-            # ---- all_time path (current behavior unchanged) ----
+            # ---- all_time path ----
             cte_select = "    SELECT\n        *"
             if cte_extra_cols:
                 cte_select += ",\n        " + ",\n        ".join(cte_extra_cols)
@@ -255,6 +273,7 @@ class QueryBuilder:
                 f"    {lit(period_type)}                AS period_type",
                 f"    {lit(period_start)}               AS period_start_date",
                 f"    {lit(period_end)}                 AS period_end_date",
+                f"    {entity_id_expr}                  AS entity_id",
                 f"    '{metric.name}'                   AS metric_name",
                 f"    '{slice_type_val}'                AS slice_type",
                 f"    {slice_value_expr}                AS slice_value",
@@ -264,7 +283,10 @@ class QueryBuilder:
             ]
             outer_select = "SELECT\n" + ",\n".join(outer_select_cols)
 
-            group_by_cols = list(slice_aliases)
+            group_by_cols = []
+            if by_entity:
+                group_by_cols.append(by_entity)
+            group_by_cols.extend(slice_aliases)
             if segment_alias:
                 group_by_cols.append(segment_alias)
             outer_group_by = f"GROUP BY {', '.join(group_by_cols)}" if group_by_cols else ""
@@ -306,6 +328,7 @@ class QueryBuilder:
                 f"    '{period_type}'                        AS period_type",
                 "    CAST(_period_start AS VARCHAR)         AS period_start_date",
                 "    CAST(_period_end   AS VARCHAR)         AS period_end_date",
+                f"    {entity_id_expr}                       AS entity_id",
                 f"    '{metric.name}'                        AS metric_name",
                 f"    '{slice_type_val}'                     AS slice_type",
                 f"    {slice_value_expr}                     AS slice_value",
@@ -316,7 +339,10 @@ class QueryBuilder:
             outer_select = "SELECT\n" + ",\n".join(outer_select_cols)
 
             # GROUP BY always includes _period_start, _period_end
-            group_by_cols = ["_period_start", "_period_end"] + list(slice_aliases)
+            group_by_cols = ["_period_start", "_period_end"]
+            if by_entity:
+                group_by_cols.append(by_entity)
+            group_by_cols.extend(slice_aliases)
             if segment_alias:
                 group_by_cols.append(segment_alias)
             outer_group_by = f"GROUP BY {', '.join(group_by_cols)}"
