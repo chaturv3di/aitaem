@@ -113,21 +113,19 @@ conn = ConnectionManager()
 conn.add_connection("duckdb", path="analytics.db")
 ```
 
-### DuckDB — in-memory with CSV
+### DuckDB — from CSV files
 
 ```python
 from aitaem import ConnectionManager
-from aitaem.connectors.ibis_connector import IbisConnector
+from aitaem.helpers import load_csvs_to_duckdb
 
-connector = IbisConnector("duckdb")
-connector.connect(":memory:")
-connector.connection.raw_sql(
-    "CREATE TABLE events AS SELECT * FROM read_csv_auto('data/events.csv')"
-)
+connector = load_csvs_to_duckdb("data/events.csv", "analytics.db")
 
 conn = ConnectionManager()
 conn.add_connection("duckdb", connector=connector)
 ```
+
+Pass a directory path instead of a single file to load all CSV files in that directory at once — each file becomes a table named after its stem.
 
 ### BigQuery
 
