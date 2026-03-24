@@ -14,18 +14,51 @@ from aitaem.utils.exceptions import ConfigurationError, UnsupportedBackendError
 
 @dataclass
 class DuckDBConfig:
+    """Connection configuration for a DuckDB backend.
+
+    Attributes:
+        path: File path to the DuckDB database, or `':memory:'` for an
+            in-process, ephemeral database. **Required.**
+        read_only: Open the database in read-only mode. Defaults to `False`.
+    """
+
     path: str
     read_only: bool = False
 
 
 @dataclass
 class BigQueryConfig:
+    """Connection configuration for a BigQuery backend.
+
+    Authentication uses Application Default Credentials (ADC). Run
+    `gcloud auth application-default login` or set the
+    `GOOGLE_APPLICATION_CREDENTIALS` environment variable before connecting.
+
+    Attributes:
+        project_id: GCP project ID that owns the BigQuery datasets. **Required.**
+        dataset_id: Default dataset used when a table name is not
+            fully-qualified. Optional.
+    """
+
     project_id: str
     dataset_id: str | None = None
 
 
 @dataclass
 class PostgresConfig:
+    """Connection configuration for a PostgreSQL backend.
+
+    Attributes:
+        database: Name of the PostgreSQL database to connect to. **Required.**
+        user: PostgreSQL username. **Required.**
+        password: Password for the given user. **Required.**
+            Use `${ENV_VAR}` syntax in `connections.yaml` to avoid storing
+            plaintext credentials.
+        host: Hostname or IP address of the PostgreSQL server.
+            Defaults to `'localhost'`.
+        port: TCP port the PostgreSQL server listens on. Defaults to `5432`.
+    """
+
     database: str
     user: str
     password: str
