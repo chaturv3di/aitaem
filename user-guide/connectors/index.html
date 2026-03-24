@@ -666,10 +666,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#duckdb-in-memory-with-csv" class="md-nav__link">
+  <a href="#duckdb-from-csv-files" class="md-nav__link">
     <span class="md-ellipsis">
       
-        DuckDB — in-memory with CSV
+        DuckDB — from CSV files
       
     </span>
   </a>
@@ -1156,10 +1156,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#duckdb-in-memory-with-csv" class="md-nav__link">
+  <a href="#duckdb-from-csv-files" class="md-nav__link">
     <span class="md-ellipsis">
       
-        DuckDB — in-memory with CSV
+        DuckDB — from CSV files
       
     </span>
   </a>
@@ -1452,19 +1452,16 @@
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;analytics.db&quot;</span><span class="p">)</span>
 </code></pre></div>
-<h3 id="duckdb-in-memory-with-csv">DuckDB — in-memory with CSV</h3>
+<h3 id="duckdb-from-csv-files">DuckDB — from CSV files</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectionManager</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.connectors.ibis_connector</span><span class="w"> </span><span class="kn">import</span> <span class="n">IbisConnector</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.helpers</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_csvs_to_duckdb</span>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">connector</span> <span class="o">=</span> <span class="n">IbisConnector</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">)</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">connector</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">connector</span><span class="o">.</span><span class="n">connection</span><span class="o">.</span><span class="n">raw_sql</span><span class="p">(</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="s2">&quot;CREATE TABLE events AS SELECT * FROM read_csv_auto(&#39;data/events.csv&#39;)&quot;</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="p">)</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span> <span class="n">connector</span><span class="o">=</span><span class="n">connector</span><span class="p">)</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">connector</span> <span class="o">=</span> <span class="n">load_csvs_to_duckdb</span><span class="p">(</span><span class="s2">&quot;data/events.csv&quot;</span><span class="p">,</span> <span class="s2">&quot;analytics.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span> <span class="n">connector</span><span class="o">=</span><span class="n">connector</span><span class="p">)</span>
 </code></pre></div>
+<p>Pass a directory path instead of a single file to load all CSV files in that directory at once — each file becomes a table named after its stem.</p>
 <h3 id="bigquery_1">BigQuery</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">&quot;bigquery&quot;</span><span class="p">,</span> <span class="n">project_id</span><span class="o">=</span><span class="s2">&quot;my-project&quot;</span><span class="p">,</span> <span class="n">dataset_id</span><span class="o">=</span><span class="s2">&quot;my_dataset&quot;</span><span class="p">)</span>
