@@ -77,17 +77,40 @@ df = mc.compute(
 )
 ```
 
+### `by_entity`
+
+Group results by an entity column declared in the metric's `entities` field. Use this for
+entity-level deep-dives — e.g., revenue per user, sessions per device.
+
+```python
+# Revenue disaggregated by user
+df = mc.compute(
+    metrics="revenue",
+    by_entity="user_id",
+    time_window=("2026-01-01", "2026-04-01"),
+    period_type="monthly",
+)
+
+# Default — aggregate over all entities (entity_id column is NULL)
+df = mc.compute(metrics="revenue")
+```
+
+!!! note
+    All metrics in the call must list the requested `by_entity` column in their `entities`
+    field. A `QueryBuildError` is raised if any metric does not declare it.
+
 ---
 
 ## Output Schema
 
-Every `compute()` call returns a pandas DataFrame with exactly these 9 columns:
+Every `compute()` call returns a pandas DataFrame with exactly these 10 columns:
 
 | Column | Description |
 |--------|-------------|
-| `period_type` | `"all_time"` when no `time_window`, otherwise `"custom"` |
+| `period_type` | `"all_time"` when no `time_window`, otherwise the period granularity |
 | `period_start_date` | Start date ISO string, or `None` |
 | `period_end_date` | End date ISO string, or `None` |
+| `entity_id` | Value of the entity column (e.g. a `user_id`), or `None` when `by_entity` is not set |
 | `metric_name` | Name of the metric |
 | `slice_type` | Slice name, or `"none"` for the all-data baseline row |
 | `slice_value` | Slice value (e.g. `"Search"`), or `"all"` for the baseline |
@@ -123,4 +146,5 @@ This produces rows for:
 |-----------|-------------|
 | `SpecNotFoundError` | A metric, slice, or segment name is not in the cache |
 | `QueryBuildError` | `time_window` is set but a metric has no `timestamp_col` |
+| `QueryBuildError` | `by_entity` is set but a metric does not list it in `entities` |
 | `QueryExecutionError` | All query groups fail to execute |

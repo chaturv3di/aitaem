@@ -583,3 +583,185 @@ class TestBuildQueriesIntegration:
                 segment_specs=None,
                 spec_cache=None,
             )
+
+
+# ---------------------------------------------------------------------------
+# 13. by_entity — SQL generation and build_queries validation
+# ---------------------------------------------------------------------------
+
+# Setup: transactions table with user_id and device_id columns
+SETUP_SQL_ENTITY = """
+CREATE TABLE transactions AS
+SELECT * FROM (VALUES
+    ('u1', 'd1', 100.0, TIMESTAMPTZ '2026-01-05'),
+    ('u1', 'd2', 200.0, TIMESTAMPTZ '2026-01-15'),
+    ('u2', 'd1', 150.0, TIMESTAMPTZ '2026-02-05'),
+    ('u2', 'd2', 250.0, TIMESTAMPTZ '2026-02-15'),
+    ('u3', 'd1',  50.0, TIMESTAMPTZ '2026-03-05')
+) AS t(user_id, device_id, amount, event_ts)
+"""
+
+_entity_metric = MetricSpec(
+    name="revenue",
+    source="duckdb://analytics.db/transactions",
+    aggregation="sum",
+    numerator="SUM(amount)",
+    timestamp_col="event_ts",
+    entities=["user_id", "device_id"],
+)
+
+
+class TestByEntitySqlGeneration:
+    """SQL structure and DuckDB execution tests for by_entity."""
+
+    def _run(self, metric, by_entity=None, slices=None, segment=None, time_window=None):
+        sql = QueryBuilder._build_metric_segment_query(
+            metric=metric,
+            table_name="transactions",
+            slice_specs=slices,
+            segment_spec=segment,
+            time_filter_sql=None,
+            period_type="all_time",
+            period_start=None,
+            period_end=None,
+            by_entity=by_entity,
+        )
+        df = _run_sql_duckdb(sql, SETUP_SQL_ENTITY)
+        return sql, df
+
+    def test_no_by_entity_entity_id_is_null(self):
+        sql, df = self._run(_entity_metric)
+        assert "NULL" in sql
+        assert "entity_id" in df.columns
+        assert df["entity_id"].isna().all()
+
+    def test_by_entity_column_in_select(self):
+        sql, df = self._run(_entity_metric, by_entity="user_id")
+        assert "user_id" in sql
+        assert "entity_id" in df.columns
+        assert set(df["entity_id"]) == {"u1", "u2", "u3"}
+
+    def test_by_entity_one_row_per_entity(self):
+        sql, df = self._run(_entity_metric, by_entity="user_id")
+        assert len(df) == 3
+
+    def test_by_entity_metric_value_is_per_entity_aggregate(self):
+        sql, df = self._run(_entity_metric, by_entity="user_id")
+        totals = df.set_index("entity_id")["metric_value"]
+        assert totals["u1"] == pytest.approx(300.0)
+        assert totals["u2"] == pytest.approx(400.0)
+        assert totals["u3"] == pytest.approx(50.0)
+
+    def test_by_entity_group_by_contains_entity_col(self):
+        sql, _ = self._run(_entity_metric, by_entity="user_id")
+        assert "GROUP BY" in sql
+        assert "user_id" in sql.split("GROUP BY")[1]
+
+    def test_by_entity_with_slice(self):
+        geo_slice = SliceSpec(
+            name="geography",
+            values=(
+                SliceValue(name="NA", where="user_id IN ('u1', 'u2')"),
+                SliceValue(name="Other", where="user_id = 'u3'"),
+            ),
+        )
+        sql, df = self._run(_entity_metric, by_entity="user_id", slices=[geo_slice])
+        group_by_part = sql.split("GROUP BY")[1]
+        assert "user_id" in group_by_part
+        assert "_slice_geography" in group_by_part
+        assert "entity_id" in df.columns
+
+    def test_entity_id_column_position(self):
+        """entity_id appears between period_end_date and metric_name in the SELECT."""
+        sql, _ = self._run(_entity_metric, by_entity="user_id")
+        select_part = sql.split("FROM _labeled")[0]
+        pos_end_date = select_part.find("period_end_date")
+        pos_entity = select_part.find("entity_id")
+        pos_metric_name = select_part.find("metric_name")
+        assert pos_end_date < pos_entity < pos_metric_name
+
+
+class TestByEntityNonAllTime:
+    """by_entity combined with non-all_time period types."""
+
+    def test_by_entity_monthly_one_row_per_entity_per_month(self):
+        sql = QueryBuilder._build_metric_segment_query(
+            metric=_entity_metric,
+            table_name="transactions",
+            slice_specs=None,
+            segment_spec=None,
+            time_filter_sql=None,
+            period_type="monthly",
+            period_start=None,
+            period_end=None,
+            time_window=("2026-01-01", "2026-04-01"),
+            by_entity="user_id",
+        )
+        df = _run_sql_duckdb(sql, SETUP_SQL_ENTITY)
+        # u1: Jan only (2 rows), u2: Feb only (2 rows), u3: Mar only (1 row) → 3 rows
+        assert len(df) == 3
+        assert set(df["entity_id"]) == {"u1", "u2", "u3"}
+
+    def test_by_entity_monthly_group_by_includes_period_and_entity(self):
+        sql = QueryBuilder._build_metric_segment_query(
+            metric=_entity_metric,
+            table_name="transactions",
+            slice_specs=None,
+            segment_spec=None,
+            time_filter_sql=None,
+            period_type="monthly",
+            period_start=None,
+            period_end=None,
+            time_window=("2026-01-01", "2026-04-01"),
+            by_entity="user_id",
+        )
+        group_by_part = sql.split("GROUP BY")[1]
+        assert "_period_start" in group_by_part
+        assert "_period_end" in group_by_part
+        assert "user_id" in group_by_part
+
+
+class TestByEntityBuildQueriesValidation:
+    """build_queries() validates by_entity against metric.entities."""
+
+    def test_by_entity_not_in_entities_raises(self):
+        metric = MetricSpec(
+            name="revenue",
+            source=DUCKDB_URI,
+            aggregation="sum",
+            numerator="SUM(amount)",
+            timestamp_col="event_ts",
+            entities=["user_id"],
+        )
+        with pytest.raises(QueryBuildError, match="by_entity='device_id'"):
+            QueryBuilder.build_queries(
+                [metric], slice_specs=None, segment_specs=None, by_entity="device_id"
+            )
+
+    def test_by_entity_with_entities_none_raises(self):
+        metric = make_metric()  # entities=None
+        with pytest.raises(QueryBuildError, match="by_entity='user_id'"):
+            QueryBuilder.build_queries(
+                [metric], slice_specs=None, segment_specs=None, by_entity="user_id"
+            )
+
+    def test_by_entity_valid_passes(self):
+        metric = MetricSpec(
+            name="revenue",
+            source=DUCKDB_URI,
+            aggregation="sum",
+            numerator="SUM(amount)",
+            timestamp_col="event_ts",
+            entities=["user_id", "device_id"],
+        )
+        groups = QueryBuilder.build_queries(
+            [metric], slice_specs=None, segment_specs=None, by_entity="user_id"
+        )
+        assert len(groups) == 1
+
+    def test_by_entity_none_skips_validation(self):
+        metric = make_metric()  # entities=None, by_entity=None → ok
+        groups = QueryBuilder.build_queries(
+            [metric], slice_specs=None, segment_specs=None, by_entity=None
+        )
+        assert len(groups) == 1

@@ -27,6 +27,7 @@ metric:
 | `numerator` | Yes | SQL aggregate expression for the numerator (or sole value for `sum`) |
 | `timestamp_col` | Yes | Column used for `time_window` filtering |
 | `denominator` | Only for `ratio` | SQL aggregate expression for the denominator |
+| `entities` | No | List of entity column names supported for `by_entity` disaggregation (e.g. `[user_id, device_id]`). Must be non-empty if provided. |
 | `description` | No | Human-readable description |
 
 ### Aggregation types
@@ -54,6 +55,25 @@ metric:
       denominator: "SUM(conversions)"
       timestamp_col: date
     ```
+
+### Entity columns
+
+Use `entities` to declare which columns in the source table identify entities that the metric
+can be disaggregated by. At compute time, pass `by_entity` to `MetricCompute.compute()` to
+select which entity column to group by.
+
+```yaml
+metric:
+  name: revenue
+  source: duckdb://analytics.db/transactions
+  aggregation: sum
+  numerator: "SUM(amount)"
+  timestamp_col: event_ts
+  entities: [user_id, device_id]   # supports per-user or per-device breakdown
+```
+
+A metric without `entities` can still be computed normally — it simply cannot be disaggregated
+by entity. See [Computing Metrics](computing-metrics.md#by_entity) for usage.
 
 ---
 

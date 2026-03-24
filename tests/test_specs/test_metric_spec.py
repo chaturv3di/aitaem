@@ -191,6 +191,89 @@ class TestMetricSpecFromFile:
         assert any(e.field == "denominator" for e in exc_info.value.errors)
 
 
+class TestMetricSpecEntities:
+    def test_entities_absent_defaults_to_none(self, valid_metric_sum_yaml):
+        spec = MetricSpec.from_yaml(valid_metric_sum_yaml)
+        assert spec.entities is None
+
+    def test_entities_single_column(self):
+        yaml_str = """
+metric:
+  name: revenue
+  source: duckdb://db/tbl
+  aggregation: sum
+  numerator: "SUM(amount)"
+  timestamp_col: event_ts
+  entities: [user_id]
+"""
+        spec = MetricSpec.from_yaml(yaml_str)
+        assert spec.entities == ["user_id"]
+
+    def test_entities_multiple_columns(self):
+        yaml_str = """
+metric:
+  name: revenue
+  source: duckdb://db/tbl
+  aggregation: sum
+  numerator: "SUM(amount)"
+  timestamp_col: event_ts
+  entities: [user_id, device_id]
+"""
+        spec = MetricSpec.from_yaml(yaml_str)
+        assert spec.entities == ["user_id", "device_id"]
+
+    def test_entities_empty_list_raises(self):
+        yaml_str = """
+metric:
+  name: revenue
+  source: duckdb://db/tbl
+  aggregation: sum
+  numerator: "SUM(amount)"
+  timestamp_col: event_ts
+  entities: []
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            MetricSpec.from_yaml(yaml_str)
+        assert any(e.field == "entities" for e in exc_info.value.errors)
+
+    def test_entities_blank_entry_raises(self):
+        yaml_str = """
+metric:
+  name: revenue
+  source: duckdb://db/tbl
+  aggregation: sum
+  numerator: "SUM(amount)"
+  timestamp_col: event_ts
+  entities: [""]
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            MetricSpec.from_yaml(yaml_str)
+        assert any("entities" in e.field for e in exc_info.value.errors)
+
+    def test_validate_with_entities(self):
+        spec = MetricSpec(
+            name="revenue",
+            source="duckdb://db/tbl",
+            aggregation="sum",
+            numerator="SUM(amount)",
+            timestamp_col="event_ts",
+            entities=["user_id", "device_id"],
+        )
+        result = spec.validate()
+        assert result.valid is True
+
+    def test_validate_without_entities(self):
+        spec = MetricSpec(
+            name="revenue",
+            source="duckdb://db/tbl",
+            aggregation="sum",
+            numerator="SUM(amount)",
+            timestamp_col="event_ts",
+        )
+        result = spec.validate()
+        assert result.valid is True
+
+
 class TestMetricSpecValidate:
     def test_validate_returns_result_on_valid(self, valid_metric_ratio_yaml):
         spec = MetricSpec.from_yaml(valid_metric_ratio_yaml)
