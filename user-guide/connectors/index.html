@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -594,6 +594,39 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#duckdb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DuckDB
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bigquery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BigQuery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#postgresql" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PostgreSQL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#environment-variable-substitution" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -644,10 +677,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#bigquery" class="md-nav__link">
+  <a href="#bigquery_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         BigQuery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#postgresql_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PostgreSQL
       
     </span>
   </a>
@@ -672,10 +716,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#duckdb-examples" class="md-nav__link">
+  <a href="#duckdb_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        DuckDB examples
+        DuckDB
       
     </span>
   </a>
@@ -683,10 +727,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#bigquery-examples" class="md-nav__link">
+  <a href="#bigquery_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        BigQuery examples
+        BigQuery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#postgresql_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PostgreSQL
       
     </span>
   </a>
@@ -1029,6 +1084,39 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#duckdb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DuckDB
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bigquery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BigQuery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#postgresql" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PostgreSQL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#environment-variable-substitution" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1079,10 +1167,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#bigquery" class="md-nav__link">
+  <a href="#bigquery_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         BigQuery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#postgresql_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PostgreSQL
       
     </span>
   </a>
@@ -1107,10 +1206,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#duckdb-examples" class="md-nav__link">
+  <a href="#duckdb_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        DuckDB examples
+        DuckDB
       
     </span>
   </a>
@@ -1118,10 +1217,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#bigquery-examples" class="md-nav__link">
+  <a href="#bigquery_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        BigQuery examples
+        BigQuery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#postgresql_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PostgreSQL
       
     </span>
   </a>
@@ -1187,6 +1297,11 @@
 <td><code>pip install "aitaem[bigquery]"</code></td>
 </tr>
 <tr>
+<td>PostgreSQL</td>
+<td><code>postgres://</code></td>
+<td><code>pip install "aitaem[postgres]"</code></td>
+</tr>
+<tr>
 <td>CSV (via DuckDB)</td>
 <td><code>duckdb://</code></td>
 <td>Included — use <code>read_csv_auto</code></td>
@@ -1195,113 +1310,260 @@
 </table>
 <hr />
 <h2 id="yaml-configuration">YAML Configuration</h2>
-<p>The recommended way to configure connections is a YAML file:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># connections.yaml</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nt">duckdb</span><span class="p">:</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">examples/data/ad_campaigns.duckdb</span>
+<p>The recommended way to configure connections is a <code>connections.yaml</code> file. Load it with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectionManager</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span><span class="s2">&quot;connections.yaml&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>Load it with:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectionManager</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span><span class="s2">&quot;connections.yaml&quot;</span><span class="p">)</span>
+<h3 id="duckdb">DuckDB</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">duckdb</span><span class="p">:</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/analytics.db</span><span class="w">   </span><span class="c1"># required</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">read_only</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">           </span><span class="c1"># optional, default: false</span>
 </code></pre></div>
-<h3 id="environment-variable-substitution">Environment variable substitution</h3>
-<p>Sensitive values can be read from environment variables using <code>${VAR_NAME}</code> syntax:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>path</code></td>
+<td>Yes</td>
+<td>—</td>
+<td>File path to the DuckDB database, or <code>':memory:'</code> for an in-process ephemeral database</td>
+</tr>
+<tr>
+<td><code>read_only</code></td>
+<td>No</td>
+<td><code>false</code></td>
+<td>Open the database in read-only mode</td>
+</tr>
+</tbody>
+</table>
+<h3 id="bigquery">BigQuery</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">bigquery</span><span class="p">:</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">project_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${GCP_PROJECT_ID}</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">dataset_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my_dataset</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">project_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-gcp-project</span><span class="w">   </span><span class="c1"># required</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">dataset_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my_dataset</span><span class="w">        </span><span class="c1"># optional</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GCP_PROJECT_ID</span><span class="o">=</span>my-gcp-project
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>project_id</code></td>
+<td>Yes</td>
+<td>—</td>
+<td>GCP project ID that owns the BigQuery datasets</td>
+</tr>
+<tr>
+<td><code>dataset_id</code></td>
+<td>No</td>
+<td><code>null</code></td>
+<td>Default dataset used when a table name is not fully-qualified</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Authentication</strong> uses Application Default Credentials (ADC). Before connecting, run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>gcloud<span class="w"> </span>auth<span class="w"> </span>application-default<span class="w"> </span>login
+</code></pre></div>
+<p>Or point to a service account key file:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GOOGLE_APPLICATION_CREDENTIALS</span><span class="o">=</span>/path/to/credentials.json
+</code></pre></div>
+<h3 id="postgresql">PostgreSQL</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">postgres</span><span class="p">:</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">localhost</span><span class="w">             </span><span class="c1"># optional, default: localhost</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5432</span><span class="w">                  </span><span class="c1"># optional, default: 5432</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mydb</span><span class="w">              </span><span class="c1"># required</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">user</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">myuser</span><span class="w">                </span><span class="c1"># required</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${POSTGRES_PASSWORD}</span><span class="w">  </span><span class="c1"># required</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>database</code></td>
+<td>Yes</td>
+<td>—</td>
+<td>Name of the PostgreSQL database to connect to</td>
+</tr>
+<tr>
+<td><code>user</code></td>
+<td>Yes</td>
+<td>—</td>
+<td>PostgreSQL username</td>
+</tr>
+<tr>
+<td><code>password</code></td>
+<td>Yes</td>
+<td>—</td>
+<td>Password for the given user</td>
+</tr>
+<tr>
+<td><code>host</code></td>
+<td>No</td>
+<td><code>localhost</code></td>
+<td>Hostname or IP address of the PostgreSQL server</td>
+</tr>
+<tr>
+<td><code>port</code></td>
+<td>No</td>
+<td><code>5432</code></td>
+<td>TCP port the PostgreSQL server listens on</td>
+</tr>
+</tbody>
+</table>
+<h3 id="environment-variable-substitution">Environment variable substitution</h3>
+<p>Any field value can reference an environment variable using <code>${VAR_NAME}</code> syntax. aitaem substitutes the variable at load time and raises a <code>ConfigurationError</code> if it is not set.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">duckdb</span><span class="p">:</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${DUCKDB_PATH}</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="nt">bigquery</span><span class="p">:</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nt">project_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${GCP_PROJECT_ID}</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="nt">postgres</span><span class="p">:</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${POSTGRES_HOST}</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">  </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${POSTGRES_DB}</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">  </span><span class="nt">user</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${POSTGRES_USER}</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">  </span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${POSTGRES_PASSWORD}</span>
 </code></pre></div>
 <hr />
 <h2 id="programmatic-configuration">Programmatic Configuration</h2>
+<p>Use <code>add_connection()</code> when you want to configure connections in code rather than a YAML file.</p>
 <h3 id="duckdb-file-database">DuckDB — file database</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectionManager</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;analytics.db&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectionManager</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;analytics.db&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="duckdb-in-memory-with-csv">DuckDB — in-memory with CSV</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectionManager</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.connectors.ibis_connector</span><span class="w"> </span><span class="kn">import</span> <span class="n">IbisConnector</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">connector</span> <span class="o">=</span> <span class="n">IbisConnector</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">)</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">connector</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">connector</span><span class="o">.</span><span class="n">connection</span><span class="o">.</span><span class="n">raw_sql</span><span class="p">(</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="s2">&quot;CREATE TABLE events AS SELECT * FROM read_csv_auto(&#39;data/events.csv&#39;)&quot;</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="p">)</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span> <span class="n">connector</span><span class="o">=</span><span class="n">connector</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectionManager</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.connectors.ibis_connector</span><span class="w"> </span><span class="kn">import</span> <span class="n">IbisConnector</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">connector</span> <span class="o">=</span> <span class="n">IbisConnector</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">connector</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">connector</span><span class="o">.</span><span class="n">connection</span><span class="o">.</span><span class="n">raw_sql</span><span class="p">(</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="s2">&quot;CREATE TABLE events AS SELECT * FROM read_csv_auto(&#39;data/events.csv&#39;)&quot;</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="p">)</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span> <span class="n">connector</span><span class="o">=</span><span class="n">connector</span><span class="p">)</span>
 </code></pre></div>
-<h3 id="bigquery">BigQuery</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">&quot;bigquery&quot;</span><span class="p">,</span> <span class="n">project_id</span><span class="o">=</span><span class="s2">&quot;my-project&quot;</span><span class="p">,</span> <span class="n">dataset_id</span><span class="o">=</span><span class="s2">&quot;my_dataset&quot;</span><span class="p">)</span>
+<h3 id="bigquery_1">BigQuery</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">&quot;bigquery&quot;</span><span class="p">,</span> <span class="n">project_id</span><span class="o">=</span><span class="s2">&quot;my-project&quot;</span><span class="p">,</span> <span class="n">dataset_id</span><span class="o">=</span><span class="s2">&quot;my_dataset&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="postgresql_1">PostgreSQL</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectionManager</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="s2">&quot;postgres&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="n">host</span><span class="o">=</span><span class="s2">&quot;db.example.com&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>    <span class="n">database</span><span class="o">=</span><span class="s2">&quot;mydb&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    <span class="n">user</span><span class="o">=</span><span class="s2">&quot;myuser&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>    <span class="n">password</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;POSTGRES_PASSWORD&quot;</span><span class="p">],</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="p">)</span>
 </code></pre></div>
 <hr />
 <h2 id="source-uri-format">Source URI Format</h2>
-<p>Metric and segment specs reference their source table via a URI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>backend://database_identifier/table_name
+<p>Metric and segment specs reference their source table via a URI in the <code>source</code> field. The URI determines which connection is used and which table is queried.</p>
+<h3 id="duckdb_1">DuckDB</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>duckdb://database_path/table_name
 </code></pre></div>
-<h3 id="duckdb-examples">DuckDB examples</h3>
 <table>
 <thead>
 <tr>
 <th>URI</th>
-<th>Backend</th>
-<th>Database</th>
 <th>Table</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>duckdb://analytics.db/events</code></td>
-<td>duckdb</td>
-<td>analytics.db</td>
-<td>events</td>
+<td><code>events</code> in <code>analytics.db</code></td>
 </tr>
 <tr>
 <td><code>duckdb://:memory:/events</code></td>
-<td>duckdb</td>
-<td>:memory:</td>
-<td>events</td>
+<td><code>events</code> in an in-memory database</td>
 </tr>
 <tr>
 <td><code>duckdb:///abs/path/to/db/events</code></td>
-<td>duckdb</td>
-<td>/abs/path/to/db</td>
-<td>events</td>
+<td><code>events</code> at an absolute path</td>
 </tr>
 </tbody>
 </table>
-<h3 id="bigquery-examples">BigQuery examples</h3>
+<h3 id="bigquery_2">BigQuery</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>bigquery://project.dataset.table
+</code></pre></div>
 <table>
 <thead>
 <tr>
 <th>URI</th>
-<th>Backend</th>
 <th>Project</th>
 <th>Table</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>bigquery://my-project.dataset.table</code></td>
-<td>bigquery</td>
-<td>my-project</td>
-<td>dataset.table</td>
+<td><code>bigquery://my-project.analytics.events</code></td>
+<td><code>my-project</code></td>
+<td><code>analytics.events</code></td>
 </tr>
 <tr>
-<td><code>bigquery://my-project/dataset.table</code></td>
-<td>bigquery</td>
-<td>my-project</td>
-<td>dataset.table</td>
+<td><code>bigquery://my-project/analytics.events</code></td>
+<td><code>my-project</code></td>
+<td><code>analytics.events</code></td>
 </tr>
 </tbody>
 </table>
+<p>BigQuery URIs must contain at least three dot-separated parts (project, dataset, table).</p>
+<h3 id="postgresql_2">PostgreSQL</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>postgres://schema/table
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>URI</th>
+<th>SQL table reference</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>postgres://public/events</code></td>
+<td><code>public.events</code></td>
+</tr>
+<tr>
+<td><code>postgres://analytics/orders</code></td>
+<td><code>analytics.orders</code></td>
+</tr>
+<tr>
+<td><code>postgres:///events</code></td>
+<td><code>events</code> (server's default schema)</td>
+</tr>
+</tbody>
+</table>
+<p>The schema part is optional. Omit it (triple slash) when you want the server's default search path to resolve the table.</p>
 <hr />
 <h2 id="closing-connections">Closing Connections</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">conn</span><span class="o">.</span><span class="n">close_all</span><span class="p">()</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">conn</span><span class="o">.</span><span class="n">close_all</span><span class="p">()</span>
 </code></pre></div>
 
 
