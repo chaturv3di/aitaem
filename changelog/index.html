@@ -992,6 +992,9 @@
 <h1 id="changelog">Changelog</h1>
 <h2 id="unreleased">Unreleased</h2>
 <ul>
+<li><code>MetricSpec</code>: new optional <code>entities</code> field — declares which entity columns the metric supports for disaggregation (e.g. <code>entities: [user_id, device_id]</code>). Must be a non-empty list if provided.</li>
+<li><code>MetricCompute.compute()</code>: new <code>by_entity</code> parameter — groups results by an entity column declared in each metric's <code>entities</code> list; raises <code>QueryBuildError</code> if any metric does not support the requested entity column.</li>
+<li>Standard output schema gains an <code>entity_id</code> column (position 4, between <code>period_end_date</code> and <code>metric_name</code>); <code>None</code> when <code>by_entity</code> is not set.</li>
 <li>Added PostgreSQL backend support via <code>ibis-framework[postgres]</code> (<code>pip install "aitaem[postgres]"</code>)</li>
 <li>New <code>aitaem.connectors.backend_specs</code> module with <code>DuckDBConfig</code>, <code>BigQueryConfig</code>, and <code>PostgresConfig</code> dataclasses — centralizes backend field validation for all connectors</li>
 <li>PostgreSQL source URI format: <code>postgres://schema/table</code> (e.g. <code>postgres://public/orders</code>)</li>
