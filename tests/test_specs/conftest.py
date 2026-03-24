@@ -11,7 +11,6 @@ metric:
   name: homepage_ctr
   description: Click-through rate
   source: duckdb://analytics.db/events
-  aggregation: ratio
   numerator: "SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END)"
   denominator: "SUM(CASE WHEN event_type = 'impression' THEN 1 ELSE 0 END)"
   timestamp_col: event_ts
@@ -21,7 +20,6 @@ VALID_METRIC_SUM_YAML = """
 metric:
   name: total_revenue
   source: duckdb://analytics.db/transactions
-  aggregation: sum
   numerator: "SUM(amount)"
   timestamp_col: transaction_date
 """

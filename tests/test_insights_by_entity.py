@@ -22,7 +22,6 @@ REVENUE_METRIC_YAML = """
 metric:
   name: revenue
   source: duckdb://test.db/transactions
-  aggregation: sum
   numerator: SUM(amount)
   timestamp_col: event_ts
   entities: [user_id, device_id]
@@ -32,7 +31,6 @@ REVENUE_METRIC_NO_ENTITIES_YAML = """
 metric:
   name: revenue_no_entities
   source: duckdb://test.db/transactions
-  aggregation: sum
   numerator: SUM(amount)
   timestamp_col: event_ts
 """

@@ -1,6 +1,5 @@
 metric:
   name: total_revenue
   source: duckdb://analytics.db/transactions
-  aggregation: sum
   numerator: "SUM(amount)"
   timestamp_col: transaction_date

@@ -39,7 +39,6 @@ def make_metric(
     return MetricSpec(
         name=name,
         source=source,
-        aggregation=agg,
         numerator=numerator,
         timestamp_col="event_ts",
         denominator=denominator,
@@ -50,7 +49,6 @@ def make_ratio_metric(name="ctr", source=DUCKDB_URI):
     return MetricSpec(
         name=name,
         source=source,
-        aggregation="ratio",
         numerator="SUM(clicks)",
         denominator="SUM(impressions)",
         timestamp_col="event_ts",
@@ -149,13 +147,18 @@ class TestParseTableNameFromUri:
         assert QueryBuilder._parse_table_name_from_uri(BIGQUERY_URI) == "my_dataset.my_table"
 
     def test_postgres_with_schema(self):
-        assert QueryBuilder._parse_table_name_from_uri("postgres://public/events") == "public.events"
+        assert (
+            QueryBuilder._parse_table_name_from_uri("postgres://public/events") == "public.events"
+        )
 
     def test_postgres_no_schema(self):
         assert QueryBuilder._parse_table_name_from_uri("postgres:///events") == "events"
 
     def test_postgres_custom_schema(self):
-        assert QueryBuilder._parse_table_name_from_uri("postgres://analytics/orders") == "analytics.orders"
+        assert (
+            QueryBuilder._parse_table_name_from_uri("postgres://analytics/orders")
+            == "analytics.orders"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -303,7 +306,6 @@ _user_tier_segment = SegmentSpec(
 _txn_metric = MetricSpec(
     name="revenue",
     source="duckdb://analytics.db/transactions",
-    aggregation="sum",
     numerator="SUM(amount)",
     timestamp_col="transaction_date",
 )
@@ -604,7 +606,6 @@ SELECT * FROM (VALUES
 _entity_metric = MetricSpec(
     name="revenue",
     source="duckdb://analytics.db/transactions",
-    aggregation="sum",
     numerator="SUM(amount)",
     timestamp_col="event_ts",
     entities=["user_id", "device_id"],
@@ -728,7 +729,6 @@ class TestByEntityBuildQueriesValidation:
         metric = MetricSpec(
             name="revenue",
             source=DUCKDB_URI,
-            aggregation="sum",
             numerator="SUM(amount)",
             timestamp_col="event_ts",
             entities=["user_id"],
@@ -749,7 +749,6 @@ class TestByEntityBuildQueriesValidation:
         metric = MetricSpec(
             name="revenue",
             source=DUCKDB_URI,
-            aggregation="sum",
             numerator="SUM(amount)",
             timestamp_col="event_ts",
             entities=["user_id", "device_id"],

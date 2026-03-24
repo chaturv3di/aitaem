@@ -11,7 +11,6 @@ metric:
   name: ctr
   description: Click-through rate — ratio of clicks to impressions
   source: duckdb://ad_campaigns.duckdb/ad_campaigns
-  aggregation: ratio
   numerator: "SUM(clicks)"
   denominator: "SUM(impressions)"
   timestamp_col: date
@@ -24,23 +23,26 @@ metric:
 |-------|----------|-------------|
 | `name` | Yes | Unique identifier used in `MetricCompute.compute()` |
 | `source` | Yes | Source URI — see [Connectors](connectors.md) for format |
-| `aggregation` | Yes | One of `"sum"`, `"avg"`, `"count"`, `"min"`, `"max"`, or `"ratio"` |
-| `numerator` | Yes | SQL aggregate expression for the numerator (or sole value for `sum`) |
+| `numerator` | Yes | SQL expression containing an aggregate function call (`SUM`, `AVG`, `COUNT`, `MIN`, `MAX`) |
 | `timestamp_col` | Yes | Column used for `time_window` filtering |
-| `denominator` | Only for `ratio` | SQL aggregate expression for the denominator |
+| `denominator` | No | SQL expression containing an aggregate function call. When present, the metric is computed as `numerator / denominator` (ratio). |
 | `entities` | No | List of entity column names supported for `by_entity` disaggregation (e.g. `[user_id, device_id]`). Must be non-empty if provided. |
 | `description` | No | Human-readable description |
+
+The aggregation type is inferred from the SQL function in `numerator` (and `denominator`). There is no separate `aggregation` field — write the aggregate directly in the expression.
 
 ### Aggregation types
 
 === "ratio"
+
+    Ratio is implied by the presence of a `denominator`. Both `numerator` and `denominator` must
+    contain an aggregate function.
 
     ```yaml
     metric:
       name: ctr
       description: Click-through rate — ratio of clicks to impressions
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
-      aggregation: ratio
       numerator: "SUM(clicks)"
       denominator: "SUM(impressions)"
       timestamp_col: date
@@ -54,7 +56,6 @@ metric:
       name: total_revenue
       description: Total revenue generated across all campaigns
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
-      aggregation: sum
       numerator: "SUM(revenue)"
       timestamp_col: date
       entities: [platform, campaign_type, country]
@@ -67,7 +68,6 @@ metric:
       name: avg_revenue
       description: Average revenue per campaign row
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
-      aggregation: avg
       numerator: "AVG(revenue)"
       timestamp_col: date
       entities: [platform, campaign_type, country]
@@ -80,7 +80,6 @@ metric:
       name: campaign_count
       description: Number of campaign rows
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
-      aggregation: count
       numerator: "COUNT(*)"
       timestamp_col: date
       entities: [platform, campaign_type, country]
@@ -93,7 +92,6 @@ metric:
       name: max_revenue
       description: Peak revenue from a single campaign row
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
-      aggregation: max
       numerator: "MAX(revenue)"
       timestamp_col: date
       entities: [platform, campaign_type, country]
@@ -106,7 +104,6 @@ metric:
       name: min_ad_spend
       description: Lowest ad spend entry
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
-      aggregation: min
       numerator: "MIN(ad_spend)"
       timestamp_col: date
       entities: [platform, campaign_type, country]
@@ -122,7 +119,6 @@ select which entity column to group by.
 metric:
   name: revenue
   source: duckdb://analytics.db/transactions
-  aggregation: sum
   numerator: "SUM(amount)"
   timestamp_col: event_ts
   entities: [user_id, device_id]   # supports per-user or per-device breakdown
@@ -239,7 +235,6 @@ cache = SpecCache.from_string(
 metric:
   name: ctr
   source: duckdb://:memory:/events
-  aggregation: ratio
   numerator: "SUM(clicks)"
   denominator: "SUM(impressions)"
   timestamp_col: date

@@ -2,7 +2,6 @@ metric:
   name: avg_revenue
   description: Average revenue per campaign row
   source: duckdb://ad_campaigns.duckdb/ad_campaigns
-  aggregation: avg
   numerator: "AVG(revenue)"
   timestamp_col: date
   entities: [platform, campaign_type, country]

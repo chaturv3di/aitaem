@@ -29,7 +29,6 @@ def make_metric(name="revenue", timestamp_col="event_ts"):
     return MetricSpec(
         name=name,
         source=DUCKDB_URI,
-        aggregation="sum",
         numerator="SUM(amount)",
         timestamp_col=timestamp_col,
     )
@@ -39,7 +38,6 @@ def make_metric_no_ts(name="revenue"):
     return MetricSpec(
         name=name,
         source=DUCKDB_URI,
-        aggregation="sum",
         numerator="SUM(amount)",
         timestamp_col=None,
     )
@@ -103,9 +101,7 @@ class TestValidPeriodTypes:
 
 class TestGeneratePeriodBoundaries:
     def test_monthly_aligned_window(self):
-        result = QueryBuilder._generate_period_boundaries(
-            ("2026-01-01", "2026-04-01"), "monthly"
-        )
+        result = QueryBuilder._generate_period_boundaries(("2026-01-01", "2026-04-01"), "monthly")
         assert result == [
             ("2026-01-01", "2026-02-01"),
             ("2026-02-01", "2026-03-01"),
@@ -114,34 +110,26 @@ class TestGeneratePeriodBoundaries:
 
     def test_monthly_window_starting_mid_month(self):
         # period_start rounds down to first of January
-        result = QueryBuilder._generate_period_boundaries(
-            ("2026-01-15", "2026-03-01"), "monthly"
-        )
+        result = QueryBuilder._generate_period_boundaries(("2026-01-15", "2026-03-01"), "monthly")
         assert result[0][0] == "2026-01-01"
         assert result[0][1] == "2026-02-01"
         assert result[-1][1] == "2026-03-01"
 
     def test_weekly_window_starting_mid_week(self):
         # 2026-01-07 is a Wednesday; Monday of that week is 2026-01-05
-        result = QueryBuilder._generate_period_boundaries(
-            ("2026-01-07", "2026-01-22"), "weekly"
-        )
+        result = QueryBuilder._generate_period_boundaries(("2026-01-07", "2026-01-22"), "weekly")
         assert result[0][0] == "2026-01-05"  # preceding Monday
         assert result[0][1] == "2026-01-12"
         assert result[1] == ("2026-01-12", "2026-01-19")
         assert result[2] == ("2026-01-19", "2026-01-26")
 
     def test_weekly_starts_on_monday(self):
-        result = QueryBuilder._generate_period_boundaries(
-            ("2026-01-05", "2026-01-20"), "weekly"
-        )
+        result = QueryBuilder._generate_period_boundaries(("2026-01-05", "2026-01-20"), "weekly")
         # 2026-01-05 is already a Monday
         assert result[0][0] == "2026-01-05"
 
     def test_daily_three_days(self):
-        result = QueryBuilder._generate_period_boundaries(
-            ("2026-01-01", "2026-01-04"), "daily"
-        )
+        result = QueryBuilder._generate_period_boundaries(("2026-01-01", "2026-01-04"), "daily")
         assert result == [
             ("2026-01-01", "2026-01-02"),
             ("2026-01-02", "2026-01-03"),
@@ -149,26 +137,20 @@ class TestGeneratePeriodBoundaries:
         ]
 
     def test_yearly_two_years(self):
-        result = QueryBuilder._generate_period_boundaries(
-            ("2026-01-01", "2028-01-01"), "yearly"
-        )
+        result = QueryBuilder._generate_period_boundaries(("2026-01-01", "2028-01-01"), "yearly")
         assert result == [
             ("2026-01-01", "2027-01-01"),
             ("2027-01-01", "2028-01-01"),
         ]
 
     def test_yearly_mid_year_start_rounds_down(self):
-        result = QueryBuilder._generate_period_boundaries(
-            ("2026-06-15", "2027-06-15"), "yearly"
-        )
+        result = QueryBuilder._generate_period_boundaries(("2026-06-15", "2027-06-15"), "yearly")
         assert result[0][0] == "2026-01-01"
         assert result[0][1] == "2027-01-01"
         assert result[1][0] == "2027-01-01"
 
     def test_monthly_december_wraps_to_january(self):
-        result = QueryBuilder._generate_period_boundaries(
-            ("2026-12-01", "2027-02-01"), "monthly"
-        )
+        result = QueryBuilder._generate_period_boundaries(("2026-12-01", "2027-02-01"), "monthly")
         assert result[0] == ("2026-12-01", "2027-01-01")
         assert result[1] == ("2027-01-01", "2027-02-01")
 
@@ -268,9 +250,9 @@ class TestBuildMetricSegmentQueryPeriodGranularity:
             ("2026-01-01", "2026-04-01"),
         )
         by_month = {row["period_start_date"][:10]: row["metric_value"] for _, row in df.iterrows()}
-        assert by_month["2026-01-01"] == pytest.approx(150.0)   # 100 + 50
-        assert by_month["2026-02-01"] == pytest.approx(120.0)   # 80 + 40
-        assert by_month["2026-03-01"] == pytest.approx(180.0)   # 120 + 60
+        assert by_month["2026-01-01"] == pytest.approx(150.0)  # 100 + 50
+        assert by_month["2026-02-01"] == pytest.approx(120.0)  # 80 + 40
+        assert by_month["2026-03-01"] == pytest.approx(180.0)  # 120 + 60
 
     def test_monthly_with_slice_group_by_includes_period_cols(self):
         sql, df = self._run(
@@ -323,6 +305,7 @@ class TestBuildMetricSegmentQueryPeriodGranularity:
             ("2026-01-05", "2026-01-26"),
         )
         from datetime import date
+
         for start_str in df["period_start_date"]:
             d = date.fromisoformat(start_str[:10])
             assert d.weekday() == 0, f"{start_str} is not a Monday"

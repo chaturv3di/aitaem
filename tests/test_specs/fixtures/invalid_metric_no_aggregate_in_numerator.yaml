@@ -1,0 +1,5 @@
+metric:
+  name: bad_metric
+  source: duckdb://analytics.db/events
+  numerator: "amount"
+  timestamp_col: event_ts
