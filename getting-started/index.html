@@ -1024,7 +1024,7 @@
 <a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="nb">print</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="standard-output-format">Standard Output Format</h2>
-<p>Every <code>compute()</code> call returns a pandas DataFrame with exactly these 9 columns:</p>
+<p>Every <code>compute()</code> call returns a pandas DataFrame with exactly these 10 columns:</p>
 <table>
 <thead>
 <tr>
@@ -1044,6 +1044,10 @@
 <tr>
 <td><code>period_end_date</code></td>
 <td>ISO date string or <code>None</code></td>
+</tr>
+<tr>
+<td><code>entity_id</code></td>
+<td>Entity column value when <code>by_entity</code> is set; <code>None</code> otherwise</td>
 </tr>
 <tr>
 <td><code>metric_name</code></td>
