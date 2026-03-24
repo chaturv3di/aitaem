@@ -1,8 +1,0 @@
-metric:
-  name: cpa
-  description: Cost per acquisition — average ad spend per conversion
-  source: duckdb://ad_campaigns.duckdb/ad_campaigns
-  aggregation: ratio
-  numerator: "SUM(ad_spend)"
-  denominator: "SUM(conversions)"
-  timestamp_col: date

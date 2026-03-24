@@ -1,9 +1,8 @@
 metric:
-  name: roas
-  description: Return on ad spend — revenue generated per dollar of ad spend
+  name: total_revenue
+  description: Total revenue generated across all campaigns
   source: duckdb://ad_campaigns.duckdb/ad_campaigns
-  aggregation: ratio
+  aggregation: sum
   numerator: "SUM(revenue)"
-  denominator: "SUM(ad_spend)"
   timestamp_col: date
   entities: [platform, campaign_type, country]

@@ -6,3 +6,4 @@ metric:
   numerator: "SUM(clicks)"
   denominator: "SUM(impressions)"
   timestamp_col: date
+  entities: [platform, campaign_type, country]

@@ -101,8 +101,8 @@ def test_compute_with_time_window(mc):
     assert df["metric_value"].notna().all()
 
     # Windowed result should differ from all-time (fewer data points)
-    df_all = mc.compute("cpc")  # cpc has no time_window, uses all rows
-    df_windowed = mc.compute("cpc", time_window=time_window)
+    df_all = mc.compute("total_revenue")  # no time_window, uses all rows
+    df_windowed = mc.compute("total_revenue", time_window=time_window)
     assert float(df_windowed["metric_value"].iloc[0]) != float(df_all["metric_value"].iloc[0])
 
 
@@ -112,8 +112,8 @@ def test_compute_with_time_window(mc):
 
 
 def test_compute_multiple_metrics(mc):
-    df = mc.compute(["ctr", "cpc", "roas"])
-    assert set(df["metric_name"]) == {"ctr", "cpc", "roas"}
+    df = mc.compute(["ctr", "roas", "total_revenue"])
+    assert set(df["metric_name"]) == {"ctr", "roas", "total_revenue"}
     # 3 metrics × 1 row each (no slices/segments)
     assert len(df) == 3
 

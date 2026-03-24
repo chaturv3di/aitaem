@@ -1,0 +1,8 @@
+metric:
+  name: max_revenue
+  description: Peak revenue from a single campaign row — useful for identifying top-performing campaigns
+  source: duckdb://ad_campaigns.duckdb/ad_campaigns
+  aggregation: max
+  numerator: "MAX(revenue)"
+  timestamp_col: date
+  entities: [platform, campaign_type, country]
