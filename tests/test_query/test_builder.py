@@ -764,3 +764,170 @@ class TestByEntityBuildQueriesValidation:
             [metric], slice_specs=None, segment_specs=None, by_entity=None
         )
         assert len(groups) == 1
+
+
+# ---------------------------------------------------------------------------
+# Wildcard slice — _build_wildcard_slice_expr and SQL generation
+# ---------------------------------------------------------------------------
+
+SETUP_SQL_WILDCARD = """
+CREATE TABLE campaigns AS
+SELECT * FROM (VALUES
+    ('c1', 'SaaS',    'Search',  100.0),
+    ('c2', 'Fintech', 'Display', 200.0),
+    ('c3', 'SaaS',    'Video',   150.0),
+    ('c4', 'EdTech',  'Search',   50.0),
+    ('c5', NULL,      'Display',  80.0)
+) AS t(campaign_id, industry, campaign_type, spend)
+"""
+
+_wildcard_metric = MetricSpec(
+    name="total_spend",
+    source=DUCKDB_URI,
+    numerator="SUM(spend)",
+    timestamp_col="event_ts",
+)
+
+_wildcard_slice = SliceSpec(name="industry", column="industry")
+_wildcard_campaign_type_slice = SliceSpec(name="campaign_type", column="campaign_type")
+_leaf_campaign_type_slice = SliceSpec(
+    name="campaign_type",
+    values=(
+        SliceValue(name="Search", where="campaign_type = 'Search'"),
+        SliceValue(name="Display", where="campaign_type = 'Display'"),
+    ),
+)
+
+
+class TestBuildWildcardSliceExpr:
+    """Unit tests for _build_wildcard_slice_expr."""
+
+    def test_emits_cast_expression(self):
+        expr = QueryBuilder._build_wildcard_slice_expr(_wildcard_slice, "_slice_industry")
+        assert "CAST(industry AS VARCHAR)" in expr
+        assert "AS _slice_industry" in expr
+
+    def test_does_not_contain_case_when(self):
+        expr = QueryBuilder._build_wildcard_slice_expr(_wildcard_slice, "_slice_industry")
+        assert "CASE" not in expr
+        assert "WHEN" not in expr
+
+
+class TestWildcardSliceSQLGeneration:
+    """SQL string tests for wildcard slice dispatch in _build_metric_segment_query."""
+
+    def _build(self, slice_spec, segment_spec=None):
+        return QueryBuilder._build_metric_segment_query(
+            metric=_wildcard_metric,
+            table_name="campaigns",
+            slice_specs=[slice_spec],
+            segment_spec=segment_spec,
+            time_filter_sql=None,
+            period_type="all_time",
+            period_start=None,
+            period_end=None,
+        )
+
+    def test_wildcard_cte_contains_cast(self):
+        sql = self._build(_wildcard_slice)
+        assert "CAST(industry AS VARCHAR) AS _slice_industry" in sql
+
+    def test_wildcard_cte_no_case_when(self):
+        sql = self._build(_wildcard_slice)
+        assert "CASE" not in sql
+
+    def test_wildcard_outer_where_is_not_null(self):
+        sql = self._build(_wildcard_slice)
+        assert "_slice_industry IS NOT NULL" in sql
+
+    def test_wildcard_group_by_contains_alias(self):
+        sql = self._build(_wildcard_slice)
+        group_by_part = sql.split("GROUP BY")[1]
+        assert "_slice_industry" in group_by_part
+
+    def test_leaf_slice_still_emits_case_when(self):
+        sql = self._build(_leaf_campaign_type_slice)
+        assert "CASE" in sql
+        assert "CAST(" not in sql.split("_labeled")[0]  # no CAST in CTE
+
+    def test_wildcard_cross_product_both_cast(self):
+        # Resolve cross-product manually: two wildcard slices
+        sql = QueryBuilder._build_metric_segment_query(
+            metric=_wildcard_metric,
+            table_name="campaigns",
+            slice_specs=[_wildcard_slice, _wildcard_campaign_type_slice],
+            segment_spec=None,
+            time_filter_sql=None,
+            period_type="all_time",
+            period_start=None,
+            period_end=None,
+        )
+        assert "CAST(industry AS VARCHAR) AS _slice_industry" in sql
+        assert "CAST(campaign_type AS VARCHAR) AS _slice_campaign_type" in sql
+
+    def test_wildcard_mixed_cross_product(self):
+        # One wildcard + one leaf slice
+        sql = QueryBuilder._build_metric_segment_query(
+            metric=_wildcard_metric,
+            table_name="campaigns",
+            slice_specs=[_wildcard_slice, _leaf_campaign_type_slice],
+            segment_spec=None,
+            time_filter_sql=None,
+            period_type="all_time",
+            period_start=None,
+            period_end=None,
+        )
+        assert "CAST(industry AS VARCHAR) AS _slice_industry" in sql
+        assert "CASE" in sql  # leaf slice still uses CASE WHEN
+
+
+class TestWildcardSliceDuckDBIntegration:
+    """End-to-end DuckDB execution tests for wildcard slices."""
+
+    def _compute(self, slice_specs, segment_spec=None):
+        sql = QueryBuilder._build_metric_segment_query(
+            metric=_wildcard_metric,
+            table_name="campaigns",
+            slice_specs=slice_specs,
+            segment_spec=segment_spec,
+            time_filter_sql=None,
+            period_type="all_time",
+            period_start=None,
+            period_end=None,
+        )
+        return _run_sql_duckdb(sql, SETUP_SQL_WILDCARD)
+
+    def test_wildcard_excludes_null_column_values(self):
+        df = self._compute([_wildcard_slice])
+        assert None not in df["slice_value"].values
+        assert df["slice_value"].isna().sum() == 0
+
+    def test_wildcard_produces_one_row_per_distinct_value(self):
+        df = self._compute([_wildcard_slice])
+        assert set(df["slice_value"]) == {"SaaS", "Fintech", "EdTech"}
+        assert len(df) == 3
+
+    def test_wildcard_metric_values_correct(self):
+        df = self._compute([_wildcard_slice])
+        row = df[df["slice_value"] == "SaaS"].iloc[0]
+        assert row["metric_value"] == pytest.approx(250.0)  # 100 + 150
+        row = df[df["slice_value"] == "Fintech"].iloc[0]
+        assert row["metric_value"] == pytest.approx(200.0)
+        row = df[df["slice_value"] == "EdTech"].iloc[0]
+        assert row["metric_value"] == pytest.approx(50.0)
+
+    def test_wildcard_slice_type_is_slice_name(self):
+        df = self._compute([_wildcard_slice])
+        assert (df["slice_type"] == "industry").all()
+
+    def test_wildcard_two_slices_cross_product(self):
+        df = self._compute([_wildcard_slice, _wildcard_campaign_type_slice])
+        # Each combination of (industry, campaign_type) that is non-NULL in both columns
+        # SaaS×Search, SaaS×Video, Fintech×Display, EdTech×Search → 4 rows
+        assert len(df) == 4
+        assert (df["slice_type"] == "industry|campaign_type").all()
+        values = set(df["slice_value"])
+        assert "SaaS|Search" in values
+        assert "SaaS|Video" in values
+        assert "Fintech|Display" in values
+        assert "EdTech|Search" in values

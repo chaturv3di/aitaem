@@ -29,12 +29,18 @@ class SliceSpec:
     name: str
     values: tuple[SliceValue, ...] = ()  # Leaf spec — direct WHERE-based values
     cross_product: tuple[str, ...] = ()  # Composite spec — names of other SliceSpecs
+    column: str = ""  # Wildcard spec — bare column name
     description: str = ""
 
     @property
     def is_composite(self) -> bool:
         """True if this spec references other SliceSpecs via cross_product."""
         return bool(self.cross_product)
+
+    @property
+    def is_wildcard(self) -> bool:
+        """True if this spec auto-discovers values from a column at query time."""
+        return bool(self.column)
 
     @classmethod
     def from_yaml(cls, yaml_input: str | Path) -> "SliceSpec":
@@ -102,18 +108,29 @@ class SliceSpec:
             raise SpecValidationError("slice", name, result.errors)
 
         raw_cross_product = spec_dict.get("cross_product")
+        raw_where = spec_dict.get("where")
         values: tuple[SliceValue, ...] = ()
         cross_product: tuple[str, ...] = ()
+        column: str = ""
         if raw_cross_product is not None:
             # Composite spec
             cross_product = tuple(raw_cross_product)
+        elif raw_where is not None:
+            # Wildcard spec
+            column = str(raw_where)
         else:
             # Leaf spec
             values = tuple(
                 SliceValue(name=v["name"], where=v["where"]) for v in spec_dict["values"]
             )
 
-        unknown_fields = set(spec_dict.keys()) - {"name", "values", "cross_product", "description"}
+        unknown_fields = set(spec_dict.keys()) - {
+            "name",
+            "values",
+            "cross_product",
+            "where",
+            "description",
+        }
         if unknown_fields:
             logger.debug("SliceSpec '%s': ignoring unknown fields: %s", name, unknown_fields)
 
@@ -121,6 +138,7 @@ class SliceSpec:
             name=spec_dict["name"],
             values=values,
             cross_product=cross_product,
+            column=column,
             description=spec_dict.get("description", ""),
         )
 
@@ -129,6 +147,8 @@ class SliceSpec:
         spec_dict: dict = {"name": self.name, "description": self.description}
         if self.is_composite:
             spec_dict["cross_product"] = list(self.cross_product)
+        elif self.is_wildcard:
+            spec_dict["where"] = self.column
         else:
             spec_dict["values"] = [{"name": v.name, "where": v.where} for v in self.values]
         return validate_slice_spec(spec_dict)
