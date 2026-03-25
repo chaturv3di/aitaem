@@ -834,6 +834,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Unreleased">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -871,7 +888,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added" class="md-nav__link">
+  <a href="#added_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -973,6 +990,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Unreleased">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1010,7 +1044,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added" class="md-nav__link">
+  <a href="#added_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1091,6 +1125,12 @@
 
 <h1 id="changelog">Changelog</h1>
 <h2 id="unreleased">Unreleased</h2>
+<h3 id="added">Added</h3>
+<ul>
+<li><code>SliceSpec</code>: new wildcard variant — set <code>where: &lt;column_name&gt;</code> at the spec level
+  (instead of listing <code>values</code>) to auto-populate slice values from the column's distinct
+  values at query time. Supports simple and dot-qualified column names.</li>
+</ul>
 <h2 id="v014-2026-03-23">v0.1.4 — 2026-03-23</h2>
 <h3 id="changed">Changed</h3>
 <ul>
@@ -1105,7 +1145,7 @@
 <li>Ensure <code>numerator</code> (and <code>denominator</code> when present) contain an explicit aggregate function call
   such as <code>SUM(col)</code>, <code>AVG(col)</code>, <code>COUNT(*)</code>, <code>MIN(col)</code>, or <code>MAX(col)</code>.</li>
 </ul>
-<h3 id="added">Added</h3>
+<h3 id="added_1">Added</h3>
 <ul>
 <li><code>MetricSpec</code>: new optional <code>entities</code> field — declares which entity columns the metric supports for disaggregation (e.g. <code>entities: [user_id, device_id]</code>). Must be a non-empty list if provided.</li>
 <li><code>MetricCompute.compute()</code>: new <code>by_entity</code> parameter — groups results by an entity column declared in each metric's <code>entities</code> list; raises <code>QueryBuildError</code> if any metric does not support the requested entity column.</li>
