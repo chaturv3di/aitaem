@@ -125,6 +125,26 @@ class TestBigQueryConnection:
         assert connector.is_connected
         connector.close()
 
+    @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
+    def test_connect_without_dataset_id(self, mocker):
+        """Test that dataset_id is not forwarded when not specified."""
+        mock_connect = mocker.patch("ibis.bigquery.connect", return_value=mocker.Mock())
+
+        connector = IbisConnector("bigquery")
+        connector.connect(project_id="test-project")
+
+        mock_connect.assert_called_once_with(project_id="test-project")
+
+    @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
+    def test_connect_with_dataset_id(self, mocker):
+        """Test that dataset_id is forwarded to ibis when specified."""
+        mock_connect = mocker.patch("ibis.bigquery.connect", return_value=mocker.Mock())
+
+        connector = IbisConnector("bigquery")
+        connector.connect(project_id="test-project", dataset_id="my_dataset")
+
+        mock_connect.assert_called_once_with(project_id="test-project", dataset_id="my_dataset")
+
     def test_connect_missing_project_id(self):
         """Test that missing project_id raises ConfigurationError."""
         connector = IbisConnector("bigquery")

@@ -113,7 +113,10 @@ class IbisConnector(Connector):
         cfg = validate_backend_config("bigquery", kwargs)
 
         try:
-            self.connection = ibis.bigquery.connect(project_id=cfg.project_id)
+            bq_kwargs = {"project_id": cfg.project_id}
+            if cfg.dataset_id is not None:
+                bq_kwargs["dataset_id"] = cfg.dataset_id
+            self.connection = ibis.bigquery.connect(**bq_kwargs)
         except Exception as e:
             error_msg = str(e).lower()
             if "credentials" in error_msg or "authentication" in error_msg:
