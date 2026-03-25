@@ -230,11 +230,26 @@ def _validate_values_list(values: list, item_type: str, errors: list[ValidationE
                 errors.append(sql_error)
 
 
+def _is_valid_column_identifier(value: str) -> bool:
+    """Return True if value is a simple or dot-qualified SQL column identifier.
+
+    Accepts: ``industry``, ``user_id``, ``public.orders.country``
+    Rejects: SQL expressions containing spaces, operators, quotes, or parentheses.
+    """
+    import re
+
+    return bool(re.match(r"^[A-Za-z_][A-Za-z0-9_.]*$", value))
+
+
 def validate_slice_spec(spec_dict: dict) -> ValidationResult:
     """Validate a slice spec dict. Returns ValidationResult with all errors found.
 
-    A SliceSpec is either a leaf spec (has 'values') or a composite spec (has
-    'cross_product'). Exactly one must be present.
+    A SliceSpec is one of:
+    - Leaf spec: has 'values'
+    - Composite spec: has 'cross_product'
+    - Wildcard spec: has 'where' (bare column name)
+
+    Exactly one of the three must be present.
     """
     errors: list[ValidationError] = []
 
@@ -248,12 +263,22 @@ def validate_slice_spec(spec_dict: dict) -> ValidationResult:
 
     values = spec_dict.get("values")
     cross_product = spec_dict.get("cross_product")
+    where = spec_dict.get("where")
 
-    if values is not None and cross_product is not None:
+    present = [
+        k
+        for k, v in [("values", values), ("cross_product", cross_product), ("where", where)]
+        if v is not None
+    ]
+
+    if len(present) > 1:
         errors.append(
             ValidationError(
-                field="values",
-                message="SliceSpec must have exactly one of 'values' or 'cross_product', not both",
+                field=present[0],
+                message=(
+                    f"SliceSpec must have exactly one of 'values', 'cross_product', or 'where', "
+                    f"but got: {present}"
+                ),
             )
         )
     elif values is not None:
@@ -294,11 +319,31 @@ def validate_slice_spec(spec_dict: dict) -> ValidationResult:
                     )
                 else:
                     seen.add(item)
+    elif where is not None:
+        # Wildcard spec: validate bare column identifier
+        if not isinstance(where, str) or not where.strip():
+            errors.append(
+                ValidationError(
+                    field="where",
+                    message="'where' must be a non-empty column name string",
+                )
+            )
+        elif not _is_valid_column_identifier(where.strip()):
+            errors.append(
+                ValidationError(
+                    field="where",
+                    message=(
+                        f"'where' must be a plain column identifier (e.g. 'industry' or "
+                        f"'schema.table.col'), not a SQL expression; got: '{where}'"
+                    ),
+                    suggestion="Use 'where: column_name' for wildcard slices",
+                )
+            )
     else:
         errors.append(
             ValidationError(
                 field="values",
-                message="SliceSpec must have exactly one of 'values' or 'cross_product'",
+                message="SliceSpec must have exactly one of 'values', 'cross_product', or 'where'",
             )
         )
 

@@ -224,7 +224,10 @@ class QueryBuilder:
             for ss in slice_specs:
                 alias = f"_slice_{ss.name}"
                 slice_aliases.append(alias)
-                cte_extra_cols.append(QueryBuilder._build_slice_case_when_expr(ss, alias))
+                if ss.is_wildcard:
+                    cte_extra_cols.append(QueryBuilder._build_wildcard_slice_expr(ss, alias))
+                else:
+                    cte_extra_cols.append(QueryBuilder._build_slice_case_when_expr(ss, alias))
 
         segment_alias: str | None = None
         if segment_spec is not None:
@@ -354,6 +357,11 @@ class QueryBuilder:
             parts.append(outer_group_by)
 
             return "\n".join(parts)
+
+    @staticmethod
+    def _build_wildcard_slice_expr(slice_spec: SliceSpec, alias: str) -> str:
+        """Build direct column cast expression for a wildcard SliceSpec."""
+        return f"CAST({slice_spec.column} AS VARCHAR) AS {alias}"
 
     @staticmethod
     def _build_slice_case_when_expr(slice_spec: SliceSpec, alias: str) -> str:

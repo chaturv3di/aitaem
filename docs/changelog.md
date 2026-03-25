@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+- `SliceSpec`: new wildcard variant — set `where: <column_name>` at the spec level
+  (instead of listing `values`) to auto-populate slice values from the column's distinct
+  values at query time. Supports simple and dot-qualified column names.
+
 ## v0.1.4 — 2026-03-23
 
 ### Changed

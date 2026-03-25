@@ -261,3 +261,130 @@ slice:
         with pytest.raises(SpecValidationError) as exc_info:
             SliceSpec.from_yaml(yaml_str)
         assert any("values" in e.field for e in exc_info.value.errors)
+
+
+class TestWildcardSliceSpec:
+    """Tests for wildcard SliceSpec (top-level where: column_name)."""
+
+    WILDCARD_YAML = """
+slice:
+  name: industry
+  where: industry
+"""
+
+    WILDCARD_YAML_WITH_DESC = """
+slice:
+  name: industry
+  where: industry
+  description: "Breakdown by industry (auto-populated)"
+"""
+
+    WILDCARD_YAML_DOT_QUALIFIED = """
+slice:
+  name: country
+  where: public.campaigns.country
+"""
+
+    def test_wildcard_parses_column(self):
+        spec = SliceSpec.from_yaml(self.WILDCARD_YAML)
+        assert spec.name == "industry"
+        assert spec.column == "industry"
+        assert spec.is_wildcard is True
+
+    def test_wildcard_values_and_cross_product_are_empty(self):
+        spec = SliceSpec.from_yaml(self.WILDCARD_YAML)
+        assert spec.values == ()
+        assert spec.cross_product == ()
+
+    def test_wildcard_is_not_composite(self):
+        spec = SliceSpec.from_yaml(self.WILDCARD_YAML)
+        assert spec.is_composite is False
+
+    def test_wildcard_description_stored(self):
+        spec = SliceSpec.from_yaml(self.WILDCARD_YAML_WITH_DESC)
+        assert spec.description == "Breakdown by industry (auto-populated)"
+
+    def test_wildcard_description_defaults_to_empty(self):
+        spec = SliceSpec.from_yaml(self.WILDCARD_YAML)
+        assert spec.description == ""
+
+    def test_wildcard_dot_qualified_column(self):
+        spec = SliceSpec.from_yaml(self.WILDCARD_YAML_DOT_QUALIFIED)
+        assert spec.column == "public.campaigns.country"
+        assert spec.is_wildcard is True
+
+    def test_wildcard_validate_returns_valid(self):
+        spec = SliceSpec.from_yaml(self.WILDCARD_YAML)
+        result = spec.validate()
+        assert result.valid is True
+        assert result.errors == []
+
+    def test_wildcard_sql_expression_raises(self):
+        yaml_str = """
+slice:
+  name: industry
+  where: "industry = 'SaaS'"
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            SliceSpec.from_yaml(yaml_str)
+        assert any(e.field == "where" for e in exc_info.value.errors)
+
+    def test_wildcard_where_with_spaces_raises(self):
+        yaml_str = """
+slice:
+  name: industry
+  where: "col name"
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            SliceSpec.from_yaml(yaml_str)
+        assert any(e.field == "where" for e in exc_info.value.errors)
+
+    def test_wildcard_and_values_conflict_raises(self):
+        yaml_str = """
+slice:
+  name: industry
+  where: industry
+  values:
+    - name: SaaS
+      where: "industry = 'SaaS'"
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            SliceSpec.from_yaml(yaml_str)
+        assert any(e.field in ("where", "values") for e in exc_info.value.errors)
+
+    def test_wildcard_and_cross_product_conflict_raises(self):
+        yaml_str = """
+slice:
+  name: industry
+  where: industry
+  cross_product:
+    - geo
+    - device
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            SliceSpec.from_yaml(yaml_str)
+        assert any(e.field in ("where", "cross_product") for e in exc_info.value.errors)
+
+    def test_leaf_spec_is_not_wildcard(self):
+        yaml_str = """
+slice:
+  name: geo
+  values:
+    - name: USA
+      where: "country = 'USA'"
+"""
+        spec = SliceSpec.from_yaml(yaml_str)
+        assert spec.is_wildcard is False
+        assert spec.column == ""
+
+    def test_composite_spec_is_not_wildcard(self):
+        yaml_str = """
+slice:
+  name: geo_x_device
+  cross_product:
+    - geo
+    - device
+"""
+        spec = SliceSpec.from_yaml(yaml_str)
+        assert spec.is_wildcard is False
+        assert spec.column == ""
