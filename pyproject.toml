@@ -34,6 +34,7 @@ bigquery = [
 ]
 postgres = [
     "ibis-framework[postgres]>=9.0.0",
+    "psycopg[binary]>=3.0.0",
 ]
 dev = [
     "pytest>=7.4.0",
