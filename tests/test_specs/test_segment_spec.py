@@ -170,6 +170,23 @@ segment:
         assert spec.name == "foo"
 
 
+class TestSegmentSpecPathMax:
+    def test_yaml_string_exceeding_path_max_loads_correctly(self):
+        padding = "x" * 5_000
+        yaml_str = f"""
+segment:
+  name: padded_segment
+  source: duckdb://db/tbl
+  description: "{padding}"
+  values:
+    - name: high
+      where: "val > 100"
+"""
+        spec = SegmentSpec.from_yaml(yaml_str)
+        assert spec.name == "padded_segment"
+        assert len(spec.values) == 1
+
+
 class TestSegmentSpecFromFile:
     def test_load_from_file(self, fixtures_dir):
         spec = SegmentSpec.from_yaml(fixtures_dir / "valid_segment.yaml")
