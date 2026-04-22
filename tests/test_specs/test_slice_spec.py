@@ -151,6 +151,22 @@ class TestSliceSpecFromFile:
         assert len(spec.values) == 2
 
 
+class TestSliceSpecPathMax:
+    def test_yaml_string_exceeding_path_max_loads_correctly(self):
+        padding = "x" * 5_000
+        yaml_str = f"""
+slice:
+  name: padded_slice
+  description: "{padding}"
+  values:
+    - name: A
+      where: "col = 'a'"
+"""
+        spec = SliceSpec.from_yaml(yaml_str)
+        assert spec.name == "padded_slice"
+        assert len(spec.values) == 1
+
+
 class TestSliceSpecValidate:
     def test_validate_returns_valid_result(self, valid_slice_yaml):
         spec = SliceSpec.from_yaml(valid_slice_yaml)

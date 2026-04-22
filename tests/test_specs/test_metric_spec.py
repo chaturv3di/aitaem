@@ -282,6 +282,22 @@ metric:
         assert result.valid is True
 
 
+class TestMetricSpecPathMax:
+    def test_yaml_string_exceeding_path_max_loads_correctly(self):
+        padding = "x" * 5_000
+        yaml_str = f"""
+metric:
+  name: padded_metric
+  source: duckdb://db/tbl
+  numerator: "SUM(amount)"
+  timestamp_col: created_at
+  description: "{padding}"
+"""
+        spec = MetricSpec.from_yaml(yaml_str)
+        assert spec.name == "padded_metric"
+        assert spec.numerator == "SUM(amount)"
+
+
 class TestMetricSpecValidate:
     def test_validate_returns_result_on_valid(self, valid_metric_ratio_yaml):
         spec = MetricSpec.from_yaml(valid_metric_ratio_yaml)
