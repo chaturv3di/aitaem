@@ -7,6 +7,8 @@
 
 This is the `aitaem` library, pronounced "i-tame".
 
+**Full documentation:** https://chaturv3di.github.io/aitaem/
+
 ## Why?
 > **TL;DR:** Point this Python library toward your OLAP database or a local CSV file and start generating insights, i.e. metrics, slices, segments, and time series, in no time. This library is LLM friendly (more on that later).
 

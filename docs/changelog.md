@@ -2,10 +2,18 @@
 
 ## Unreleased
 
+## v0.1.5 — 2026-04-22
+
 ### Added
 - `SliceSpec`: new wildcard variant — set `where: <column_name>` at the spec level
   (instead of listing `values`) to auto-populate slice values from the column's distinct
   values at query time. Supports simple and dot-qualified column names.
+
+### Fixed
+- `MetricSpec.from_yaml()`, `SliceSpec.from_yaml()`, `SegmentSpec.from_yaml()`: no longer
+  raise an unhandled `OSError` when a YAML string longer than the OS `PATH_MAX` value is
+  passed. The path-existence check now wraps `path.is_file()` in `try/except OSError` and
+  falls back to treating the input as YAML content.
 
 ## v0.1.4 — 2026-03-23
 
