@@ -834,7 +834,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Unreleased">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v015-2026-04-22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v0.1.5 — 2026-04-22
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="v0.1.5 — 2026-04-22">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -842,6 +853,17 @@
     <span class="md-ellipsis">
       
         Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
       
     </span>
   </a>
@@ -990,7 +1012,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Unreleased">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v015-2026-04-22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v0.1.5 — 2026-04-22
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="v0.1.5 — 2026-04-22">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -998,6 +1031,17 @@
     <span class="md-ellipsis">
       
         Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
       
     </span>
   </a>
@@ -1125,11 +1169,19 @@
 
 <h1 id="changelog">Changelog</h1>
 <h2 id="unreleased">Unreleased</h2>
+<h2 id="v015-2026-04-22">v0.1.5 — 2026-04-22</h2>
 <h3 id="added">Added</h3>
 <ul>
 <li><code>SliceSpec</code>: new wildcard variant — set <code>where: &lt;column_name&gt;</code> at the spec level
   (instead of listing <code>values</code>) to auto-populate slice values from the column's distinct
   values at query time. Supports simple and dot-qualified column names.</li>
+</ul>
+<h3 id="fixed">Fixed</h3>
+<ul>
+<li><code>MetricSpec.from_yaml()</code>, <code>SliceSpec.from_yaml()</code>, <code>SegmentSpec.from_yaml()</code>: no longer
+  raise an unhandled <code>OSError</code> when a YAML string longer than the OS <code>PATH_MAX</code> value is
+  passed. The path-existence check now wraps <code>path.is_file()</code> in <code>try/except OSError</code> and
+  falls back to treating the input as YAML content.</li>
 </ul>
 <h2 id="v014-2026-03-23">v0.1.4 — 2026-03-23</h2>
 <h3 id="changed">Changed</h3>
