@@ -1,7 +1,6 @@
 """Tests for aitaem.utils.yaml_validation.load_yaml_spec_dict."""
 
 import sys
-from pathlib import Path
 
 import pytest
 
