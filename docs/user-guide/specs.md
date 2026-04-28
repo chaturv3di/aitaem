@@ -14,7 +14,6 @@ metric:
   numerator: "SUM(clicks)"
   denominator: "SUM(impressions)"
   timestamp_col: date
-  entities: [platform, campaign_type, country]
 ```
 
 ### Fields
@@ -46,7 +45,6 @@ The aggregation type is inferred from the SQL function in `numerator` (and `deno
       numerator: "SUM(clicks)"
       denominator: "SUM(impressions)"
       timestamp_col: date
-      entities: [platform, campaign_type, country]
     ```
 
 === "sum"
@@ -58,7 +56,6 @@ The aggregation type is inferred from the SQL function in `numerator` (and `deno
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
       numerator: "SUM(revenue)"
       timestamp_col: date
-      entities: [platform, campaign_type, country]
     ```
 
 === "avg"
@@ -70,7 +67,6 @@ The aggregation type is inferred from the SQL function in `numerator` (and `deno
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
       numerator: "AVG(revenue)"
       timestamp_col: date
-      entities: [platform, campaign_type, country]
     ```
 
 === "count"
@@ -82,7 +78,6 @@ The aggregation type is inferred from the SQL function in `numerator` (and `deno
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
       numerator: "COUNT(*)"
       timestamp_col: date
-      entities: [platform, campaign_type, country]
     ```
 
 === "max"
@@ -94,7 +89,6 @@ The aggregation type is inferred from the SQL function in `numerator` (and `deno
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
       numerator: "MAX(revenue)"
       timestamp_col: date
-      entities: [platform, campaign_type, country]
     ```
 
 === "min"
@@ -106,7 +100,6 @@ The aggregation type is inferred from the SQL function in `numerator` (and `deno
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
       numerator: "MIN(ad_spend)"
       timestamp_col: date
-      entities: [platform, campaign_type, country]
     ```
 
 ### Entity columns
@@ -121,7 +114,7 @@ metric:
   source: duckdb://analytics.db/transactions
   numerator: "SUM(amount)"
   timestamp_col: event_ts
-  entities: [user_id, device_id]   # supports per-user or per-device breakdown
+  entities: [user_id, device_id]   # supports per-user or per-device disaggregation
 ```
 
 A metric without `entities` can still be computed normally — it simply cannot be disaggregated

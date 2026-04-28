@@ -5,4 +5,3 @@ metric:
   numerator: "SUM(revenue)"
   denominator: "SUM(ad_spend)"
   timestamp_col: date
-  entities: [platform, campaign_type, country]

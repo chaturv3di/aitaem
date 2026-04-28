@@ -45,6 +45,7 @@ plugins:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Use Cases: use-cases.md
   - User Guide:
       - Writing Specs: user-guide/specs.md
       - Connectors: user-guide/connectors.md

@@ -8,11 +8,18 @@ Install from PyPI:
 pip install aitaem
 ```
 
-For BigQuery support, install the optional extra:
+The standard install includes:
 
-```bash
-pip install "aitaem[bigquery]"
-```
+- **DuckDB** backend (`ibis-framework[duckdb]`)
+- `pandas`, `pyarrow`, `pyyaml`
+
+Optional extras add support for additional backends:
+
+| Extra | Install command | What it adds |
+|-------|----------------|--------------|
+| `bigquery` | `pip install "aitaem[bigquery]"` | Google BigQuery backend |
+| `postgres` | `pip install "aitaem[postgres]"` | PostgreSQL backend |
+| `all` | `pip install "aitaem[all]"` | All backends + dev + docs tools |
 
 ## Three-Step API
 

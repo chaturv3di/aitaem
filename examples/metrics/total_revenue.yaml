@@ -4,4 +4,3 @@ metric:
   source: duckdb://ad_campaigns.duckdb/ad_campaigns
   numerator: "SUM(revenue)"
   timestamp_col: date
-  entities: [platform, campaign_type, country]

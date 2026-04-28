@@ -85,16 +85,16 @@ Group results by an entity column declared in the metric's `entities` field. Use
 entity-level deep-dives — e.g., revenue per user, sessions per device.
 
 ```python
-# Total revenue disaggregated by platform
+# Ad CTR disaggregated per user (requires metric to declare entities: ['user_id', 'page_id', 'device_id'])
 df = mc.compute(
-    metrics="total_revenue",
-    by_entity="platform",
+    metrics="ad_ctr",
+    by_entity="user_id",
     time_window=("2024-01-01", "2024-04-01"),
     period_type="monthly",
 )
 
 # Default — aggregate over all entities (entity_id column is NULL)
-df = mc.compute(metrics="total_revenue")
+df = mc.compute(metrics="ad_ctr")
 ```
 
 !!! note
