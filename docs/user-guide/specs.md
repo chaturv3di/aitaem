@@ -145,6 +145,29 @@ slice:
       where: "campaign_type = 'Shopping'"
 ```
 
+### Wildcard slice
+
+A wildcard slice auto-discovers its values from the distinct values of a column at query time.
+Instead of listing explicit `values`, set `where` at the spec level to the column name:
+
+```yaml
+slice:
+  name: industry
+  where: industry
+```
+
+Dot-qualified column names are also accepted:
+
+```yaml
+slice:
+  name: country
+  where: public.campaigns.country
+```
+
+!!! note
+    `where` at the spec level must be a bare column name — no spaces, no SQL expressions.
+    Use the `values` form (leaf slice) when you need explicit `WHERE` predicates.
+
 ### Composite slice (cross-product)
 
 A composite slice computes the cross-product of two or more leaf slices:
@@ -168,6 +191,7 @@ slice:
 |-------|----------|-------------|
 | `name` | Yes | Unique identifier |
 | `values` | Leaf only | List of `{name, where}` filter definitions |
+| `where` | Wildcard only | Bare column name whose distinct values are auto-discovered at query time. Dot-qualified names (e.g. `schema.table.column`) are accepted. |
 | `cross_product` | Composite only | List of leaf slice names to cross |
 | `description` | No | Human-readable description |
 
