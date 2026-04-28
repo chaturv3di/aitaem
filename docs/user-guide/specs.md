@@ -128,7 +128,9 @@ A slice defines a breakdown dimension — a set of mutually exclusive (or overla
 
 ### Leaf slice
 
-A leaf slice defines the filter values directly:
+A leaf slice defines the filter values for a single column dimension. There are two variants:
+
+**Value-list** — enumerate explicit filter predicates:
 
 ```yaml
 slice:
@@ -145,10 +147,8 @@ slice:
       where: "campaign_type = 'Shopping'"
 ```
 
-### Wildcard slice
-
-A wildcard slice auto-discovers its values from the distinct values of a column at query time.
-Instead of listing explicit `values`, set `where` at the spec level to the column name:
+**Wildcard** — auto-discover distinct values from a column at query time by setting `where` at
+the spec level to a bare column name:
 
 ```yaml
 slice:
@@ -166,7 +166,7 @@ slice:
 
 !!! note
     `where` at the spec level must be a bare column name — no spaces, no SQL expressions.
-    Use the `values` form (leaf slice) when you need explicit `WHERE` predicates.
+    Use the value-list form when you need explicit `WHERE` predicates.
 
 ### Composite slice (cross-product)
 
@@ -190,8 +190,8 @@ slice:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `name` | Yes | Unique identifier |
-| `values` | Leaf only | List of `{name, where}` filter definitions |
-| `where` | Wildcard only | Bare column name whose distinct values are auto-discovered at query time. Dot-qualified names (e.g. `schema.table.column`) are accepted. |
+| `values` | Leaf (value-list) | List of `{name, where}` filter definitions |
+| `where` | Leaf (wildcard) | Bare column name whose distinct values are auto-discovered at query time. Dot-qualified names (e.g. `schema.table.column`) are accepted. |
 | `cross_product` | Composite only | List of leaf slice names to cross |
 | `description` | No | Human-readable description |
 
