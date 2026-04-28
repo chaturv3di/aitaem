@@ -14,7 +14,6 @@ metric:
   numerator: "SUM(clicks)"
   denominator: "SUM(impressions)"
   timestamp_col: date
-  entities: [platform, campaign_type, country]
 ```
 
 ### Fields
@@ -46,7 +45,6 @@ The aggregation type is inferred from the SQL function in `numerator` (and `deno
       numerator: "SUM(clicks)"
       denominator: "SUM(impressions)"
       timestamp_col: date
-      entities: [platform, campaign_type, country]
     ```
 
 === "sum"
@@ -58,7 +56,6 @@ The aggregation type is inferred from the SQL function in `numerator` (and `deno
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
       numerator: "SUM(revenue)"
       timestamp_col: date
-      entities: [platform, campaign_type, country]
     ```
 
 === "avg"
@@ -70,7 +67,6 @@ The aggregation type is inferred from the SQL function in `numerator` (and `deno
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
       numerator: "AVG(revenue)"
       timestamp_col: date
-      entities: [platform, campaign_type, country]
     ```
 
 === "count"
@@ -82,7 +78,6 @@ The aggregation type is inferred from the SQL function in `numerator` (and `deno
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
       numerator: "COUNT(*)"
       timestamp_col: date
-      entities: [platform, campaign_type, country]
     ```
 
 === "max"
@@ -94,7 +89,6 @@ The aggregation type is inferred from the SQL function in `numerator` (and `deno
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
       numerator: "MAX(revenue)"
       timestamp_col: date
-      entities: [platform, campaign_type, country]
     ```
 
 === "min"
@@ -106,7 +100,6 @@ The aggregation type is inferred from the SQL function in `numerator` (and `deno
       source: duckdb://ad_campaigns.duckdb/ad_campaigns
       numerator: "MIN(ad_spend)"
       timestamp_col: date
-      entities: [platform, campaign_type, country]
     ```
 
 ### Entity columns
@@ -121,7 +114,7 @@ metric:
   source: duckdb://analytics.db/transactions
   numerator: "SUM(amount)"
   timestamp_col: event_ts
-  entities: [user_id, device_id]   # supports per-user or per-device breakdown
+  entities: [user_id, device_id]   # supports per-user or per-device disaggregation
 ```
 
 A metric without `entities` can still be computed normally — it simply cannot be disaggregated
@@ -135,7 +128,9 @@ A slice defines a breakdown dimension — a set of mutually exclusive (or overla
 
 ### Leaf slice
 
-A leaf slice defines the filter values directly:
+A leaf slice defines the filter values for a single column dimension. There are two variants:
+
+**Value-list** — enumerate explicit filter predicates:
 
 ```yaml
 slice:
@@ -151,6 +146,27 @@ slice:
     - name: Shopping
       where: "campaign_type = 'Shopping'"
 ```
+
+**Wildcard** — auto-discover distinct values from a column at query time by setting `where` at
+the spec level to a bare column name:
+
+```yaml
+slice:
+  name: industry
+  where: industry
+```
+
+Dot-qualified column names are also accepted:
+
+```yaml
+slice:
+  name: country
+  where: public.campaigns.country
+```
+
+!!! note
+    `where` at the spec level must be a bare column name — no spaces, no SQL expressions.
+    Use the value-list form when you need explicit `WHERE` predicates.
 
 ### Composite slice (cross-product)
 
@@ -174,7 +190,8 @@ slice:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `name` | Yes | Unique identifier |
-| `values` | Leaf only | List of `{name, where}` filter definitions |
+| `values` | Leaf (value-list) | List of `{name, where}` filter definitions |
+| `where` | Leaf (wildcard) | Bare column name whose distinct values are auto-discovered at query time. Dot-qualified names (e.g. `schema.table.column`) are accepted. |
 | `cross_product` | Composite only | List of leaf slice names to cross |
 | `description` | No | Human-readable description |
 

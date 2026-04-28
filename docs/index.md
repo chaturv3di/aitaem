@@ -23,7 +23,7 @@ The library has two core components:
 1. **Specifications** — A simple declarative YAML structure to define metric specs, slice/breakdown specs, and segment specs.
 2. **Computation** — A small collection of Python classes with compact signatures that compute the metrics.
 
-Additionally, there are utilities to connect to various data backends simultaneously.
+Additionally, there are utilities to connect to various data backends simultaneously. Supported backends: **DuckDB** (built-in), **BigQuery**, and **PostgreSQL** (optional extras).
 
 ## Three-Line Quick Start
 
