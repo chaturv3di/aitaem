@@ -49,7 +49,7 @@ cache = SpecCache.from_yaml(
 
 # 2. Configure the data backend (DuckDB, BigQuery, etc.)
 conn = ConnectionManager()
-conn.add_connection("duckdb", database=":memory:")  # or path to .duckdb file
+conn.add_connection("duckdb", path=":memory:")  # or path to .duckdb file
 
 # 3. Compute metrics
 mc = MetricCompute(cache, conn)

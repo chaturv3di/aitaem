@@ -29,3 +29,9 @@ Each backend type has a corresponding configuration dataclass. These are the aut
 ## validate_backend_config
 
 ::: aitaem.connectors.backend_specs.validate_backend_config
+
+---
+
+## IbisConnector
+
+::: aitaem.connectors.ibis_connector.IbisConnector

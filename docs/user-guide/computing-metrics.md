@@ -79,6 +79,37 @@ df = mc.compute(
 )
 ```
 
+### `period_type`
+
+Controls time granularity for the output. Accepted values:
+
+| Value | Description |
+|-------|-------------|
+| `"all_time"` | Single row per metric/slice/segment combination, aggregated over the full `time_window` (or all data when no `time_window` is set). **Default.** |
+| `"daily"` | One row per calendar day |
+| `"weekly"` | One row per ISO week |
+| `"monthly"` | One row per calendar month |
+| `"yearly"` | One row per calendar year |
+
+!!! note
+    Any value other than `"all_time"` requires `time_window` to be set and every metric in the call to have `timestamp_col` defined in its spec. A `QueryBuildError` is raised otherwise.
+
+```python
+from aitaem import PeriodType, VALID_PERIOD_TYPES
+
+# Inspect all valid values
+print(VALID_PERIOD_TYPES)  # frozenset({'all_time', 'daily', 'weekly', 'monthly', 'yearly'})
+
+# Monthly breakdown over Q1 2024
+df = mc.compute(
+    metrics="total_revenue",
+    time_window=("2024-01-01", "2024-03-31"),
+    period_type="monthly",
+)
+```
+
+`PeriodType` is a `Literal` type alias for these values and can be used in Pydantic models or type annotations.
+
 ### `by_entity`
 
 Group results by an entity column declared in the metric's `entities` field. Use this for
@@ -100,6 +131,10 @@ df = mc.compute(metrics="ad_ctr")
 !!! note
     All metrics in the call must list the requested `by_entity` column in their `entities`
     field. A `QueryBuildError` is raised if any metric does not declare it.
+
+### `output_format`
+
+Controls the return type. Currently only `"pandas"` is supported, which returns a `pandas.DataFrame`. This parameter is reserved for future output backends.
 
 ---
 
