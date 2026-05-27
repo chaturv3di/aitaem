@@ -1,5 +1,9 @@
 # Specs
 
+!!! tip "Looking for YAML spec syntax?"
+    For the full YAML format, required fields, and examples for each spec type, see the
+    [Writing Specs](../user-guide/specs.md) user guide.
+
 ## SpecCache
 
 ::: aitaem.specs.loader.SpecCache
