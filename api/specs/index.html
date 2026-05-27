@@ -943,6 +943,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#spec-name-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Spec name constraints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#duplicate-name-enforcement" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1448,6 +1459,17 @@
     <span class="md-ellipsis">
       
         Introspection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#spec-name-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Spec name constraints
       
     </span>
   </a>
@@ -2933,6 +2955,17 @@ needing <code>get_metric()</code> / <code>get_slice()</code> / <code>get_segment
 </code></pre></div>
 <p>The returned <code>Mapping</code> is a live read-only view of the internal dict (<code>MappingProxyType</code>).
 Mutation attempts raise <code>TypeError</code>.</p>
+<h3 id="spec-name-constraints">Spec name constraints</h3>
+<p>All spec names (<code>MetricSpec</code>, <code>SliceSpec</code>, <code>SegmentSpec</code>) must be valid SQL identifiers:</p>
+<ul>
+<li>Match <code>^[A-Za-z_][A-Za-z0-9_]*$</code></li>
+<li>Letters, digits, and underscores only</li>
+<li>Must start with a letter or underscore (not a digit)</li>
+</ul>
+<p>Names are validated at load time. Invalid names raise <code>SpecValidationError</code> with the
+offending name and a suggested replacement. This constraint exists because <code>SliceSpec</code>
+names are used as bare SQL column aliases (<code>_slice_{name}</code>), and all names are
+validated consistently for simplicity.</p>
 <h3 id="duplicate-name-enforcement">Duplicate name enforcement</h3>
 <p>All loading paths (<code>from_yaml</code>, <code>from_string</code>, <code>add</code>) raise <code>SpecValidationError</code> if a
 spec with the same name has already been loaded into the same cache. Uniqueness is
