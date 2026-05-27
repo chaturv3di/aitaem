@@ -341,7 +341,7 @@ to type the return value of `load_csvs_to_duckdb()`.
 |----|-------------|----------|--------|---------------------|
 | R-1 | Export all exceptions at top level | High | ✅ Done (plan 15) | Internal import paths break on refactor |
 | R-2 | Public `VALID_PERIOD_TYPES` constant | High | ✅ Done (plan 15) | Duplicated `Literal` in 2 files |
-| R-3 | Validate `name` as SQL identifier at load time | High | 🔲 Planned (plan 16) | SQL errors surface late, hard to debug |
+| R-3 | Validate `name` as SQL identifier at load time | High | ✅ Done (plan 16) | SQL errors surface late, hard to debug |
 | R-4 | `SpecCache` introspection (`metrics`, `slices`, `segments` properties) | High | ✅ Done (plan 15) | Consumers re-parse YAML to build catalog |
 | R-5 | Export `STANDARD_COLUMNS` at top level | Medium | 🔲 Open | Hardcoded column names in system prompt |
 | R-6 | `period_type` typed as `PeriodType` on `compute()` | Medium | ✅ Done (plan 15) | No IDE/static-analysis guard on invalid values |
