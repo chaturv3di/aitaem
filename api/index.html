@@ -743,6 +743,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#constants-and-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Constants and Types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exceptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exceptions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#helpers-overview" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -946,6 +968,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#constants-and-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Constants and Types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exceptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exceptions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#helpers-overview" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -977,8 +1021,10 @@
 
 
 <h1 id="api-reference">API Reference</h1>
-<p>Core classes are importable directly from <code>aitaem</code>:</p>
+<p>Core classes, types, and exceptions are importable directly from <code>aitaem</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecCache</span><span class="p">,</span> <span class="n">ConnectionManager</span><span class="p">,</span> <span class="n">MetricCompute</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">PeriodType</span><span class="p">,</span> <span class="n">VALID_PERIOD_TYPES</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">AitaemError</span><span class="p">,</span> <span class="n">SpecNotFoundError</span><span class="p">,</span> <span class="n">QueryBuildError</span>  <span class="c1"># etc.</span>
 </code></pre></div>
 <p>Helpers are importable from <code>aitaem.helpers</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.helpers</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_csvs_to_duckdb</span>
@@ -1022,6 +1068,88 @@
 <td><a href="connectors/"><code>ConnectionManager</code></a></td>
 <td><code>aitaem.connectors.connection</code></td>
 <td>Manage backend connections (DuckDB, BigQuery, PostgreSQL)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="constants-and-types">Constants and Types</h2>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Type</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VALID_PERIOD_TYPES</code></td>
+<td><code>frozenset[str]</code></td>
+<td>Set of valid <code>period_type</code> values</td>
+</tr>
+<tr>
+<td><code>PeriodType</code></td>
+<td><code>Literal[...]</code></td>
+<td>Type alias for <code>period_type</code> — use in annotations and Pydantic models</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">PeriodType</span><span class="p">,</span> <span class="n">VALID_PERIOD_TYPES</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># PeriodType = Literal[&quot;all_time&quot;, &quot;daily&quot;, &quot;weekly&quot;, &quot;monthly&quot;, &quot;yearly&quot;]</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># VALID_PERIOD_TYPES = frozenset({&quot;all_time&quot;, &quot;daily&quot;, &quot;weekly&quot;, &quot;monthly&quot;, &quot;yearly&quot;})</span>
+</code></pre></div>
+<h2 id="exceptions">Exceptions</h2>
+<p>All exceptions inherit from <code>AitaemError</code> and are importable from <code>aitaem</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Exception</th>
+<th>Raised when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AitaemError</code></td>
+<td>Base class for all aitaem errors</td>
+</tr>
+<tr>
+<td><code>AitaemConnectionError</code></td>
+<td>Backend connection fails</td>
+</tr>
+<tr>
+<td><code>ConnectionNotFoundError</code></td>
+<td>Requested backend is not configured</td>
+</tr>
+<tr>
+<td><code>TableNotFoundError</code></td>
+<td>Table does not exist in the backend</td>
+</tr>
+<tr>
+<td><code>ConfigurationError</code></td>
+<td>Configuration is invalid or incomplete</td>
+</tr>
+<tr>
+<td><code>InvalidURIError</code></td>
+<td>Source URI is malformed</td>
+</tr>
+<tr>
+<td><code>UnsupportedBackendError</code></td>
+<td>Backend type is not supported</td>
+</tr>
+<tr>
+<td><code>QueryBuildError</code></td>
+<td>Query construction fails (invalid specs, bad period_type, etc.)</td>
+</tr>
+<tr>
+<td><code>QueryExecutionError</code></td>
+<td>Query execution fails</td>
+</tr>
+<tr>
+<td><code>SpecValidationError</code></td>
+<td>A YAML spec fails validation or a duplicate spec name is loaded</td>
+</tr>
+<tr>
+<td><code>SpecNotFoundError</code></td>
+<td>A named spec is not in the cache</td>
 </tr>
 </tbody>
 </table>

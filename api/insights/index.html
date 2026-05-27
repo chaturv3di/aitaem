@@ -1146,7 +1146,7 @@ executes them, and returns a standardized pandas DataFrame.</p>
 <a id="__codelineno-0-37" name="__codelineno-0-37"></a>        <span class="n">slices</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-38" name="__codelineno-0-38"></a>        <span class="n">segments</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-39" name="__codelineno-0-39"></a>        <span class="n">time_window</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-40" name="__codelineno-0-40"></a>        <span class="n">period_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;all_time&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40"></a>        <span class="n">period_type</span><span class="p">:</span> <span class="n">PeriodType</span> <span class="o">=</span> <span class="s2">&quot;all_time&quot;</span><span class="p">,</span>
 <a id="__codelineno-0-41" name="__codelineno-0-41"></a>        <span class="n">by_entity</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-42" name="__codelineno-0-42"></a>        <span class="n">output_format</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;pandas&quot;</span><span class="p">,</span>
 <a id="__codelineno-0-43" name="__codelineno-0-43"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
@@ -1317,7 +1317,7 @@ executes them, and returns a standardized pandas DataFrame.</p>
 
 
 </h3>
-<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">compute</span><span class="p">(</span><span class="n">metrics</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">slices</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">segments</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">time_window</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">period_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;all_time&#39;</span><span class="p">,</span> <span class="n">by_entity</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">output_format</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;pandas&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">compute</span><span class="p">(</span><span class="n">metrics</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">slices</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">segments</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">time_window</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">period_type</span><span class="p">:</span> <span class="n">PeriodType</span> <span class="o">=</span> <span class="s1">&#39;all_time&#39;</span><span class="p">,</span> <span class="n">by_entity</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">output_format</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;pandas&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1406,7 +1406,7 @@ executes them, and returns a standardized pandas DataFrame.</p>
                 <code>period_type</code>
             </td>
             <td>
-                  <code><span title="str">str</span></code>
+                  <code><span title="aitaem.query.builder.PeriodType">PeriodType</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1512,7 +1512,7 @@ executes them, and returns a standardized pandas DataFrame.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="SpecNotFoundError">SpecNotFoundError</span></code>
+                  <code><span title="aitaem.utils.exceptions.SpecNotFoundError">SpecNotFoundError</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1522,7 +1522,7 @@ executes them, and returns a standardized pandas DataFrame.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="QueryBuildError">QueryBuildError</span></code>
+                  <code><span title="aitaem.utils.exceptions.QueryBuildError">QueryBuildError</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1532,7 +1532,7 @@ executes them, and returns a standardized pandas DataFrame.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="QueryBuildError">QueryBuildError</span></code>
+                  <code><span title="aitaem.utils.exceptions.QueryBuildError">QueryBuildError</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1542,7 +1542,7 @@ executes them, and returns a standardized pandas DataFrame.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="QueryBuildError">QueryBuildError</span></code>
+                  <code><span title="aitaem.utils.exceptions.QueryBuildError">QueryBuildError</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1552,7 +1552,7 @@ executes them, and returns a standardized pandas DataFrame.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="QueryExecutionError">QueryExecutionError</span></code>
+                  <code><span title="aitaem.utils.exceptions.QueryExecutionError">QueryExecutionError</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1639,7 +1639,7 @@ executes them, and returns a standardized pandas DataFrame.</p>
 <a id="__codelineno-0-37" name="__codelineno-0-37"></a>    <span class="n">slices</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-38" name="__codelineno-0-38"></a>    <span class="n">segments</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-39" name="__codelineno-0-39"></a>    <span class="n">time_window</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-40" name="__codelineno-0-40"></a>    <span class="n">period_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;all_time&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40"></a>    <span class="n">period_type</span><span class="p">:</span> <span class="n">PeriodType</span> <span class="o">=</span> <span class="s2">&quot;all_time&quot;</span><span class="p">,</span>
 <a id="__codelineno-0-41" name="__codelineno-0-41"></a>    <span class="n">by_entity</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-42" name="__codelineno-0-42"></a>    <span class="n">output_format</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;pandas&quot;</span><span class="p">,</span>
 <a id="__codelineno-0-43" name="__codelineno-0-43"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
