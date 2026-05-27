@@ -334,7 +334,7 @@ The connector module uses a clear exception hierarchy with actionable error mess
 
 ### Common Errors
 
-**`ConnectionError`**: Backend connection failed
+**`AitaemConnectionError`**: Backend connection failed
 ```
 BigQuery connection failed. Application Default Credentials not found.
 

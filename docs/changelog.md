@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Added
+- All exception classes are now importable directly from `aitaem` (previously required
+  internal import paths such as `aitaem.utils.exceptions`).
+- `PeriodType` — a `Literal` type alias for valid `period_type` values; importable from
+  `aitaem`. Use in Pydantic models or type annotations.
+- `VALID_PERIOD_TYPES` — a `frozenset[str]` of valid `period_type` values; importable from
+  `aitaem`. Derived from `PeriodType` so both are always in sync.
+- `MetricCompute.compute()`: `period_type` parameter is now annotated as `PeriodType`
+  (previously bare `str`), enabling IDE completions and static analysis warnings.
+- `SpecCache.metrics`, `SpecCache.slices`, `SpecCache.segments` — read-only `Mapping`
+  properties for iterating over all loaded specs without individual `get_*` lookups.
+
+### Changed
+- `SpecCache.from_yaml()`, `SpecCache.from_string()`, `SpecCache.add()`: now raise
+  `SpecValidationError` when a spec with a duplicate name is loaded. Previously
+  `from_yaml()` logged a warning and overwrote the earlier spec; `from_string()` and
+  `add()` silently kept the first. Uniqueness is enforced per spec type (metrics, slices,
+  and segments have independent namespaces).
+- `ConnectionError` renamed to `AitaemConnectionError` throughout the library to avoid
+  shadowing Python's built-in `ConnectionError`.
+
 ## v0.1.5 — 2026-04-22
 
 ### Added

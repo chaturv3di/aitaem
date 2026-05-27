@@ -2,7 +2,7 @@
 Tests for period granularity features in QueryBuilder.
 
 Sub-feature coverage order (per plan 08):
-  1. _VALID_PERIOD_TYPES constant
+  1. VALID_PERIOD_TYPES constant
   2. _generate_period_boundaries()
   3. _build_periods_cte()
   4. _build_metric_segment_query() — non-all_time path (DuckDB execution)
@@ -12,7 +12,7 @@ Sub-feature coverage order (per plan 08):
 import ibis
 import pytest
 
-from aitaem.query.builder import QueryBuilder, _VALID_PERIOD_TYPES
+from aitaem.query.builder import QueryBuilder, VALID_PERIOD_TYPES
 from aitaem.specs.metric import MetricSpec
 from aitaem.specs.segment import SegmentSpec, SegmentValue
 from aitaem.specs.slice import SliceSpec, SliceValue
@@ -82,16 +82,16 @@ def _run_sql_duckdb(sql: str, setup_sql: str | None = None):
 
 
 # ---------------------------------------------------------------------------
-# 1. _VALID_PERIOD_TYPES constant
+# 1. VALID_PERIOD_TYPES constant
 # ---------------------------------------------------------------------------
 
 
 class TestValidPeriodTypes:
     def test_contains_all_five_values(self):
-        assert _VALID_PERIOD_TYPES == {"all_time", "daily", "weekly", "monthly", "yearly"}
+        assert VALID_PERIOD_TYPES == {"all_time", "daily", "weekly", "monthly", "yearly"}
 
     def test_is_frozenset(self):
-        assert isinstance(_VALID_PERIOD_TYPES, frozenset)
+        assert isinstance(VALID_PERIOD_TYPES, frozenset)
 
 
 # ---------------------------------------------------------------------------

@@ -8,8 +8,8 @@ import pytest
 
 from aitaem.connectors import IbisConnector
 from aitaem.utils.exceptions import (
+    AitaemConnectionError,
     ConfigurationError,
-    ConnectionError as AitaemConnectionError,
     InvalidURIError,
     TableNotFoundError,
     UnsupportedBackendError,

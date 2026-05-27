@@ -11,7 +11,7 @@ class AitaemError(Exception):
     pass
 
 
-class ConnectionError(AitaemError):
+class AitaemConnectionError(AitaemError):
     """Raised when backend connection fails.
 
     Examples:

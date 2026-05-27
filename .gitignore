@@ -208,3 +208,6 @@ __marimo__/
 
 # DuckDB database files (generated from CSV via examples/data/setup_db.py)
 *.duckdb
+
+# macOS
+.DS_Store
