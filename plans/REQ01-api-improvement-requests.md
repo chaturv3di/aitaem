@@ -337,14 +337,15 @@ to type the return value of `load_csvs_to_duckdb()`.
 
 ## Summary Table
 
-| ID | Description | Priority | Consumer pain point |
-|----|-------------|----------|---------------------|
-| R-1 | Export all exceptions at top level | High | Internal import paths break on refactor |
-| R-2 | Public `VALID_PERIOD_TYPES` constant | High | Duplicated `Literal` in 2 files |
-| R-3 | Validate `name` as SQL identifier at load time | High | SQL errors surface late, hard to debug |
-| R-4 | `SpecCache` introspection (`metrics`, `slices`, `segments` properties) | High | Consumers re-parse YAML to build catalog |
-| R-5 | Export `STANDARD_COLUMNS` at top level | Medium | Hardcoded column names in system prompt |
-| R-6 | `period_type` typed as `PeriodType` on `compute()` | Medium | No IDE/static-analysis guard on invalid values |
-| R-7 | Export spec types and validators at top level | Medium | Internal import paths |
-| R-8 | Fix `from_string()` OSError on long YAML (macOS) | Medium | Forces workaround via temp files |
-| R-9 | Export `IbisConnector` at top level | Low | Internal import path |
+| ID | Description | Priority | Status | Consumer pain point |
+|----|-------------|----------|--------|---------------------|
+| R-1 | Export all exceptions at top level | High | ✅ Done (plan 15) | Internal import paths break on refactor |
+| R-2 | Public `VALID_PERIOD_TYPES` constant | High | ✅ Done (plan 15) | Duplicated `Literal` in 2 files |
+| R-3 | Validate `name` as SQL identifier at load time | High | ✅ Done (plan 16) | SQL errors surface late, hard to debug |
+| R-4 | `SpecCache` introspection (`metrics`, `slices`, `segments` properties) | High | ✅ Done (plan 15) | Consumers re-parse YAML to build catalog |
+| R-5 | Export `STANDARD_COLUMNS` at top level | Medium | 🔲 Open | Hardcoded column names in system prompt |
+| R-6 | `period_type` typed as `PeriodType` on `compute()` | Medium | ✅ Done (plan 15) | No IDE/static-analysis guard on invalid values |
+| R-7 | Export spec types and validators at top level | Medium | 🔲 Open | Internal import paths |
+| R-8 | Fix `from_string()` OSError on long YAML (macOS) | Medium | ✅ Done (plan 13) | Forces workaround via temp files |
+| R-9 | Export `IbisConnector` at top level | Low | 🔲 Open | Internal import path |
+| +U | `SpecCache` duplicate name enforcement | — | ✅ Done (plan 15) | Silent overwrites masked configuration errors |

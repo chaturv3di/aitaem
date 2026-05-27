@@ -23,6 +23,19 @@ spec = cache.slices["geography"]
 The returned `Mapping` is a live read-only view of the internal dict (`MappingProxyType`).
 Mutation attempts raise `TypeError`.
 
+### Spec name constraints
+
+All spec names (`MetricSpec`, `SliceSpec`, `SegmentSpec`) must be valid SQL identifiers:
+
+- Match `^[A-Za-z_][A-Za-z0-9_]*$`
+- Letters, digits, and underscores only
+- Must start with a letter or underscore (not a digit)
+
+Names are validated at load time. Invalid names raise `SpecValidationError` with the
+offending name and a suggested replacement. This constraint exists because `SliceSpec`
+names are used as bare SQL column aliases (`_slice_{name}`), and all names are
+validated consistently for simplicity.
+
 ### Duplicate name enforcement
 
 All loading paths (`from_yaml`, `from_string`, `add`) raise `SpecValidationError` if a

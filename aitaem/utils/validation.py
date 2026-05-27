@@ -9,9 +9,17 @@ Two-tier validation:
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+_SPEC_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _is_valid_spec_name(name: str) -> bool:
+    """Return True if name is a valid SQL identifier (letters, digits, underscores; no leading digit)."""
+    return bool(_SPEC_NAME_RE.match(name))
 
 
 @dataclass
@@ -96,6 +104,15 @@ def validate_metric_spec(spec_dict: dict) -> ValidationResult:
         errors.append(
             ValidationError(
                 field="name", message="'name' is required and must be a non-empty string"
+            )
+        )
+    elif not _is_valid_spec_name(name.strip()):
+        errors.append(
+            ValidationError(
+                field="name",
+                message=f"name '{name}' is not a valid SQL identifier "
+                        f"(must match ^[A-Za-z_][A-Za-z0-9_]*$)",
+                suggestion=f"rename to '{re.sub(r'[^A-Za-z0-9_]', '_', name.strip())}'",
             )
         )
 
@@ -236,8 +253,6 @@ def _is_valid_column_identifier(value: str) -> bool:
     Accepts: ``industry``, ``user_id``, ``public.orders.country``
     Rejects: SQL expressions containing spaces, operators, quotes, or parentheses.
     """
-    import re
-
     return bool(re.match(r"^[A-Za-z_][A-Za-z0-9_.]*$", value))
 
 
@@ -258,6 +273,15 @@ def validate_slice_spec(spec_dict: dict) -> ValidationResult:
         errors.append(
             ValidationError(
                 field="name", message="'name' is required and must be a non-empty string"
+            )
+        )
+    elif not _is_valid_spec_name(name.strip()):
+        errors.append(
+            ValidationError(
+                field="name",
+                message=f"name '{name}' is not a valid SQL identifier "
+                        f"(must match ^[A-Za-z_][A-Za-z0-9_]*$)",
+                suggestion=f"rename to '{re.sub(r'[^A-Za-z0-9_]', '_', name.strip())}'",
             )
         )
 
@@ -359,6 +383,15 @@ def validate_segment_spec(spec_dict: dict) -> ValidationResult:
         errors.append(
             ValidationError(
                 field="name", message="'name' is required and must be a non-empty string"
+            )
+        )
+    elif not _is_valid_spec_name(name.strip()):
+        errors.append(
+            ValidationError(
+                field="name",
+                message=f"name '{name}' is not a valid SQL identifier "
+                        f"(must match ^[A-Za-z_][A-Za-z0-9_]*$)",
+                suggestion=f"rename to '{re.sub(r'[^A-Za-z0-9_]', '_', name.strip())}'",
             )
         )
 
