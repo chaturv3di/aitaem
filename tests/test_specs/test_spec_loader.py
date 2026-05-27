@@ -432,3 +432,109 @@ slice:
             "composite" in e.message.lower() or "nested" in e.message.lower()
             for e in exc_info.value.errors
         )
+
+
+class TestSpecNameIdentifierValidation:
+    """Integration tests: invalid spec names are rejected at SpecCache load time."""
+
+    INVALID_METRIC_YAML = """
+metric:
+  name: "my invalid metric"
+  source: duckdb://db/t
+  numerator: "SUM(x)"
+  timestamp_col: ts
+"""
+
+    INVALID_SLICE_YAML = """
+slice:
+  name: "geo region"
+  values:
+    - name: US
+      where: "country = 'US'"
+"""
+
+    INVALID_SEGMENT_YAML = """
+segment:
+  name: "customer value tier"
+  source: duckdb://db/t
+  values:
+    - name: high
+      where: "ltv > 100"
+"""
+
+    def test_from_string_rejects_metric_with_invalid_name(self):
+        from aitaem.utils.exceptions import SpecValidationError
+
+        with pytest.raises(SpecValidationError) as exc_info:
+            SpecCache.from_string(metric_yaml=self.INVALID_METRIC_YAML)
+        assert any("not a valid SQL identifier" in e.message for e in exc_info.value.errors)
+
+    def test_from_string_rejects_slice_with_invalid_name(self):
+        from aitaem.utils.exceptions import SpecValidationError
+
+        with pytest.raises(SpecValidationError) as exc_info:
+            SpecCache.from_string(slice_yaml=self.INVALID_SLICE_YAML)
+        assert any("not a valid SQL identifier" in e.message for e in exc_info.value.errors)
+
+    def test_from_string_rejects_segment_with_invalid_name(self):
+        from aitaem.utils.exceptions import SpecValidationError
+
+        with pytest.raises(SpecValidationError) as exc_info:
+            SpecCache.from_string(segment_yaml=self.INVALID_SEGMENT_YAML)
+        assert any("not a valid SQL identifier" in e.message for e in exc_info.value.errors)
+
+    def test_from_yaml_rejects_metric_with_invalid_name(self, tmp_path):
+        from aitaem.utils.exceptions import SpecValidationError
+
+        (tmp_path / "m.yaml").write_text(self.INVALID_METRIC_YAML)
+        with pytest.raises(SpecValidationError) as exc_info:
+            SpecCache.from_yaml(metric_paths=[tmp_path])
+        assert any("not a valid SQL identifier" in e.message for e in exc_info.value.errors)
+
+    def test_from_yaml_rejects_slice_with_invalid_name(self, tmp_path):
+        from aitaem.utils.exceptions import SpecValidationError
+
+        (tmp_path / "s.yaml").write_text(self.INVALID_SLICE_YAML)
+        with pytest.raises(SpecValidationError) as exc_info:
+            SpecCache.from_yaml(slice_paths=[tmp_path])
+        assert any("not a valid SQL identifier" in e.message for e in exc_info.value.errors)
+
+    def test_error_message_includes_bad_name(self):
+        from aitaem.utils.exceptions import SpecValidationError
+
+        with pytest.raises(SpecValidationError) as exc_info:
+            SpecCache.from_string(slice_yaml=self.INVALID_SLICE_YAML)
+        messages = [e.message for e in exc_info.value.errors]
+        assert any("geo region" in m for m in messages)
+
+    def test_error_includes_suggestion(self):
+        from aitaem.utils.exceptions import SpecValidationError
+
+        with pytest.raises(SpecValidationError) as exc_info:
+            SpecCache.from_string(slice_yaml=self.INVALID_SLICE_YAML)
+        suggestions = [e.suggestion for e in exc_info.value.errors if e.suggestion]
+        assert any("geo_region" in s for s in suggestions)
+
+    def test_hyphen_in_name_is_rejected(self):
+        from aitaem.utils.exceptions import SpecValidationError
+
+        yaml = VALID_METRIC_RATIO_YAML.replace("homepage_ctr", "homepage-ctr")
+        with pytest.raises(SpecValidationError):
+            SpecCache.from_string(metric_yaml=yaml)
+
+    def test_name_starting_with_digit_is_rejected(self):
+        from aitaem.utils.exceptions import SpecValidationError
+
+        yaml = VALID_METRIC_RATIO_YAML.replace("homepage_ctr", "2024_signups")
+        with pytest.raises(SpecValidationError):
+            SpecCache.from_string(metric_yaml=yaml)
+
+    def test_valid_names_still_load_successfully(self):
+        cache = SpecCache.from_string(
+            metric_yaml=VALID_METRIC_RATIO_YAML,
+            slice_yaml=VALID_SLICE_YAML,
+            segment_yaml=VALID_SEGMENT_YAML,
+        )
+        assert "homepage_ctr" in cache.metrics
+        assert "geography" in cache.slices
+        assert "customer_value_tier" in cache.segments

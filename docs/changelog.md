@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Changed (Breaking)
+- `MetricSpec`, `SliceSpec`, `SegmentSpec`: the `name` field is now validated as a
+  SQL identifier at load time. Names must match `^[A-Za-z_][A-Za-z0-9_]*$` — letters,
+  digits, and underscores only, starting with a letter or underscore. Specs whose names
+  contain spaces, hyphens, dots, or other characters will raise `SpecValidationError`
+  at load time rather than failing silently or raising `QueryExecutionError` at compute time.
+
+  **Migration:** rename any affected specs.
+  For example: `"English speaking countries"` → `"english_speaking_countries"`,
+  `"revenue-2024"` → `"revenue_2024"`. The validation error message includes a
+  suggested replacement name.
+
 ### Added
 - All exception classes are now importable directly from `aitaem` (previously required
   internal import paths such as `aitaem.utils.exceptions`).
