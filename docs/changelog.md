@@ -15,6 +15,14 @@
   suggested replacement name.
 
 ### Added
+- `STANDARD_COLUMNS: list[str]` is now importable directly from `aitaem`. Contains the
+  ordered list of column names that `MetricCompute.compute()` always returns:
+  `period_type`, `period_start_date`, `period_end_date`, `entity_id`, `metric_name`,
+  `slice_type`, `slice_value`, `segment_name`, `segment_value`, `metric_value`.
+- Spec types (`MetricSpec`, `SliceSpec`, `SliceValue`, `SegmentSpec`, `SegmentValue`) are
+  now importable directly from `aitaem` (previously only from `aitaem.specs`).
+- `IbisConnector` is now importable directly from `aitaem` (previously only from
+  `aitaem.connectors` or `aitaem.connectors.ibis_connector`).
 - All exception classes are now importable directly from `aitaem` (previously required
   internal import paths such as `aitaem.utils.exceptions`).
 - `PeriodType` — a `Literal` type alias for valid `period_type` values; importable from

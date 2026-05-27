@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-STANDARD_COLUMNS = [
+STANDARD_COLUMNS: list[str] = [
     "period_type",
     "period_start_date",
     "period_end_date",
