@@ -9,7 +9,7 @@ from __future__ import annotations
 import pandas as pd
 
 from aitaem.connectors.connection import ConnectionManager
-from aitaem.query.builder import QueryBuilder
+from aitaem.query.builder import PeriodType, QueryBuilder
 from aitaem.query.executor import QueryExecutor
 from aitaem.specs.loader import SpecCache
 from aitaem.utils.formatting import ensure_standard_output
@@ -37,7 +37,7 @@ class MetricCompute:
         slices: str | list[str] | None = None,
         segments: str | list[str] | None = None,
         time_window: tuple[str, str] | None = None,
-        period_type: str = "all_time",
+        period_type: PeriodType = "all_time",
         by_entity: str | None = None,
         output_format: str = "pandas",
     ) -> pd.DataFrame:

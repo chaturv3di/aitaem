@@ -29,7 +29,7 @@ class Connector(ABC):
             **kwargs: Additional backend-specific connection parameters
 
         Raises:
-            ConnectionError: If connection fails
+            AitaemConnectionError: If connection fails
             UnsupportedBackendError: If backend type is not supported
         """
         raise NotImplementedError("Subclasses must implement connect()")
@@ -47,7 +47,7 @@ class Connector(ABC):
             Ibis table expression
 
         Raises:
-            ConnectionError: If not connected
+            AitaemConnectionError: If not connected
             TableNotFoundError: If table doesn't exist
             InvalidURIError: If table name format is invalid
         """
@@ -67,7 +67,7 @@ class Connector(ABC):
             Query results as DataFrame (pandas or polars)
 
         Raises:
-            ConnectionError: If not connected
+            AitaemConnectionError: If not connected
             QueryExecutionError: If query execution fails
             ValueError: If output_format is invalid
         """

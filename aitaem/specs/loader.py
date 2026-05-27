@@ -8,7 +8,9 @@ and a SpecCache for eagerly-loaded, session-scoped caching.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from pathlib import Path
+from types import MappingProxyType
 from typing import Union
 
 from aitaem.specs.metric import MetricSpec
@@ -134,24 +136,73 @@ class SpecCache:
         cache = cls()
         for yaml_str in cls._normalize_strings(metric_yaml):
             spec = load_spec_from_string(yaml_str, MetricSpec)
-            cache._metrics.setdefault(spec.name, spec)  # type: ignore[arg-type]
+            if spec.name in cache._metrics:
+                raise SpecValidationError(
+                    "MetricSpec", spec.name,
+                    [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
+                )
+            cache._metrics[spec.name] = spec  # type: ignore[assignment]
         for yaml_str in cls._normalize_strings(slice_yaml):
             spec = load_spec_from_string(yaml_str, SliceSpec)
-            cache._slices.setdefault(spec.name, spec)  # type: ignore[arg-type]
+            if spec.name in cache._slices:
+                raise SpecValidationError(
+                    "SliceSpec", spec.name,
+                    [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
+                )
+            cache._slices[spec.name] = spec  # type: ignore[assignment]
         for yaml_str in cls._normalize_strings(segment_yaml):
             spec = load_spec_from_string(yaml_str, SegmentSpec)
-            cache._segments.setdefault(spec.name, spec)  # type: ignore[arg-type]
+            if spec.name in cache._segments:
+                raise SpecValidationError(
+                    "SegmentSpec", spec.name,
+                    [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
+                )
+            cache._segments[spec.name] = spec  # type: ignore[assignment]
         cache._validate_slice_cross_references()
         return cache
 
     def add(self, spec: MetricSpec | SliceSpec | SegmentSpec) -> None:
-        """Add a spec programmatically. First-write-wins for duplicate names."""
+        """Add a spec programmatically.
+
+        Raises:
+            SpecValidationError: if a spec with the same name is already present.
+        """
         if isinstance(spec, MetricSpec):
-            self._metrics.setdefault(spec.name, spec)
+            if spec.name in self._metrics:
+                raise SpecValidationError(
+                    "MetricSpec", spec.name,
+                    [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
+                )
+            self._metrics[spec.name] = spec
         elif isinstance(spec, SliceSpec):
-            self._slices.setdefault(spec.name, spec)
+            if spec.name in self._slices:
+                raise SpecValidationError(
+                    "SliceSpec", spec.name,
+                    [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
+                )
+            self._slices[spec.name] = spec
         elif isinstance(spec, SegmentSpec):
-            self._segments.setdefault(spec.name, spec)
+            if spec.name in self._segments:
+                raise SpecValidationError(
+                    "SegmentSpec", spec.name,
+                    [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
+                )
+            self._segments[spec.name] = spec
+
+    @property
+    def metrics(self) -> Mapping[str, MetricSpec]:
+        """Read-only view of all loaded metric specs, keyed by name."""
+        return MappingProxyType(self._metrics)
+
+    @property
+    def slices(self) -> Mapping[str, SliceSpec]:
+        """Read-only view of all loaded slice specs, keyed by name."""
+        return MappingProxyType(self._slices)
+
+    @property
+    def segments(self) -> Mapping[str, SegmentSpec]:
+        """Read-only view of all loaded segment specs, keyed by name."""
+        return MappingProxyType(self._segments)
 
     def get_metric(self, name: str) -> MetricSpec:
         """Return MetricSpec for the given name.
@@ -223,12 +274,26 @@ class SpecCache:
                 for yaml_file in yaml_files:
                     spec = spec_type.from_yaml(yaml_file)
                     if spec.name in result:
-                        logger.warning("Duplicate spec name '%s'. Overwriting.", spec.name)
+                        raise SpecValidationError(
+                            spec_type.__name__,
+                            spec.name,
+                            [ValidationError(
+                                field="name",
+                                message=f"Duplicate spec name '{spec.name}': already loaded from a previous file",
+                            )],
+                        )
                     result[spec.name] = spec
             else:
                 spec = spec_type.from_yaml(path)
                 if spec.name in result:
-                    logger.warning("Duplicate spec name '%s'. Overwriting.", spec.name)
+                    raise SpecValidationError(
+                        spec_type.__name__,
+                        spec.name,
+                        [ValidationError(
+                            field="name",
+                            message=f"Duplicate spec name '{spec.name}': already loaded from a previous file",
+                        )],
+                    )
                 result[spec.name] = spec
         return result
 

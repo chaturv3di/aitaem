@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from typing import Literal, get_args
 
 from aitaem.connectors.connection import ConnectionManager
 from aitaem.specs.metric import MetricSpec
@@ -16,7 +17,8 @@ from aitaem.specs.segment import SegmentSpec
 from aitaem.specs.slice import SliceSpec
 from aitaem.utils.exceptions import QueryBuildError
 
-_VALID_PERIOD_TYPES = frozenset({"all_time", "daily", "weekly", "monthly", "yearly"})
+PeriodType = Literal["all_time", "daily", "weekly", "monthly", "yearly"]
+VALID_PERIOD_TYPES: frozenset[str] = frozenset(get_args(PeriodType))
 
 
 @dataclass
@@ -64,9 +66,9 @@ class QueryBuilder:
         if not metric_specs:
             raise QueryBuildError("metric_specs must not be empty")
 
-        if period_type not in _VALID_PERIOD_TYPES:
+        if period_type not in VALID_PERIOD_TYPES:
             raise QueryBuildError(
-                f"Invalid period_type '{period_type}'. Must be one of {sorted(_VALID_PERIOD_TYPES)}"
+                f"Invalid period_type '{period_type}'. Must be one of {sorted(VALID_PERIOD_TYPES)}"
             )
 
         if period_type != "all_time" and time_window is None:

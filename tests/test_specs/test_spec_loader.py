@@ -115,7 +115,7 @@ class TestLoadSpecsFromDirectory:
     def test_duplicate_name_in_directory_last_wins(self, tmp_path, caplog):
         import logging
 
-        # Two files defining the same metric name
+        # load_specs_from_directory (standalone) retains lenient warn-and-overwrite semantics
         (tmp_path / "a.yaml").write_text(VALID_METRIC_RATIO_YAML)
         (tmp_path / "b.yaml").write_text(VALID_METRIC_RATIO_YAML)
         with caplog.at_level(logging.WARNING):
@@ -220,6 +220,94 @@ class TestSpecCache:
         with pytest.raises(FileNotFoundError):
             SpecCache.from_yaml(metric_paths=[tmp_path / "nonexistent_dir"])
 
+    def test_from_yaml_raises_on_duplicate_metric_name(self, tmp_path):
+        from aitaem.utils.exceptions import SpecValidationError
+
+        (tmp_path / "a.yaml").write_text(VALID_METRIC_RATIO_YAML)
+        (tmp_path / "b.yaml").write_text(VALID_METRIC_RATIO_YAML)
+        with pytest.raises(SpecValidationError) as exc_info:
+            SpecCache.from_yaml(metric_paths=[tmp_path])
+        assert exc_info.value.name == "homepage_ctr"
+        assert any("Duplicate" in e.message for e in exc_info.value.errors)
+
+    def test_from_string_raises_on_duplicate_metric_name(self):
+        from aitaem.utils.exceptions import SpecValidationError
+
+        with pytest.raises(SpecValidationError) as exc_info:
+            SpecCache.from_string(metric_yaml=[VALID_METRIC_RATIO_YAML, VALID_METRIC_RATIO_YAML])
+        assert exc_info.value.name == "homepage_ctr"
+        assert any("Duplicate" in e.message for e in exc_info.value.errors)
+
+    def test_from_string_raises_on_duplicate_slice_name(self):
+        from aitaem.utils.exceptions import SpecValidationError
+
+        with pytest.raises(SpecValidationError) as exc_info:
+            SpecCache.from_string(slice_yaml=[VALID_SLICE_YAML, VALID_SLICE_YAML])
+        assert exc_info.value.name == "geography"
+
+    def test_from_string_raises_on_duplicate_segment_name(self):
+        from aitaem.utils.exceptions import SpecValidationError
+
+        with pytest.raises(SpecValidationError) as exc_info:
+            SpecCache.from_string(segment_yaml=[VALID_SEGMENT_YAML, VALID_SEGMENT_YAML])
+        assert exc_info.value.name == "customer_value_tier"
+
+    def test_duplicate_across_types_is_allowed(self):
+        # A metric and a slice may share a name — they are independent namespaces
+        same_name_metric = VALID_METRIC_RATIO_YAML.replace("homepage_ctr", "geography")
+        cache = SpecCache.from_string(
+            metric_yaml=same_name_metric,
+            slice_yaml=VALID_SLICE_YAML,
+        )
+        assert cache.get_metric("geography").name == "geography"
+        assert cache.get_slice("geography").name == "geography"
+
+
+class TestSpecCacheIntrospection:
+    """Tests for SpecCache.metrics / .slices / .segments read-only properties."""
+
+    def test_metrics_returns_mapping_with_expected_keys(self, tmp_path):
+        (tmp_path / "m1.yaml").write_text(VALID_METRIC_RATIO_YAML)
+        (tmp_path / "m2.yaml").write_text(VALID_METRIC_SUM_YAML)
+        cache = SpecCache.from_yaml(metric_paths=[tmp_path])
+        assert set(cache.metrics.keys()) == {"homepage_ctr", "total_revenue"}
+
+    def test_slices_returns_mapping_with_expected_keys(self, tmp_path):
+        (tmp_path / "s.yaml").write_text(VALID_SLICE_YAML)
+        cache = SpecCache.from_yaml(slice_paths=[tmp_path])
+        assert "geography" in cache.slices
+
+    def test_segments_returns_mapping_with_expected_keys(self, tmp_path):
+        (tmp_path / "seg.yaml").write_text(VALID_SEGMENT_YAML)
+        cache = SpecCache.from_yaml(segment_paths=[tmp_path])
+        assert "customer_value_tier" in cache.segments
+
+    def test_metrics_values_are_metric_spec_instances(self, tmp_path):
+        from aitaem.specs.metric import MetricSpec
+
+        (tmp_path / "m.yaml").write_text(VALID_METRIC_RATIO_YAML)
+        cache = SpecCache.from_yaml(metric_paths=[tmp_path])
+        assert all(isinstance(v, MetricSpec) for v in cache.metrics.values())
+
+    def test_empty_cache_returns_empty_mappings(self):
+        cache = SpecCache()
+        assert len(cache.metrics) == 0
+        assert len(cache.slices) == 0
+        assert len(cache.segments) == 0
+
+    def test_metrics_is_read_only(self, tmp_path):
+        (tmp_path / "m.yaml").write_text(VALID_METRIC_RATIO_YAML)
+        cache = SpecCache.from_yaml(metric_paths=[tmp_path])
+        with pytest.raises(TypeError):
+            cache.metrics["new_key"] = None  # type: ignore[index]
+
+    def test_clear_reflected_in_properties(self, tmp_path):
+        (tmp_path / "m.yaml").write_text(VALID_METRIC_RATIO_YAML)
+        cache = SpecCache.from_yaml(metric_paths=[tmp_path])
+        assert len(cache.metrics) == 1
+        cache.clear()
+        assert len(cache.metrics) == 0
+
 
 class TestSpecCacheAdd:
     """Tests for SpecCache.add()."""
@@ -254,16 +342,17 @@ class TestSpecCacheAdd:
         result = cache.get_segment("my_seg")
         assert result is seg
 
-    def test_add_first_write_wins(self):
+    def test_add_duplicate_name_raises(self):
         from aitaem.specs.slice import SliceValue
+        from aitaem.utils.exceptions import SpecValidationError
 
         cache = SpecCache()
         spec1 = SliceSpec(name="geo", values=(SliceValue(name="USA", where="country='USA'"),))
         spec2 = SliceSpec(name="geo", values=(SliceValue(name="EU", where="country='EU'"),))
         cache.add(spec1)
-        cache.add(spec2)  # silently ignored
-        result = cache.get_slice("geo")
-        assert result is spec1
+        with pytest.raises(SpecValidationError) as exc_info:
+            cache.add(spec2)
+        assert exc_info.value.name == "geo"
 
     def test_add_coexists_with_from_yaml_specs(self, tmp_path):
         (tmp_path / "metric.yaml").write_text(VALID_METRIC_RATIO_YAML)

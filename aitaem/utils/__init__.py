@@ -6,7 +6,7 @@ This module provides common utilities used across the aitaem library.
 
 from aitaem.utils.exceptions import (
     AitaemError,
-    ConnectionError,
+    AitaemConnectionError,
     ConnectionNotFoundError,
     TableNotFoundError,
     ConfigurationError,
@@ -17,7 +17,7 @@ from aitaem.utils.exceptions import (
 
 __all__ = [
     "AitaemError",
-    "ConnectionError",
+    "AitaemConnectionError",
     "ConnectionNotFoundError",
     "TableNotFoundError",
     "ConfigurationError",
