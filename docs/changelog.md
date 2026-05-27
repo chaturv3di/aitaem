@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.2.0 — 2026-05-27
+
 ### Changed (Breaking)
 - `MetricSpec`, `SliceSpec`, `SegmentSpec`: the `name` field is now validated as a
   SQL identifier at load time. Names must match `^[A-Za-z_][A-Za-z0-9_]*$` — letters,
@@ -13,6 +15,22 @@
   For example: `"English speaking countries"` → `"english_speaking_countries"`,
   `"revenue-2024"` → `"revenue_2024"`. The validation error message includes a
   suggested replacement name.
+
+- `SpecCache.from_yaml()`, `SpecCache.from_string()`, `SpecCache.add()`: now raise
+  `SpecValidationError` when a spec with a duplicate name is loaded. Previously
+  `from_yaml()` logged a warning and overwrote the earlier spec; `from_string()` and
+  `add()` silently kept the first. Uniqueness is enforced per spec type (metrics, slices,
+  and segments have independent namespaces).
+
+  **Migration:** ensure all spec files have unique names per type. If you were relying on
+  the overwrite behaviour to update a spec at runtime, use `cache.clear()` followed by a
+  fresh load instead.
+
+- `ConnectionError` renamed to `AitaemConnectionError` throughout the library to avoid
+  shadowing Python's built-in `ConnectionError`.
+
+  **Migration:** replace any `except ConnectionError` or `from aitaem... import ConnectionError`
+  with `AitaemConnectionError`, which is now importable directly from `aitaem`.
 
 ### Added
 - `STANDARD_COLUMNS: list[str]` is now importable directly from `aitaem`. Contains the
@@ -33,15 +51,6 @@
   (previously bare `str`), enabling IDE completions and static analysis warnings.
 - `SpecCache.metrics`, `SpecCache.slices`, `SpecCache.segments` — read-only `Mapping`
   properties for iterating over all loaded specs without individual `get_*` lookups.
-
-### Changed
-- `SpecCache.from_yaml()`, `SpecCache.from_string()`, `SpecCache.add()`: now raise
-  `SpecValidationError` when a spec with a duplicate name is loaded. Previously
-  `from_yaml()` logged a warning and overwrote the earlier spec; `from_string()` and
-  `add()` silently kept the first. Uniqueness is enforced per spec type (metrics, slices,
-  and segments have independent namespaces).
-- `ConnectionError` renamed to `AitaemConnectionError` throughout the library to avoid
-  shadowing Python's built-in `ConnectionError`.
 
 ## v0.1.5 — 2026-04-22
 
