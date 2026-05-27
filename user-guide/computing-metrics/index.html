@@ -712,10 +712,32 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#period_type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        period_type
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#by_entity" class="md-nav__link">
     <span class="md-ellipsis">
       
         by_entity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#output_format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        output_format
       
     </span>
   </a>
@@ -1096,10 +1118,32 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#period_type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        period_type
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#by_entity" class="md-nav__link">
     <span class="md-ellipsis">
       
         by_entity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#output_format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        output_format
       
     </span>
   </a>
@@ -1221,25 +1265,76 @@
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-04-01&quot;</span><span class="p">),</span>
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="p">)</span>
 </code></pre></div>
+<h3 id="period_type"><code>period_type</code></h3>
+<p>Controls time granularity for the output. Accepted values:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"all_time"</code></td>
+<td>Single row per metric/slice/segment combination, aggregated over the full <code>time_window</code> (or all data when no <code>time_window</code> is set). <strong>Default.</strong></td>
+</tr>
+<tr>
+<td><code>"daily"</code></td>
+<td>One row per calendar day</td>
+</tr>
+<tr>
+<td><code>"weekly"</code></td>
+<td>One row per ISO week</td>
+</tr>
+<tr>
+<td><code>"monthly"</code></td>
+<td>One row per calendar month</td>
+</tr>
+<tr>
+<td><code>"yearly"</code></td>
+<td>One row per calendar year</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Any value other than <code>"all_time"</code> requires <code>time_window</code> to be set and every metric in the call to have <code>timestamp_col</code> defined in its spec. A <code>QueryBuildError</code> is raised otherwise.</p>
+</div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">PeriodType</span><span class="p">,</span> <span class="n">VALID_PERIOD_TYPES</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># Inspect all valid values</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">VALID_PERIOD_TYPES</span><span class="p">)</span>  <span class="c1"># frozenset({&#39;all_time&#39;, &#39;daily&#39;, &#39;weekly&#39;, &#39;monthly&#39;, &#39;yearly&#39;})</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="c1"># Monthly breakdown over Q1 2024</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;total_revenue&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-03-31&quot;</span><span class="p">),</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="n">period_type</span><span class="o">=</span><span class="s2">&quot;monthly&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="p">)</span>
+</code></pre></div>
+<p><code>PeriodType</code> is a <code>Literal</code> type alias for these values and can be used in Pydantic models or type annotations.</p>
 <h3 id="by_entity"><code>by_entity</code></h3>
 <p>Group results by an entity column declared in the metric's <code>entities</code> field. Use this for
 entity-level deep-dives — e.g., revenue per user, sessions per device.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Ad CTR disaggregated per user (requires metric to declare entities: [&#39;user_id&#39;, &#39;page_id&#39;, &#39;device_id&#39;])</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ad_ctr&quot;</span><span class="p">,</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">by_entity</span><span class="o">=</span><span class="s2">&quot;user_id&quot;</span><span class="p">,</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-04-01&quot;</span><span class="p">),</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="n">period_type</span><span class="o">=</span><span class="s2">&quot;monthly&quot;</span><span class="p">,</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="p">)</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="c1"># Default — aggregate over all entities (entity_id column is NULL)</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ad_ctr&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Ad CTR disaggregated per user (requires metric to declare entities: [&#39;user_id&#39;, &#39;page_id&#39;, &#39;device_id&#39;])</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ad_ctr&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">by_entity</span><span class="o">=</span><span class="s2">&quot;user_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-04-01&quot;</span><span class="p">),</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="n">period_type</span><span class="o">=</span><span class="s2">&quot;monthly&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="p">)</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="c1"># Default — aggregate over all entities (entity_id column is NULL)</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ad_ctr&quot;</span><span class="p">)</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>All metrics in the call must list the requested <code>by_entity</code> column in their <code>entities</code>
 field. A <code>QueryBuildError</code> is raised if any metric does not declare it.</p>
 </div>
+<h3 id="output_format"><code>output_format</code></h3>
+<p>Controls the return type. Currently only <code>"pandas"</code> is supported, which returns a <code>pandas.DataFrame</code>. This parameter is reserved for future output backends.</p>
 <hr />
 <h2 id="output-schema">Output Schema</h2>
 <p>Every <code>compute()</code> call returns a pandas DataFrame with exactly these 10 columns:</p>
@@ -1296,12 +1391,12 @@ field. A <code>QueryBuildError</code> is raised if any metric does not declare i
 <hr />
 <h2 id="combining-slices-and-segments">Combining Slices and Segments</h2>
 <p>Slices and segments can be combined freely. Each combination is computed as a separate query group and the results are concatenated:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">metrics</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="s2">&quot;total_revenue&quot;</span><span class="p">],</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">slices</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;campaign_type&quot;</span><span class="p">,</span> <span class="s2">&quot;geo&quot;</span><span class="p">],</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">segments</span><span class="o">=</span><span class="s2">&quot;platform&quot;</span><span class="p">,</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-07-01&quot;</span><span class="p">),</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">metrics</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="s2">&quot;total_revenue&quot;</span><span class="p">],</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">slices</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;campaign_type&quot;</span><span class="p">,</span> <span class="s2">&quot;geo&quot;</span><span class="p">],</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">segments</span><span class="o">=</span><span class="s2">&quot;platform&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-07-01&quot;</span><span class="p">),</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="p">)</span>
 </code></pre></div>
 <p>This produces rows for:
 - Each metric × all-data baseline (no slice, no segment)

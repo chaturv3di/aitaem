@@ -880,7 +880,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Unreleased">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v020-2026-05-27" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v0.2.0 — 2026-05-27
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="v0.2.0 — 2026-05-27">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -899,17 +910,6 @@
     <span class="md-ellipsis">
       
         Added
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#changed" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Changed
       
     </span>
   </a>
@@ -973,7 +973,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed_1" class="md-nav__link">
+  <a href="#changed" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -1097,7 +1097,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Unreleased">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v020-2026-05-27" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v0.2.0 — 2026-05-27
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="v0.2.0 — 2026-05-27">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1116,17 +1127,6 @@
     <span class="md-ellipsis">
       
         Added
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#changed" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Changed
       
     </span>
   </a>
@@ -1190,7 +1190,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed_1" class="md-nav__link">
+  <a href="#changed" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -1293,6 +1293,7 @@
 
 <h1 id="changelog">Changelog</h1>
 <h2 id="unreleased">Unreleased</h2>
+<h2 id="v020-2026-05-27">v0.2.0 — 2026-05-27</h2>
 <h3 id="changed-breaking">Changed (Breaking)</h3>
 <ul>
 <li><code>MetricSpec</code>, <code>SliceSpec</code>, <code>SegmentSpec</code>: the <code>name</code> field is now validated as a
@@ -1305,6 +1306,22 @@
   For example: <code>"English speaking countries"</code> → <code>"english_speaking_countries"</code>,
   <code>"revenue-2024"</code> → <code>"revenue_2024"</code>. The validation error message includes a
   suggested replacement name.</p>
+<ul>
+<li><code>SpecCache.from_yaml()</code>, <code>SpecCache.from_string()</code>, <code>SpecCache.add()</code>: now raise
+  <code>SpecValidationError</code> when a spec with a duplicate name is loaded. Previously
+  <code>from_yaml()</code> logged a warning and overwrote the earlier spec; <code>from_string()</code> and
+  <code>add()</code> silently kept the first. Uniqueness is enforced per spec type (metrics, slices,
+  and segments have independent namespaces).</li>
+</ul>
+<p><strong>Migration:</strong> ensure all spec files have unique names per type. If you were relying on
+  the overwrite behaviour to update a spec at runtime, use <code>cache.clear()</code> followed by a
+  fresh load instead.</p>
+<ul>
+<li><code>ConnectionError</code> renamed to <code>AitaemConnectionError</code> throughout the library to avoid
+  shadowing Python's built-in <code>ConnectionError</code>.</li>
+</ul>
+<p><strong>Migration:</strong> replace any <code>except ConnectionError</code> or <code>from aitaem... import ConnectionError</code>
+  with <code>AitaemConnectionError</code>, which is now importable directly from <code>aitaem</code>.</p>
 <h3 id="added">Added</h3>
 <ul>
 <li><code>STANDARD_COLUMNS: list[str]</code> is now importable directly from <code>aitaem</code>. Contains the
@@ -1326,16 +1343,6 @@
 <li><code>SpecCache.metrics</code>, <code>SpecCache.slices</code>, <code>SpecCache.segments</code> — read-only <code>Mapping</code>
   properties for iterating over all loaded specs without individual <code>get_*</code> lookups.</li>
 </ul>
-<h3 id="changed">Changed</h3>
-<ul>
-<li><code>SpecCache.from_yaml()</code>, <code>SpecCache.from_string()</code>, <code>SpecCache.add()</code>: now raise
-  <code>SpecValidationError</code> when a spec with a duplicate name is loaded. Previously
-  <code>from_yaml()</code> logged a warning and overwrote the earlier spec; <code>from_string()</code> and
-  <code>add()</code> silently kept the first. Uniqueness is enforced per spec type (metrics, slices,
-  and segments have independent namespaces).</li>
-<li><code>ConnectionError</code> renamed to <code>AitaemConnectionError</code> throughout the library to avoid
-  shadowing Python's built-in <code>ConnectionError</code>.</li>
-</ul>
 <h2 id="v015-2026-04-22">v0.1.5 — 2026-04-22</h2>
 <h3 id="added_1">Added</h3>
 <ul>
@@ -1351,7 +1358,7 @@
   falls back to treating the input as YAML content.</li>
 </ul>
 <h2 id="v014-2026-03-23">v0.1.4 — 2026-03-23</h2>
-<h3 id="changed_1">Changed</h3>
+<h3 id="changed">Changed</h3>
 <ul>
 <li><strong><code>MetricSpec</code></strong>: removed <code>aggregation</code> field. Aggregation type is now inferred from the SQL
   function embedded in <code>numerator</code> (and <code>denominator</code>). Ratio is implied when <code>denominator</code> is
