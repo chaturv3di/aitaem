@@ -1307,6 +1307,14 @@
   suggested replacement name.</p>
 <h3 id="added">Added</h3>
 <ul>
+<li><code>STANDARD_COLUMNS: list[str]</code> is now importable directly from <code>aitaem</code>. Contains the
+  ordered list of column names that <code>MetricCompute.compute()</code> always returns:
+  <code>period_type</code>, <code>period_start_date</code>, <code>period_end_date</code>, <code>entity_id</code>, <code>metric_name</code>,
+  <code>slice_type</code>, <code>slice_value</code>, <code>segment_name</code>, <code>segment_value</code>, <code>metric_value</code>.</li>
+<li>Spec types (<code>MetricSpec</code>, <code>SliceSpec</code>, <code>SliceValue</code>, <code>SegmentSpec</code>, <code>SegmentValue</code>) are
+  now importable directly from <code>aitaem</code> (previously only from <code>aitaem.specs</code>).</li>
+<li><code>IbisConnector</code> is now importable directly from <code>aitaem</code> (previously only from
+  <code>aitaem.connectors</code> or <code>aitaem.connectors.ibis_connector</code>).</li>
 <li>All exception classes are now importable directly from <code>aitaem</code> (previously required
   internal import paths such as <code>aitaem.utils.exceptions</code>).</li>
 <li><code>PeriodType</code> — a <code>Literal</code> type alias for valid <code>period_type</code> values; importable from

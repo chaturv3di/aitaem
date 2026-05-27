@@ -1022,9 +1022,10 @@
 
 <h1 id="api-reference">API Reference</h1>
 <p>Core classes, types, and exceptions are importable directly from <code>aitaem</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecCache</span><span class="p">,</span> <span class="n">ConnectionManager</span><span class="p">,</span> <span class="n">MetricCompute</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">PeriodType</span><span class="p">,</span> <span class="n">VALID_PERIOD_TYPES</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">AitaemError</span><span class="p">,</span> <span class="n">SpecNotFoundError</span><span class="p">,</span> <span class="n">QueryBuildError</span>  <span class="c1"># etc.</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecCache</span><span class="p">,</span> <span class="n">ConnectionManager</span><span class="p">,</span> <span class="n">MetricCompute</span><span class="p">,</span> <span class="n">IbisConnector</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">MetricSpec</span><span class="p">,</span> <span class="n">SliceSpec</span><span class="p">,</span> <span class="n">SliceValue</span><span class="p">,</span> <span class="n">SegmentSpec</span><span class="p">,</span> <span class="n">SegmentValue</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">PeriodType</span><span class="p">,</span> <span class="n">VALID_PERIOD_TYPES</span><span class="p">,</span> <span class="n">STANDARD_COLUMNS</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">AitaemError</span><span class="p">,</span> <span class="n">SpecNotFoundError</span><span class="p">,</span> <span class="n">QueryBuildError</span>  <span class="c1"># etc.</span>
 </code></pre></div>
 <p>Helpers are importable from <code>aitaem.helpers</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.helpers</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_csvs_to_duckdb</span>
@@ -1060,14 +1061,29 @@
 <td>Slice spec dataclass</td>
 </tr>
 <tr>
+<td><a href="specs/#aitaem.specs.slice.SliceValue"><code>SliceValue</code></a></td>
+<td><code>aitaem.specs.slice</code></td>
+<td>Individual slice value within a <code>SliceSpec</code></td>
+</tr>
+<tr>
 <td><a href="specs/#aitaem.specs.segment.SegmentSpec"><code>SegmentSpec</code></a></td>
 <td><code>aitaem.specs.segment</code></td>
 <td>Segment spec dataclass</td>
 </tr>
 <tr>
+<td><a href="specs/#aitaem.specs.segment.SegmentValue"><code>SegmentValue</code></a></td>
+<td><code>aitaem.specs.segment</code></td>
+<td>Individual segment value within a <code>SegmentSpec</code></td>
+</tr>
+<tr>
 <td><a href="connectors/"><code>ConnectionManager</code></a></td>
 <td><code>aitaem.connectors.connection</code></td>
 <td>Manage backend connections (DuckDB, BigQuery, PostgreSQL)</td>
+</tr>
+<tr>
+<td><a href="connectors/"><code>IbisConnector</code></a></td>
+<td><code>aitaem.connectors.ibis_connector</code></td>
+<td>Ibis-based multi-backend connector</td>
 </tr>
 </tbody>
 </table>
@@ -1090,6 +1106,11 @@
 <td><code>PeriodType</code></td>
 <td><code>Literal[...]</code></td>
 <td>Type alias for <code>period_type</code> — use in annotations and Pydantic models</td>
+</tr>
+<tr>
+<td><code>STANDARD_COLUMNS</code></td>
+<td><code>list[str]</code></td>
+<td>Ordered list of column names that <code>MetricCompute.compute()</code> always returns</td>
 </tr>
 </tbody>
 </table>
