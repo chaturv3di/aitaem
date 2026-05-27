@@ -3,8 +3,9 @@
 Core classes, types, and exceptions are importable directly from `aitaem`:
 
 ```python
-from aitaem import SpecCache, ConnectionManager, MetricCompute
-from aitaem import PeriodType, VALID_PERIOD_TYPES
+from aitaem import SpecCache, ConnectionManager, MetricCompute, IbisConnector
+from aitaem import MetricSpec, SliceSpec, SliceValue, SegmentSpec, SegmentValue
+from aitaem import PeriodType, VALID_PERIOD_TYPES, STANDARD_COLUMNS
 from aitaem import AitaemError, SpecNotFoundError, QueryBuildError  # etc.
 ```
 
@@ -22,8 +23,11 @@ from aitaem.helpers import load_csvs_to_duckdb
 | [`SpecCache`](specs.md) | `aitaem.specs.loader` | Load and cache YAML specs |
 | [`MetricSpec`](specs.md#aitaem.specs.metric.MetricSpec) | `aitaem.specs.metric` | Metric spec dataclass |
 | [`SliceSpec`](specs.md#aitaem.specs.slice.SliceSpec) | `aitaem.specs.slice` | Slice spec dataclass |
+| [`SliceValue`](specs.md#aitaem.specs.slice.SliceValue) | `aitaem.specs.slice` | Individual slice value within a `SliceSpec` |
 | [`SegmentSpec`](specs.md#aitaem.specs.segment.SegmentSpec) | `aitaem.specs.segment` | Segment spec dataclass |
+| [`SegmentValue`](specs.md#aitaem.specs.segment.SegmentValue) | `aitaem.specs.segment` | Individual segment value within a `SegmentSpec` |
 | [`ConnectionManager`](connectors.md) | `aitaem.connectors.connection` | Manage backend connections (DuckDB, BigQuery, PostgreSQL) |
+| [`IbisConnector`](connectors.md) | `aitaem.connectors.ibis_connector` | Ibis-based multi-backend connector |
 
 ## Constants and Types
 
@@ -31,6 +35,7 @@ from aitaem.helpers import load_csvs_to_duckdb
 |--------|------|---------|
 | `VALID_PERIOD_TYPES` | `frozenset[str]` | Set of valid `period_type` values |
 | `PeriodType` | `Literal[...]` | Type alias for `period_type` — use in annotations and Pydantic models |
+| `STANDARD_COLUMNS` | `list[str]` | Ordered list of column names that `MetricCompute.compute()` always returns |
 
 ```python
 from aitaem import PeriodType, VALID_PERIOD_TYPES

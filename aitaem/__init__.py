@@ -5,9 +5,14 @@ A Python library for generating data insights from OLAP databases or local CSV f
 """
 
 from aitaem.connectors.connection import ConnectionManager
+from aitaem.connectors.ibis_connector import IbisConnector
 from aitaem.insights import MetricCompute
 from aitaem.query.builder import PeriodType, VALID_PERIOD_TYPES
+from aitaem.utils.formatting import STANDARD_COLUMNS
 from aitaem.specs.loader import SpecCache
+from aitaem.specs.metric import MetricSpec
+from aitaem.specs.segment import SegmentSpec, SegmentValue
+from aitaem.specs.slice import SliceSpec, SliceValue
 from aitaem.utils.exceptions import (
     AitaemConnectionError,
     AitaemError,
@@ -28,9 +33,17 @@ __all__ = [
     "SpecCache",
     "ConnectionManager",
     "MetricCompute",
+    "IbisConnector",
+    # spec types
+    "MetricSpec",
+    "SliceSpec",
+    "SliceValue",
+    "SegmentSpec",
+    "SegmentValue",
     # constants and types
     "PeriodType",
     "VALID_PERIOD_TYPES",
+    "STANDARD_COLUMNS",
     # exceptions
     "AitaemError",
     "AitaemConnectionError",

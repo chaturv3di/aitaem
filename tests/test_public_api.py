@@ -73,3 +73,59 @@ class TestPeriodTypeExports:
     def test_valid_period_types_derived_from_literal(self):
         from typing import get_args
         assert aitaem.VALID_PERIOD_TYPES == frozenset(get_args(aitaem.PeriodType))
+
+
+class TestIbisConnectorExport:
+    def test_ibis_connector_in_all(self):
+        assert "IbisConnector" in aitaem.__all__
+
+    def test_ibis_connector_same_object(self):
+        from aitaem.connectors.ibis_connector import IbisConnector as _IbisConnector
+        assert aitaem.IbisConnector is _IbisConnector
+
+    def test_ibis_connector_is_class(self):
+        import inspect
+        assert inspect.isclass(aitaem.IbisConnector)
+
+
+class TestStandardColumnsExport:
+    def test_standard_columns_in_all(self):
+        assert "STANDARD_COLUMNS" in aitaem.__all__
+
+    def test_standard_columns_same_object(self):
+        from aitaem.utils.formatting import STANDARD_COLUMNS as _SC
+        assert aitaem.STANDARD_COLUMNS is _SC
+
+    def test_standard_columns_is_list_of_strings(self):
+        assert isinstance(aitaem.STANDARD_COLUMNS, list)
+        assert all(isinstance(c, str) for c in aitaem.STANDARD_COLUMNS)
+
+    def test_standard_columns_contains_expected_columns(self):
+        expected = {
+            "period_type", "period_start_date", "period_end_date",
+            "entity_id", "metric_name", "slice_type", "slice_value",
+            "segment_name", "segment_value", "metric_value",
+        }
+        assert expected == set(aitaem.STANDARD_COLUMNS)
+
+
+class TestSpecTypeExports:
+    def test_spec_types_in_all(self):
+        for name in ["MetricSpec", "SliceSpec", "SliceValue", "SegmentSpec", "SegmentValue"]:
+            assert name in aitaem.__all__
+
+    def test_spec_types_are_same_objects(self):
+        from aitaem.specs.metric import MetricSpec as _MS
+        from aitaem.specs.slice import SliceSpec as _SS, SliceValue as _SV
+        from aitaem.specs.segment import SegmentSpec as _SeS, SegmentValue as _SeV
+        assert aitaem.MetricSpec is _MS
+        assert aitaem.SliceSpec is _SS
+        assert aitaem.SliceValue is _SV
+        assert aitaem.SegmentSpec is _SeS
+        assert aitaem.SegmentValue is _SeV
+
+    def test_spec_types_are_classes(self):
+        import inspect
+        for cls in [aitaem.MetricSpec, aitaem.SliceSpec, aitaem.SliceValue,
+                    aitaem.SegmentSpec, aitaem.SegmentValue]:
+            assert inspect.isclass(cls)
