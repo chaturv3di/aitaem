@@ -288,6 +288,25 @@ from aitaem.utils.validation import (
 )
 ```
 
+**Resolution note (plan 17):** Spec types are exported — `MetricSpec`, `SliceSpec`,
+`SliceValue`, `SegmentSpec`, `SegmentValue` are all available from `aitaem` directly.
+
+The `validate_*_spec` functions are **not** exported. They are implementation details of
+`SpecCache`'s loading mechanism and would not add value as a public API: the only reason
+to call them is to validate a spec before adding it to a cache, but `SpecCache.add()` and
+`from_string()` already validate internally and raise `SpecValidationError` with the same
+structured `field` / `message` / `suggestion` errors. The two-step pattern (validate, then
+add) would validate twice without benefit.
+
+The recommended pattern for pre-flight validation (e.g. in a web API endpoint) is:
+
+```python
+try:
+    cache.add(metric=MetricSpec.from_string(yaml_str))
+except SpecValidationError as e:
+    return [{"field": err.field, "message": err.message} for err in e.errors]
+```
+
 ---
 
 ### R-8 — Fix `SpecCache.from_string()` OSError on long YAML (macOS)
