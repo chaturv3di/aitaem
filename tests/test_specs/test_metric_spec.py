@@ -298,6 +298,100 @@ metric:
         assert spec.numerator == "SUM(amount)"
 
 
+class TestMetricSpecFormat:
+    _BASE = """
+metric:
+  name: foo
+  source: duckdb://db/tbl
+  numerator: "SUM(a)"
+  timestamp_col: created_at
+  format: {fmt}
+"""
+
+    def _yaml(self, fmt: str) -> str:
+        return self._BASE.format(fmt=fmt)
+
+    def test_format_absent_defaults_to_none(self, valid_metric_sum_yaml):
+        spec = MetricSpec.from_yaml(valid_metric_sum_yaml)
+        assert spec.format is None
+
+    def test_format_percentage(self):
+        spec = MetricSpec.from_yaml(self._yaml("percentage"))
+        assert spec.format == "percentage"
+
+    def test_format_absolute(self):
+        spec = MetricSpec.from_yaml(self._yaml("absolute"))
+        assert spec.format == "absolute"
+
+    def test_format_ratio(self):
+        spec = MetricSpec.from_yaml(self._yaml("ratio"))
+        assert spec.format == "ratio"
+
+    def test_format_currency_no_code(self):
+        spec = MetricSpec.from_yaml(self._yaml("currency"))
+        assert spec.format == "currency"
+
+    def test_format_currency_with_usd(self):
+        spec = MetricSpec.from_yaml(self._yaml('"currency:USD"'))
+        assert spec.format == "currency:USD"
+
+    def test_format_currency_with_eur(self):
+        spec = MetricSpec.from_yaml(self._yaml('"currency:EUR"'))
+        assert spec.format == "currency:EUR"
+
+    def test_format_currency_with_gbp(self):
+        spec = MetricSpec.from_yaml(self._yaml('"currency:GBP"'))
+        assert spec.format == "currency:GBP"
+
+    def test_format_currency_lowercase_code_raises(self):
+        with pytest.raises(SpecValidationError) as exc_info:
+            MetricSpec.from_yaml(self._yaml('"currency:usd"'))
+        assert any(e.field == "format" for e in exc_info.value.errors)
+
+    def test_format_currency_four_letter_code_raises(self):
+        with pytest.raises(SpecValidationError) as exc_info:
+            MetricSpec.from_yaml(self._yaml('"currency:USDX"'))
+        assert any(e.field == "format" for e in exc_info.value.errors)
+
+    def test_format_currency_empty_code_raises(self):
+        with pytest.raises(SpecValidationError) as exc_info:
+            MetricSpec.from_yaml(self._yaml('"currency:"'))
+        assert any(e.field == "format" for e in exc_info.value.errors)
+
+    def test_format_unknown_value_raises(self):
+        with pytest.raises(SpecValidationError) as exc_info:
+            MetricSpec.from_yaml(self._yaml("percent"))
+        assert any(e.field == "format" for e in exc_info.value.errors)
+
+    def test_format_empty_string_raises(self):
+        with pytest.raises(SpecValidationError) as exc_info:
+            MetricSpec.from_yaml(self._yaml('""'))
+        assert any(e.field == "format" for e in exc_info.value.errors)
+
+    def test_validate_with_format_set(self):
+        spec = MetricSpec(
+            name="revenue",
+            source="duckdb://db/tbl",
+            numerator="SUM(amount)",
+            timestamp_col="event_ts",
+            format="currency:USD",
+        )
+        result = spec.validate()
+        assert result.valid is True
+
+    def test_validate_with_invalid_format_returns_error(self):
+        spec = MetricSpec(
+            name="revenue",
+            source="duckdb://db/tbl",
+            numerator="SUM(amount)",
+            timestamp_col="event_ts",
+            format="bad_format",
+        )
+        result = spec.validate()
+        assert result.valid is False
+        assert any(e.field == "format" for e in result.errors)
+
+
 class TestMetricSpecValidate:
     def test_validate_returns_result_on_valid(self, valid_metric_ratio_yaml):
         spec = MetricSpec.from_yaml(valid_metric_ratio_yaml)

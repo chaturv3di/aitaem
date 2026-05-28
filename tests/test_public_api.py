@@ -67,7 +67,7 @@ class TestPeriodTypeExports:
 
     def test_valid_period_types_contains_expected_values(self):
         assert aitaem.VALID_PERIOD_TYPES == frozenset(
-            {"all_time", "daily", "weekly", "monthly", "yearly"}
+            {"all_time", "daily", "weekly", "monthly", "yearly", "hourly"}
         )
 
     def test_valid_period_types_derived_from_literal(self):
@@ -103,10 +103,27 @@ class TestStandardColumnsExport:
     def test_standard_columns_contains_expected_columns(self):
         expected = {
             "period_type", "period_start_date", "period_end_date",
-            "entity_id", "metric_name", "slice_type", "slice_value",
+            "entity_id", "metric_name", "metric_format", "slice_type", "slice_value",
             "segment_name", "segment_value", "metric_value",
         }
         assert expected == set(aitaem.STANDARD_COLUMNS)
+
+
+class TestMetricFormatValuesExport:
+    def test_metric_format_values_in_all(self):
+        assert "METRIC_FORMAT_VALUES" in aitaem.__all__
+
+    def test_metric_format_values_same_object(self):
+        from aitaem.utils.validation import METRIC_FORMAT_VALUES as _MFV
+        assert aitaem.METRIC_FORMAT_VALUES is _MFV
+
+    def test_metric_format_values_is_frozenset(self):
+        assert isinstance(aitaem.METRIC_FORMAT_VALUES, frozenset)
+
+    def test_metric_format_values_contains_expected(self):
+        assert aitaem.METRIC_FORMAT_VALUES == frozenset(
+            {"percentage", "absolute", "ratio", "currency"}
+        )
 
 
 class TestSpecTypeExports:

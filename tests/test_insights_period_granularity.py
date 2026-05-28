@@ -143,3 +143,50 @@ def test_invalid_period_type_raises_query_build_error(mc):
 def test_monthly_without_time_window_raises_query_build_error(mc):
     with pytest.raises(QueryBuildError, match="requires time_window"):
         mc.compute("ctr", period_type="monthly")
+
+
+# ---------------------------------------------------------------------------
+# period_type='hourly'
+# ---------------------------------------------------------------------------
+
+
+def test_hourly_period_type_column(mc):
+    df = mc.compute("ctr", time_window=("2024-01-01", "2024-01-02"), period_type="hourly")
+    assert set(df["period_type"]) == {"hourly"}
+
+
+def test_hourly_output_has_standard_columns(mc):
+    df = mc.compute("ctr", time_window=("2024-01-01", "2024-01-02"), period_type="hourly")
+    assert list(df.columns) == STANDARD_COLUMNS
+
+
+def test_hourly_period_start_contains_datetime_string(mc):
+    df = mc.compute("ctr", time_window=("2024-01-01", "2024-01-02"), period_type="hourly")
+    # DuckDB TIMESTAMP→VARCHAR format: "YYYY-MM-DD HH:MM:SS"
+    assert df["period_start_date"].iloc[0][:10] == "2024-01-01"
+    assert " " in df["period_start_date"].iloc[0]  # has time component
+
+
+def test_hourly_period_end_contains_datetime_string(mc):
+    df = mc.compute("ctr", time_window=("2024-01-01", "2024-01-02"), period_type="hourly")
+    assert " " in df["period_end_date"].iloc[0]
+
+
+def test_hourly_metric_values_non_null(mc):
+    df = mc.compute("ctr", time_window=("2024-01-01", "2024-01-02"), period_type="hourly")
+    assert df["metric_value"].notna().all()
+
+
+def test_hourly_datetime_time_window_accepted(mc):
+    # Datetime strings in time_window are valid for hourly
+    df = mc.compute(
+        "ctr",
+        time_window=("2024-01-01T00:00:00", "2024-01-02T00:00:00"),
+        period_type="hourly",
+    )
+    assert set(df["period_type"]) == {"hourly"}
+
+
+def test_hourly_without_time_window_raises(mc):
+    with pytest.raises(QueryBuildError, match="requires time_window"):
+        mc.compute("ctr", period_type="hourly")

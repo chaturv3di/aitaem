@@ -26,6 +26,7 @@ class MetricSpec:
     description: str = ""
     denominator: str | None = None
     entities: list[str] | None = None
+    format: str | None = None
 
     @classmethod
     def from_yaml(cls, yaml_input: str | Path) -> "MetricSpec":
@@ -62,6 +63,7 @@ class MetricSpec:
             description=spec_dict.get("description", ""),
             denominator=denominator,
             entities=entities,
+            format=spec_dict.get("format") or None,
         )
 
     def validate(self) -> ValidationResult:
@@ -77,4 +79,6 @@ class MetricSpec:
             spec_dict["denominator"] = self.denominator
         if self.entities is not None:
             spec_dict["entities"] = self.entities
+        if self.format is not None:
+            spec_dict["format"] = self.format
         return validate_metric_spec(spec_dict)

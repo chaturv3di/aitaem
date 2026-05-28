@@ -9,6 +9,7 @@ from aitaem.connectors.ibis_connector import IbisConnector
 from aitaem.insights import MetricCompute
 from aitaem.query.builder import PeriodType, VALID_PERIOD_TYPES
 from aitaem.utils.formatting import STANDARD_COLUMNS
+from aitaem.utils.validation import METRIC_FORMAT_VALUES
 from aitaem.specs.loader import SpecCache
 from aitaem.specs.metric import MetricSpec
 from aitaem.specs.segment import SegmentSpec, SegmentValue
@@ -44,6 +45,7 @@ __all__ = [
     "PeriodType",
     "VALID_PERIOD_TYPES",
     "STANDARD_COLUMNS",
+    "METRIC_FORMAT_VALUES",
     # exceptions
     "AitaemError",
     "AitaemConnectionError",

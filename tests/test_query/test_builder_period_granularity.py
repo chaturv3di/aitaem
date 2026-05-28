@@ -87,8 +87,8 @@ def _run_sql_duckdb(sql: str, setup_sql: str | None = None):
 
 
 class TestValidPeriodTypes:
-    def test_contains_all_five_values(self):
-        assert VALID_PERIOD_TYPES == {"all_time", "daily", "weekly", "monthly", "yearly"}
+    def test_contains_all_expected_values(self):
+        assert VALID_PERIOD_TYPES == {"all_time", "daily", "weekly", "monthly", "yearly", "hourly"}
 
     def test_is_frozenset(self):
         assert isinstance(VALID_PERIOD_TYPES, frozenset)
@@ -411,3 +411,161 @@ class TestBuildQueriesWithPeriodType:
         # old behavior: static 'all_time' literal, no _periods CTE
         assert "'all_time'" in sql
         assert "_periods" not in sql
+
+
+# ---------------------------------------------------------------------------
+# Hourly period type — _parse_window_endpoint_as_datetime
+# ---------------------------------------------------------------------------
+
+
+class TestParseWindowEndpointAsDatetime:
+    def test_date_only_string_gives_midnight(self):
+        from datetime import datetime
+        result = QueryBuilder._parse_window_endpoint_as_datetime("2024-01-15")
+        assert result == datetime(2024, 1, 15, 0, 0, 0)
+
+    def test_datetime_string_with_T_separator(self):
+        from datetime import datetime
+        result = QueryBuilder._parse_window_endpoint_as_datetime("2024-01-15T14:30:00")
+        assert result == datetime(2024, 1, 15, 14, 30, 0)
+
+    def test_datetime_string_with_space_separator(self):
+        from datetime import datetime
+        result = QueryBuilder._parse_window_endpoint_as_datetime("2024-01-15 14:30:00")
+        assert result == datetime(2024, 1, 15, 14, 30, 0)
+
+    def test_midnight_string_gives_midnight(self):
+        from datetime import datetime
+        result = QueryBuilder._parse_window_endpoint_as_datetime("2024-01-15T00:00:00")
+        assert result == datetime(2024, 1, 15, 0, 0, 0)
+
+
+# ---------------------------------------------------------------------------
+# Hourly period type — _generate_period_boundaries
+# ---------------------------------------------------------------------------
+
+
+class TestGeneratePeriodBoundariesHourly:
+    def test_date_strings_produce_midnight_anchored_periods(self):
+        result = QueryBuilder._generate_period_boundaries(
+            ("2024-01-01", "2024-01-01T03:00:00"), "hourly"
+        )
+        assert result == [
+            ("2024-01-01T00:00:00", "2024-01-01T01:00:00"),
+            ("2024-01-01T01:00:00", "2024-01-01T02:00:00"),
+            ("2024-01-01T02:00:00", "2024-01-01T03:00:00"),
+        ]
+
+    def test_start_sub_hour_precision_truncated(self):
+        # Start 14:30 → truncated to 14:00; end 16:30 used as-is → 3 periods
+        result = QueryBuilder._generate_period_boundaries(
+            ("2024-01-01T14:30:00", "2024-01-01T16:30:00"), "hourly"
+        )
+        assert len(result) == 3
+        assert result[0] == ("2024-01-01T14:00:00", "2024-01-01T15:00:00")
+        assert result[1] == ("2024-01-01T15:00:00", "2024-01-01T16:00:00")
+        assert result[2] == ("2024-01-01T16:00:00", "2024-01-01T17:00:00")
+
+    def test_exact_hour_boundary_excludes_end_period(self):
+        # End 16:00 means the 16:00 start period is NOT included
+        result = QueryBuilder._generate_period_boundaries(
+            ("2024-01-01T14:00:00", "2024-01-01T16:00:00"), "hourly"
+        )
+        assert len(result) == 2
+        assert result[0][0] == "2024-01-01T14:00:00"
+        assert result[1][0] == "2024-01-01T15:00:00"
+
+    def test_single_hour_window(self):
+        result = QueryBuilder._generate_period_boundaries(
+            ("2024-01-01T10:00:00", "2024-01-01T11:00:00"), "hourly"
+        )
+        assert result == [("2024-01-01T10:00:00", "2024-01-01T11:00:00")]
+
+    def test_two_date_strings_spans_midnight(self):
+        # "2024-01-01" to "2024-01-02" = 24 hourly periods
+        result = QueryBuilder._generate_period_boundaries(
+            ("2024-01-01", "2024-01-02"), "hourly"
+        )
+        assert len(result) == 24
+        assert result[0] == ("2024-01-01T00:00:00", "2024-01-01T01:00:00")
+        assert result[-1] == ("2024-01-01T23:00:00", "2024-01-02T00:00:00")
+
+    def test_empty_window_produces_no_periods(self):
+        result = QueryBuilder._generate_period_boundaries(
+            ("2024-01-01T10:00:00", "2024-01-01T10:00:00"), "hourly"
+        )
+        assert result == []
+
+    def test_boundary_strings_use_T_separator(self):
+        result = QueryBuilder._generate_period_boundaries(
+            ("2024-06-15T09:00:00", "2024-06-15T11:00:00"), "hourly"
+        )
+        for start, end in result:
+            assert "T" in start
+            assert "T" in end
+
+
+# ---------------------------------------------------------------------------
+# Hourly period type — build_queries() validation
+# ---------------------------------------------------------------------------
+
+
+class TestBuildQueriesHourly:
+    def test_hourly_in_valid_period_types(self):
+        assert "hourly" in VALID_PERIOD_TYPES
+
+    def test_hourly_without_time_window_raises(self):
+        with pytest.raises(QueryBuildError, match="requires time_window"):
+            QueryBuilder.build_queries(
+                [make_metric()],
+                slice_specs=None,
+                segment_specs=None,
+                time_window=None,
+                period_type="hourly",
+            )
+
+    def test_hourly_missing_timestamp_col_raises(self):
+        with pytest.raises(QueryBuildError, match="timestamp_col"):
+            QueryBuilder.build_queries(
+                [make_metric_no_ts()],
+                slice_specs=None,
+                segment_specs=None,
+                time_window=("2026-01-01T00:00:00", "2026-01-01T03:00:00"),
+                period_type="hourly",
+            )
+
+    def test_hourly_generates_periods_cte(self):
+        groups = QueryBuilder.build_queries(
+            [make_metric()],
+            slice_specs=None,
+            segment_specs=None,
+            time_window=("2026-01-01T00:00:00", "2026-01-01T03:00:00"),
+            period_type="hourly",
+        )
+        sql = groups[0].sql_queries[0]
+        assert "_periods" in sql
+        assert "'hourly'" in sql
+        assert "2026-01-01T00:00:00" in sql
+
+    def test_hourly_sql_executes_and_returns_correct_periods(self):
+        setup = """
+CREATE TABLE transactions AS
+SELECT * FROM (VALUES
+    (100.0, TIMESTAMP '2026-01-01 00:30:00'),
+    (200.0, TIMESTAMP '2026-01-01 01:45:00'),
+    (150.0, TIMESTAMP '2026-01-01 02:10:00')
+) AS t(amount, event_ts)
+"""
+        groups = QueryBuilder.build_queries(
+            [make_metric()],
+            slice_specs=None,
+            segment_specs=None,
+            time_window=("2026-01-01T00:00:00", "2026-01-01T03:00:00"),
+            period_type="hourly",
+        )
+        sql = groups[0].sql_queries[0]
+        df = _run_sql_duckdb(sql, setup)
+        assert len(df) == 3
+        assert set(df["period_type"]) == {"hourly"}
+        # Each row carries data from exactly one hour
+        assert sorted(df["metric_value"].tolist()) == [100.0, 150.0, 200.0]

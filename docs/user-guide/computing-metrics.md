@@ -87,9 +87,10 @@ Controls time granularity for the output. Accepted values:
 |-------|-------------|
 | `"all_time"` | Single row per metric/slice/segment combination, aggregated over the full `time_window` (or all data when no `time_window` is set). **Default.** |
 | `"daily"` | One row per calendar day |
-| `"weekly"` | One row per ISO week |
+| `"weekly"` | One row per ISO week (Monday–Sunday) |
 | `"monthly"` | One row per calendar month |
 | `"yearly"` | One row per calendar year |
+| `"hourly"` | One row per clock hour |
 
 !!! note
     Any value other than `"all_time"` requires `time_window` to be set and every metric in the call to have `timestamp_col` defined in its spec. A `QueryBuildError` is raised otherwise.
@@ -98,7 +99,7 @@ Controls time granularity for the output. Accepted values:
 from aitaem import PeriodType, VALID_PERIOD_TYPES
 
 # Inspect all valid values
-print(VALID_PERIOD_TYPES)  # frozenset({'all_time', 'daily', 'weekly', 'monthly', 'yearly'})
+print(VALID_PERIOD_TYPES)  # frozenset({'all_time', 'daily', 'weekly', 'monthly', 'yearly', 'hourly'})
 
 # Monthly breakdown over Q1 2024
 df = mc.compute(
@@ -106,7 +107,29 @@ df = mc.compute(
     time_window=("2024-01-01", "2024-03-31"),
     period_type="monthly",
 )
+
+# Hourly breakdown over a single day
+df = mc.compute(
+    metrics="total_revenue",
+    time_window=("2024-01-15T08:00:00", "2024-01-15T18:00:00"),
+    period_type="hourly",
+)
 ```
+
+#### `time_window` with hourly periods
+
+For `period_type="hourly"`, `time_window` accepts full ISO datetime strings in addition to
+plain date strings:
+
+- `"2024-01-15"` → treated as `2024-01-15T00:00:00` (midnight)
+- `"2024-01-15T08:00:00"` → used as-is
+- Sub-hour precision in the **start** value is truncated to the nearest full hour (e.g.
+  `"T08:30:00"` → `T08:00:00`), so the first period may include data slightly before the
+  specified start. Sub-hour precision in the **end** value is used as-is.
+
+!!! warning "Scale"
+    A 30-day hourly window generates 720 period rows per metric/slice/segment combination.
+    For queries with many slices or segments, the result set can grow large quickly.
 
 `PeriodType` is a `Literal` type alias for these values and can be used in Pydantic models or type annotations.
 
@@ -140,20 +163,21 @@ Controls the return type. Currently only `"pandas"` is supported, which returns 
 
 ## Output Schema
 
-Every `compute()` call returns a pandas DataFrame with exactly these 10 columns:
+Every `compute()` call returns a pandas DataFrame with exactly these 11 columns:
 
-| Column | Description |
-|--------|-------------|
-| `period_type` | `"all_time"` when no `time_window`, otherwise the period granularity |
-| `period_start_date` | Start date ISO string, or `None` |
-| `period_end_date` | End date ISO string, or `None` |
-| `entity_id` | Value of the entity column (e.g. a `user_id`), or `None` when `by_entity` is not set |
-| `metric_name` | Name of the metric |
-| `slice_type` | Slice name, or `"none"` for the all-data baseline row |
-| `slice_value` | Slice value (e.g. `"Search"`), or `"all"` for the baseline |
-| `segment_name` | Segment name, or `"none"` for the all-data baseline row |
-| `segment_value` | Segment value (e.g. `"Google Ads"`), or `"all"` for the baseline |
-| `metric_value` | Computed numeric result |
+| Column | Type | Description |
+|--------|------|-------------|
+| `period_type` | `str` | `"all_time"`, `"daily"`, `"weekly"`, `"monthly"`, `"yearly"`, or `"hourly"` |
+| `period_start_date` | `str \| None` | ISO date string (`"YYYY-MM-DD HH:MM:SS"`) for non-`all_time`, or `None` |
+| `period_end_date` | `str \| None` | Same format as `period_start_date` (exclusive end of the period) |
+| `entity_id` | `str \| None` | Value of the entity column (e.g. a `user_id`), or `None` when `by_entity` is not set |
+| `metric_name` | `str` | Name of the metric |
+| `metric_format` | `str \| None` | Format hint from the spec (e.g. `"percentage"`, `"currency:USD"`), or `None` if not set |
+| `slice_type` | `str` | Slice name, or `"none"` for the all-data baseline row |
+| `slice_value` | `str` | Slice value (e.g. `"Search"`), or `"all"` for the baseline |
+| `segment_name` | `str` | Segment name, or `"none"` for the all-data baseline row |
+| `segment_value` | `str` | Segment value (e.g. `"Google Ads"`), or `"all"` for the baseline |
+| `metric_value` | `float` | Computed numeric result |
 
 ---
 

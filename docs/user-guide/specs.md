@@ -26,6 +26,7 @@ metric:
 | `timestamp_col` | Yes | Column used for `time_window` filtering |
 | `denominator` | No | SQL expression containing an aggregate function call. When present, the metric is computed as `numerator / denominator` (ratio). |
 | `entities` | No | List of entity column names supported for `by_entity` disaggregation (e.g. `[user_id, device_id]`). Must be non-empty if provided. |
+| `format` | No | Value interpretation hint for consumers. See [Format field](#format-field) below. |
 | `description` | No | Human-readable description |
 
 The aggregation type is inferred from the SQL function in `numerator` (and `denominator`). There is no separate `aggregation` field — write the aggregate directly in the expression.
@@ -101,6 +102,46 @@ The aggregation type is inferred from the SQL function in `numerator` (and `deno
       numerator: "MIN(ad_spend)"
       timestamp_col: date
     ```
+
+### Format field
+
+The optional `format` field is a metadata hint that tells consumers how to interpret the
+`metric_value`. It does **not** affect computation — the value is stored as-is.
+
+| Value | Meaning |
+|-------|---------|
+| `percentage` | A proportion expressed as a decimal (e.g. 0.42 for 42%) |
+| `absolute` | A plain count or sum with no unit |
+| `ratio` | A dimensionless ratio that is not a percentage |
+| `currency` | A monetary value where the currency is unspecified or mixed across rows |
+| `currency:<CODE>` | A monetary value in a specific ISO 4217 currency. `<CODE>` must be 3 uppercase letters (e.g. `currency:USD`, `currency:EUR`). |
+
+```yaml
+metric:
+  name: ctr
+  source: duckdb://ad_campaigns.duckdb/ad_campaigns
+  numerator: "SUM(clicks)"
+  denominator: "SUM(impressions)"
+  timestamp_col: date
+  format: percentage
+
+metric:
+  name: total_revenue
+  source: duckdb://ad_campaigns.duckdb/ad_campaigns
+  numerator: "SUM(revenue)"
+  timestamp_col: date
+  format: "currency:USD"
+```
+
+When `format` is set, the `metric_format` column in the output DataFrame carries the value.
+When omitted, `metric_format` is `None`.
+
+Use `METRIC_FORMAT_VALUES` to enumerate the simple (non-currency-code) allowed values:
+
+```python
+from aitaem import METRIC_FORMAT_VALUES
+print(METRIC_FORMAT_VALUES)  # frozenset({'percentage', 'absolute', 'ratio', 'currency'})
+```
 
 ### Entity columns
 

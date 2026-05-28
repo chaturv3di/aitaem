@@ -16,6 +16,13 @@ logger = logging.getLogger(__name__)
 
 _SPEC_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+METRIC_FORMAT_VALUES: frozenset[str] = frozenset({"percentage", "absolute", "ratio", "currency"})
+_FORMAT_CURRENCY_RE = re.compile(r"^currency:[A-Z]{3}$")
+
+
+def _is_valid_metric_format(value: str) -> bool:
+    return value in METRIC_FORMAT_VALUES or bool(_FORMAT_CURRENCY_RE.match(value))
+
 
 def _is_valid_spec_name(name: str) -> bool:
     """Return True if name is a valid SQL identifier (letters, digits, underscores; no leading digit)."""
@@ -178,6 +185,20 @@ def validate_metric_spec(spec_dict: dict) -> ValidationResult:
                         suggestion="Wrap the column in an aggregate, e.g. 'SUM(impressions)'",
                     )
                 )
+
+    fmt = spec_dict.get("format")
+    if fmt is not None:
+        if not isinstance(fmt, str) or not _is_valid_metric_format(fmt):
+            errors.append(
+                ValidationError(
+                    field="format",
+                    message=(
+                        f"Invalid format '{fmt}'. Must be one of "
+                        f"{sorted(METRIC_FORMAT_VALUES)} or 'currency:<CODE>' where CODE is "
+                        "a 3-letter uppercase ISO 4217 currency code (e.g. 'currency:USD')."
+                    ),
+                )
+            )
 
     entities = spec_dict.get("entities")
     if entities is not None:

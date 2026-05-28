@@ -8,7 +8,7 @@ No database connection required — all work is string manipulation.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Literal, get_args
 
 from aitaem.connectors.connection import ConnectionManager
@@ -17,7 +17,7 @@ from aitaem.specs.segment import SegmentSpec
 from aitaem.specs.slice import SliceSpec
 from aitaem.utils.exceptions import QueryBuildError
 
-PeriodType = Literal["all_time", "daily", "weekly", "monthly", "yearly"]
+PeriodType = Literal["all_time", "daily", "weekly", "monthly", "yearly", "hourly"]
 VALID_PERIOD_TYPES: frozenset[str] = frozenset(get_args(PeriodType))
 
 
@@ -50,7 +50,7 @@ class QueryBuilder:
 
         Args:
             spec_cache: Required only when composite slices are present.
-            period_type: One of 'all_time', 'daily', 'weekly', 'monthly', 'yearly'.
+            period_type: One of 'all_time', 'daily', 'weekly', 'monthly', 'yearly', 'hourly'.
                          Non-'all_time' requires time_window and timestamp_col on all metrics.
             by_entity: Column name to group by for entity-level metrics. When set, every
                        metric in metric_specs must list this column in its ``entities`` field.
@@ -280,6 +280,7 @@ class QueryBuilder:
                 f"    {lit(period_end)}                 AS period_end_date",
                 f"    {entity_id_expr}                  AS entity_id",
                 f"    '{metric.name}'                   AS metric_name",
+                f"    {lit(metric.format)}              AS metric_format",
                 f"    '{slice_type_val}'                AS slice_type",
                 f"    {slice_value_expr}                AS slice_value",
                 f"    '{segment_name_val}'              AS segment_name",
@@ -335,6 +336,7 @@ class QueryBuilder:
                 "    CAST(_period_end   AS VARCHAR)         AS period_end_date",
                 f"    {entity_id_expr}                       AS entity_id",
                 f"    '{metric.name}'                        AS metric_name",
+                f"    {lit(metric.format)}                   AS metric_format",
                 f"    '{slice_type_val}'                     AS slice_type",
                 f"    {slice_value_expr}                     AS slice_value",
                 f"    '{segment_name_val}'                   AS segment_name",
@@ -396,6 +398,17 @@ class QueryBuilder:
         return metric.numerator
 
     @staticmethod
+    def _parse_window_endpoint_as_datetime(s: str) -> datetime:
+        """Parse a date-only or datetime string to a datetime object.
+
+        "YYYY-MM-DD" → midnight (T00:00:00).
+        Accepts T or space as date/time separator (standard fromisoformat behaviour).
+        """
+        if len(s) == 10:  # date-only: "YYYY-MM-DD"
+            return datetime.combine(date.fromisoformat(s), time(0, 0, 0))
+        return datetime.fromisoformat(s)
+
+    @staticmethod
     def _generate_period_boundaries(
         time_window: tuple[str, str],
         period_type: str,
@@ -419,6 +432,22 @@ class QueryBuilder:
                ('2026-01-12', '2026-01-19'),
                ('2026-01-19', '2026-01-26')]
         """
+        if period_type == "hourly":
+            start_dt = QueryBuilder._parse_window_endpoint_as_datetime(time_window[0])
+            end_dt = QueryBuilder._parse_window_endpoint_as_datetime(time_window[1])
+            # Truncate start to the nearest full hour; end is used as-is
+            start_dt = start_dt.replace(minute=0, second=0, microsecond=0)
+            boundaries: list[tuple[str, str]] = []
+            current_dt = start_dt
+            while current_dt < end_dt:
+                next_dt = current_dt + timedelta(hours=1)
+                boundaries.append((
+                    current_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+                    next_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+                ))
+                current_dt = next_dt
+            return boundaries
+
         start = date.fromisoformat(time_window[0])
         end = date.fromisoformat(time_window[1])
 
@@ -428,12 +457,10 @@ class QueryBuilder:
             period_start = start - timedelta(days=start.weekday())  # round to Monday
         elif period_type == "monthly":
             period_start = start.replace(day=1)
-        elif period_type == "yearly":
+        else:  # yearly
             period_start = start.replace(month=1, day=1)
-        else:
-            raise QueryBuildError(f"Unknown period_type '{period_type}'")
 
-        boundaries: list[tuple[str, str]] = []
+        boundaries = []
         current = period_start
         while current < end:
             if period_type == "daily":
