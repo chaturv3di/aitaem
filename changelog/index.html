@@ -880,6 +880,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Unreleased">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed-breaking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed (Breaking)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -895,7 +923,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed-breaking" class="md-nav__link">
+  <a href="#changed-breaking_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed (Breaking)
@@ -906,7 +934,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added" class="md-nav__link">
+  <a href="#added_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -934,7 +962,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added_1" class="md-nav__link">
+  <a href="#added_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -995,7 +1023,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added_2" class="md-nav__link">
+  <a href="#added_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1097,6 +1125,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Unreleased">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed-breaking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed (Breaking)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1112,7 +1168,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed-breaking" class="md-nav__link">
+  <a href="#changed-breaking_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed (Breaking)
@@ -1123,7 +1179,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added" class="md-nav__link">
+  <a href="#added_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1151,7 +1207,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added_1" class="md-nav__link">
+  <a href="#added_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1212,7 +1268,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added_2" class="md-nav__link">
+  <a href="#added_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1293,8 +1349,39 @@
 
 <h1 id="changelog">Changelog</h1>
 <h2 id="unreleased">Unreleased</h2>
-<h2 id="v020-2026-05-27">v0.2.0 — 2026-05-27</h2>
+<h3 id="added">Added</h3>
+<ul>
+<li>
+<p><strong><code>MetricSpec.format</code></strong> — optional metadata field for metric value interpretation.
+  Allowed values: <code>percentage</code>, <code>absolute</code>, <code>ratio</code>, <code>currency</code>, and <code>currency:&lt;CODE&gt;</code> where
+  <code>&lt;CODE&gt;</code> is a 3-letter uppercase ISO 4217 currency code (e.g. <code>currency:USD</code>). Plain
+  <code>"currency"</code> is valid for monetary metrics with mixed or unspecified currency. Validated at
+  spec load time; invalid values raise <code>SpecValidationError</code>.</p>
+</li>
+<li>
+<p><strong><code>metric_format</code> output column</strong> — every <code>compute()</code> result now includes a <code>metric_format</code>
+  column (inserted after <code>metric_name</code>) carrying the spec's <code>format</code> value, or <code>None</code> when
+  <code>format</code> is not set. The output schema now has 11 columns.</p>
+</li>
+<li>
+<p><strong><code>hourly</code> period type</strong> — <code>period_type="hourly"</code> produces one output row per clock hour.
+  <code>time_window</code> now accepts full ISO datetime strings (e.g. <code>"2024-01-15T08:00:00"</code>) when
+  using hourly granularity; plain date strings fall back to midnight. Sub-hour precision in the
+  start value is silently truncated to the nearest full hour.</p>
+</li>
+<li>
+<p><strong><code>METRIC_FORMAT_VALUES</code></strong> — new constant exported from <code>aitaem</code>, a <code>frozenset</code> of the simple
+  format values: <code>{"percentage", "absolute", "ratio", "currency"}</code>.</p>
+</li>
+</ul>
 <h3 id="changed-breaking">Changed (Breaking)</h3>
+<ul>
+<li><strong><code>STANDARD_COLUMNS</code></strong> now has <strong>11 entries</strong>. The <code>metric_format</code> column is inserted at
+  index 5 (after <code>metric_name</code>). Code that relies on column position or count (e.g.
+  <code>df.iloc[:, 9]</code>) must be updated.</li>
+</ul>
+<h2 id="v020-2026-05-27">v0.2.0 — 2026-05-27</h2>
+<h3 id="changed-breaking_1">Changed (Breaking)</h3>
 <ul>
 <li><code>MetricSpec</code>, <code>SliceSpec</code>, <code>SegmentSpec</code>: the <code>name</code> field is now validated as a
   SQL identifier at load time. Names must match <code>^[A-Za-z_][A-Za-z0-9_]*$</code> — letters,
@@ -1322,7 +1409,7 @@
 </ul>
 <p><strong>Migration:</strong> replace any <code>except ConnectionError</code> or <code>from aitaem... import ConnectionError</code>
   with <code>AitaemConnectionError</code>, which is now importable directly from <code>aitaem</code>.</p>
-<h3 id="added">Added</h3>
+<h3 id="added_1">Added</h3>
 <ul>
 <li><code>STANDARD_COLUMNS: list[str]</code> is now importable directly from <code>aitaem</code>. Contains the
   ordered list of column names that <code>MetricCompute.compute()</code> always returns:
@@ -1344,7 +1431,7 @@
   properties for iterating over all loaded specs without individual <code>get_*</code> lookups.</li>
 </ul>
 <h2 id="v015-2026-04-22">v0.1.5 — 2026-04-22</h2>
-<h3 id="added_1">Added</h3>
+<h3 id="added_2">Added</h3>
 <ul>
 <li><code>SliceSpec</code>: new wildcard variant — set <code>where: &lt;column_name&gt;</code> at the spec level
   (instead of listing <code>values</code>) to auto-populate slice values from the column's distinct
@@ -1371,7 +1458,7 @@
 <li>Ensure <code>numerator</code> (and <code>denominator</code> when present) contain an explicit aggregate function call
   such as <code>SUM(col)</code>, <code>AVG(col)</code>, <code>COUNT(*)</code>, <code>MIN(col)</code>, or <code>MAX(col)</code>.</li>
 </ul>
-<h3 id="added_2">Added</h3>
+<h3 id="added_3">Added</h3>
 <ul>
 <li><code>MetricSpec</code>: new optional <code>entities</code> field — declares which entity columns the metric supports for disaggregation (e.g. <code>entities: [user_id, device_id]</code>). Must be a non-empty list if provided.</li>
 <li><code>MetricCompute.compute()</code>: new <code>by_entity</code> parameter — groups results by an entity column declared in each metric's <code>entities</code> list; raises <code>QueryBuildError</code> if any metric does not support the requested entity column.</li>

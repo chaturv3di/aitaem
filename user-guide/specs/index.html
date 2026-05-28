@@ -623,6 +623,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#format-field" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Format field
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#entity-columns" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1086,6 +1097,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#format-field" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Format field
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#entity-columns" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1263,6 +1285,11 @@
 <td>List of entity column names supported for <code>by_entity</code> disaggregation (e.g. <code>[user_id, device_id]</code>). Must be non-empty if provided.</td>
 </tr>
 <tr>
+<td><code>format</code></td>
+<td>No</td>
+<td>Value interpretation hint for consumers. See <a href="#format-field">Format field</a> below.</td>
+</tr>
+<tr>
 <td><code>description</code></td>
 <td>No</td>
 <td>Human-readable description</td>
@@ -1332,16 +1359,70 @@ contain an aggregate function.</p>
 </div>
 </div>
 </div>
+<h3 id="format-field">Format field</h3>
+<p>The optional <code>format</code> field is a metadata hint that tells consumers how to interpret the
+<code>metric_value</code>. It does <strong>not</strong> affect computation — the value is stored as-is.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>percentage</code></td>
+<td>A proportion expressed as a decimal (e.g. 0.42 for 42%)</td>
+</tr>
+<tr>
+<td><code>absolute</code></td>
+<td>A plain count or sum with no unit</td>
+</tr>
+<tr>
+<td><code>ratio</code></td>
+<td>A dimensionless ratio that is not a percentage</td>
+</tr>
+<tr>
+<td><code>currency</code></td>
+<td>A monetary value where the currency is unspecified or mixed across rows</td>
+</tr>
+<tr>
+<td><code>currency:&lt;CODE&gt;</code></td>
+<td>A monetary value in a specific ISO 4217 currency. <code>&lt;CODE&gt;</code> must be 3 uppercase letters (e.g. <code>currency:USD</code>, <code>currency:EUR</code>).</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">metric</span><span class="p">:</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ctr</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">duckdb://ad_campaigns.duckdb/ad_campaigns</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="nt">numerator</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;SUM(clicks)&quot;</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span><span class="nt">denominator</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;SUM(impressions)&quot;</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">  </span><span class="nt">timestamp_col</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">date</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">  </span><span class="nt">format</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">percentage</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="nt">metric</span><span class="p">:</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">total_revenue</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">  </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">duckdb://ad_campaigns.duckdb/ad_campaigns</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">  </span><span class="nt">numerator</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;SUM(revenue)&quot;</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">  </span><span class="nt">timestamp_col</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">date</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="w">  </span><span class="nt">format</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;currency:USD&quot;</span>
+</code></pre></div>
+<p>When <code>format</code> is set, the <code>metric_format</code> column in the output DataFrame carries the value.
+When omitted, <code>metric_format</code> is <code>None</code>.</p>
+<p>Use <code>METRIC_FORMAT_VALUES</code> to enumerate the simple (non-currency-code) allowed values:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">METRIC_FORMAT_VALUES</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">METRIC_FORMAT_VALUES</span><span class="p">)</span>  <span class="c1"># frozenset({&#39;percentage&#39;, &#39;absolute&#39;, &#39;ratio&#39;, &#39;currency&#39;})</span>
+</code></pre></div>
 <h3 id="entity-columns">Entity columns</h3>
 <p>Use <code>entities</code> to declare which columns in the source table identify entities that the metric
 can be disaggregated by. At compute time, pass <code>by_entity</code> to <code>MetricCompute.compute()</code> to
 select which entity column to group by.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">metric</span><span class="p">:</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">revenue</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">duckdb://analytics.db/transactions</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="nt">numerator</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;SUM(amount)&quot;</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span><span class="nt">timestamp_col</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">event_ts</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">  </span><span class="nt">entities</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">user_id</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">device_id</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># supports per-user or per-device disaggregation</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">metric</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">revenue</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">duckdb://analytics.db/transactions</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="nt">numerator</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;SUM(amount)&quot;</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span><span class="nt">timestamp_col</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">event_ts</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">  </span><span class="nt">entities</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">user_id</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">device_id</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># supports per-user or per-device disaggregation</span>
 </code></pre></div>
 <p>A metric without <code>entities</code> can still be computed normally — it simply cannot be disaggregated
 by entity. See <a href="../computing-metrics/#by_entity">Computing Metrics</a> for usage.</p>
@@ -1351,29 +1432,29 @@ by entity. See <a href="../computing-metrics/#by_entity">Computing Metrics</a> f
 <h3 id="leaf-slice">Leaf slice</h3>
 <p>A leaf slice defines the filter values for a single column dimension. There are two variants:</p>
 <p><strong>Value-list</strong> — enumerate explicit filter predicates:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">slice</span><span class="p">:</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">campaign_type</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Breakdown by ad campaign type</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">values</span><span class="p">:</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Search</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">      </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;campaign_type</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">&#39;Search&#39;&quot;</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Display</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">      </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;campaign_type</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">&#39;Display&#39;&quot;</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Video</span>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">      </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;campaign_type</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">&#39;Video&#39;&quot;</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Shopping</span>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">      </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;campaign_type</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">&#39;Shopping&#39;&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">slice</span><span class="p">:</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">campaign_type</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Breakdown by ad campaign type</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">values</span><span class="p">:</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Search</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">      </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;campaign_type</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">&#39;Search&#39;&quot;</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Display</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">      </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;campaign_type</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">&#39;Display&#39;&quot;</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Video</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">      </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;campaign_type</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">&#39;Video&#39;&quot;</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Shopping</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="w">      </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;campaign_type</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">&#39;Shopping&#39;&quot;</span>
 </code></pre></div>
 <p><strong>Wildcard</strong> — auto-discover distinct values from a column at query time by setting <code>where</code> at
 the spec level to a bare column name:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">slice</span><span class="p">:</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">industry</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">industry</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">slice</span><span class="p">:</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">industry</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">industry</span>
 </code></pre></div>
 <p>Dot-qualified column names are also accepted:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">slice</span><span class="p">:</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">country</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">public.campaigns.country</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">slice</span><span class="p">:</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">country</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">public.campaigns.country</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1382,12 +1463,12 @@ Use the value-list form when you need explicit <code>WHERE</code> predicates.</p
 </div>
 <h3 id="composite-slice-cross-product">Composite slice (cross-product)</h3>
 <p>A composite slice computes the cross-product of two or more leaf slices:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">slice</span><span class="p">:</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">campaign_type_x_geo</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Campaign type broken down by geography</span>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">  </span><span class="nt">cross_product</span><span class="p">:</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">campaign_type</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">geo</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nt">slice</span><span class="p">:</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">campaign_type_x_geo</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Campaign type broken down by geography</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">  </span><span class="nt">cross_product</span><span class="p">:</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">campaign_type</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">geo</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1434,17 +1515,17 @@ All referenced slices must be loaded into the same <code>SpecCache</code>.</p>
 <hr />
 <h2 id="segmentspec">SegmentSpec</h2>
 <p>A segment is similar to a slice but includes a <code>source</code> field — it can filter on a different table than the metric. This is useful when the breakdown dimension lives in a separate table.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">segment</span><span class="p">:</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">platform</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Breakdown by advertising platform</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">duckdb://ad_campaigns.duckdb/ad_campaigns</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span><span class="nt">values</span><span class="p">:</span>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Google Ads</span>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">      </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;platform</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">&#39;Google</span><span class="nv"> </span><span class="s">Ads&#39;&quot;</span>
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Meta Ads</span>
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">      </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;platform</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">&#39;Meta</span><span class="nv"> </span><span class="s">Ads&#39;&quot;</span>
-<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TikTok Ads</span>
-<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="w">      </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;platform</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">&#39;TikTok</span><span class="nv"> </span><span class="s">Ads&#39;&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">segment</span><span class="p">:</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">platform</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Breakdown by advertising platform</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">duckdb://ad_campaigns.duckdb/ad_campaigns</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">  </span><span class="nt">values</span><span class="p">:</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Google Ads</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">      </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;platform</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">&#39;Google</span><span class="nv"> </span><span class="s">Ads&#39;&quot;</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Meta Ads</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="w">      </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;platform</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">&#39;Meta</span><span class="nv"> </span><span class="s">Ads&#39;&quot;</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TikTok Ads</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="w">      </span><span class="nt">where</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;platform</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">&#39;TikTok</span><span class="nv"> </span><span class="s">Ads&#39;&quot;</span>
 </code></pre></div>
 <h3 id="fields_2">Fields</h3>
 <table>
@@ -1481,32 +1562,32 @@ All referenced slices must be loaded into the same <code>SpecCache</code>.</p>
 <hr />
 <h2 id="loading-specs">Loading specs</h2>
 <p>Use <code>SpecCache</code> to load all specs before computing:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecCache</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="c1"># From directories (loads all *.yaml / *.yml files)</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="n">cache</span> <span class="o">=</span> <span class="n">SpecCache</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="n">metric_paths</span><span class="o">=</span><span class="s2">&quot;metrics/&quot;</span><span class="p">,</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="n">slice_paths</span><span class="o">=</span><span class="s2">&quot;slices/&quot;</span><span class="p">,</span>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>    <span class="n">segment_paths</span><span class="o">=</span><span class="s2">&quot;segments/&quot;</span><span class="p">,</span>
-<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="p">)</span>
-<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>
-<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="c1"># From individual files</span>
-<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="n">cache</span> <span class="o">=</span> <span class="n">SpecCache</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span>
-<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>    <span class="n">metric_paths</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;metrics/ctr.yaml&quot;</span><span class="p">,</span> <span class="s2">&quot;metrics/total_revenue.yaml&quot;</span><span class="p">],</span>
-<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>    <span class="n">slice_paths</span><span class="o">=</span><span class="s2">&quot;slices/campaign_type.yaml&quot;</span><span class="p">,</span>
-<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="p">)</span>
-<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a>
-<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="c1"># From YAML strings (useful for testing)</span>
-<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a><span class="n">cache</span> <span class="o">=</span> <span class="n">SpecCache</span><span class="o">.</span><span class="n">from_string</span><span class="p">(</span>
-<a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a>    <span class="n">metric_yaml</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;</span>
-<a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a><span class="s2">metric:</span>
-<a id="__codelineno-13-20" name="__codelineno-13-20" href="#__codelineno-13-20"></a><span class="s2">  name: ctr</span>
-<a id="__codelineno-13-21" name="__codelineno-13-21" href="#__codelineno-13-21"></a><span class="s2">  source: duckdb://:memory:/events</span>
-<a id="__codelineno-13-22" name="__codelineno-13-22" href="#__codelineno-13-22"></a><span class="s2">  numerator: &quot;SUM(clicks)&quot;</span>
-<a id="__codelineno-13-23" name="__codelineno-13-23" href="#__codelineno-13-23"></a><span class="s2">  denominator: &quot;SUM(impressions)&quot;</span>
-<a id="__codelineno-13-24" name="__codelineno-13-24" href="#__codelineno-13-24"></a><span class="s2">  timestamp_col: date</span>
-<a id="__codelineno-13-25" name="__codelineno-13-25" href="#__codelineno-13-25"></a><span class="s2">&quot;&quot;&quot;</span><span class="p">,</span>
-<a id="__codelineno-13-26" name="__codelineno-13-26" href="#__codelineno-13-26"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecCache</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="c1"># From directories (loads all *.yaml / *.yml files)</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="n">cache</span> <span class="o">=</span> <span class="n">SpecCache</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>    <span class="n">metric_paths</span><span class="o">=</span><span class="s2">&quot;metrics/&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>    <span class="n">slice_paths</span><span class="o">=</span><span class="s2">&quot;slices/&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>    <span class="n">segment_paths</span><span class="o">=</span><span class="s2">&quot;segments/&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="p">)</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="c1"># From individual files</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="n">cache</span> <span class="o">=</span> <span class="n">SpecCache</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>    <span class="n">metric_paths</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;metrics/ctr.yaml&quot;</span><span class="p">,</span> <span class="s2">&quot;metrics/total_revenue.yaml&quot;</span><span class="p">],</span>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a>    <span class="n">slice_paths</span><span class="o">=</span><span class="s2">&quot;slices/campaign_type.yaml&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="p">)</span>
+<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a>
+<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a><span class="c1"># From YAML strings (useful for testing)</span>
+<a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a><span class="n">cache</span> <span class="o">=</span> <span class="n">SpecCache</span><span class="o">.</span><span class="n">from_string</span><span class="p">(</span>
+<a id="__codelineno-15-18" name="__codelineno-15-18" href="#__codelineno-15-18"></a>    <span class="n">metric_yaml</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-15-19" name="__codelineno-15-19" href="#__codelineno-15-19"></a><span class="s2">metric:</span>
+<a id="__codelineno-15-20" name="__codelineno-15-20" href="#__codelineno-15-20"></a><span class="s2">  name: ctr</span>
+<a id="__codelineno-15-21" name="__codelineno-15-21" href="#__codelineno-15-21"></a><span class="s2">  source: duckdb://:memory:/events</span>
+<a id="__codelineno-15-22" name="__codelineno-15-22" href="#__codelineno-15-22"></a><span class="s2">  numerator: &quot;SUM(clicks)&quot;</span>
+<a id="__codelineno-15-23" name="__codelineno-15-23" href="#__codelineno-15-23"></a><span class="s2">  denominator: &quot;SUM(impressions)&quot;</span>
+<a id="__codelineno-15-24" name="__codelineno-15-24" href="#__codelineno-15-24"></a><span class="s2">  timestamp_col: date</span>
+<a id="__codelineno-15-25" name="__codelineno-15-25" href="#__codelineno-15-25"></a><span class="s2">&quot;&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-26" name="__codelineno-15-26" href="#__codelineno-15-26"></a><span class="p">)</span>
 </code></pre></div>
 
 

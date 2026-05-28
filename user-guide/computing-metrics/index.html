@@ -720,6 +720,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="period_type">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#time_window-with-hourly-periods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        time_window with hourly periods
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -1126,6 +1143,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="period_type">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#time_window-with-hourly-periods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        time_window with hourly periods
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -1285,7 +1319,7 @@
 </tr>
 <tr>
 <td><code>"weekly"</code></td>
-<td>One row per ISO week</td>
+<td>One row per ISO week (Monday–Sunday)</td>
 </tr>
 <tr>
 <td><code>"monthly"</code></td>
@@ -1294,6 +1328,10 @@
 <tr>
 <td><code>"yearly"</code></td>
 <td>One row per calendar year</td>
+</tr>
+<tr>
+<td><code>"hourly"</code></td>
+<td>One row per clock hour</td>
 </tr>
 </tbody>
 </table>
@@ -1304,7 +1342,7 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">PeriodType</span><span class="p">,</span> <span class="n">VALID_PERIOD_TYPES</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># Inspect all valid values</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">VALID_PERIOD_TYPES</span><span class="p">)</span>  <span class="c1"># frozenset({&#39;all_time&#39;, &#39;daily&#39;, &#39;weekly&#39;, &#39;monthly&#39;, &#39;yearly&#39;})</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">VALID_PERIOD_TYPES</span><span class="p">)</span>  <span class="c1"># frozenset({&#39;all_time&#39;, &#39;daily&#39;, &#39;weekly&#39;, &#39;monthly&#39;, &#39;yearly&#39;, &#39;hourly&#39;})</span>
 <a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="c1"># Monthly breakdown over Q1 2024</span>
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
@@ -1312,7 +1350,29 @@
 <a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-03-31&quot;</span><span class="p">),</span>
 <a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="n">period_type</span><span class="o">=</span><span class="s2">&quot;monthly&quot;</span><span class="p">,</span>
 <a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="p">)</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="c1"># Hourly breakdown over a single day</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>    <span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;total_revenue&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2024-01-15T08:00:00&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-01-15T18:00:00&quot;</span><span class="p">),</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>    <span class="n">period_type</span><span class="o">=</span><span class="s2">&quot;hourly&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="p">)</span>
 </code></pre></div>
+<h4 id="time_window-with-hourly-periods"><code>time_window</code> with hourly periods</h4>
+<p>For <code>period_type="hourly"</code>, <code>time_window</code> accepts full ISO datetime strings in addition to
+plain date strings:</p>
+<ul>
+<li><code>"2024-01-15"</code> → treated as <code>2024-01-15T00:00:00</code> (midnight)</li>
+<li><code>"2024-01-15T08:00:00"</code> → used as-is</li>
+<li>Sub-hour precision in the <strong>start</strong> value is truncated to the nearest full hour (e.g.
+  <code>"T08:30:00"</code> → <code>T08:00:00</code>), so the first period may include data slightly before the
+  specified start. Sub-hour precision in the <strong>end</strong> value is used as-is.</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Scale</p>
+<p>A 30-day hourly window generates 720 period rows per metric/slice/segment combination.
+For queries with many slices or segments, the result set can grow large quickly.</p>
+</div>
 <p><code>PeriodType</code> is a <code>Literal</code> type alias for these values and can be used in Pydantic models or type annotations.</p>
 <h3 id="by_entity"><code>by_entity</code></h3>
 <p>Group results by an entity column declared in the metric's <code>entities</code> field. Use this for
@@ -1337,53 +1397,69 @@ field. A <code>QueryBuildError</code> is raised if any metric does not declare i
 <p>Controls the return type. Currently only <code>"pandas"</code> is supported, which returns a <code>pandas.DataFrame</code>. This parameter is reserved for future output backends.</p>
 <hr />
 <h2 id="output-schema">Output Schema</h2>
-<p>Every <code>compute()</code> call returns a pandas DataFrame with exactly these 10 columns:</p>
+<p>Every <code>compute()</code> call returns a pandas DataFrame with exactly these 11 columns:</p>
 <table>
 <thead>
 <tr>
 <th>Column</th>
+<th>Type</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>period_type</code></td>
-<td><code>"all_time"</code> when no <code>time_window</code>, otherwise the period granularity</td>
+<td><code>str</code></td>
+<td><code>"all_time"</code>, <code>"daily"</code>, <code>"weekly"</code>, <code>"monthly"</code>, <code>"yearly"</code>, or <code>"hourly"</code></td>
 </tr>
 <tr>
 <td><code>period_start_date</code></td>
-<td>Start date ISO string, or <code>None</code></td>
+<td><code>str \| None</code></td>
+<td>ISO date string (<code>"YYYY-MM-DD HH:MM:SS"</code>) for non-<code>all_time</code>, or <code>None</code></td>
 </tr>
 <tr>
 <td><code>period_end_date</code></td>
-<td>End date ISO string, or <code>None</code></td>
+<td><code>str \| None</code></td>
+<td>Same format as <code>period_start_date</code> (exclusive end of the period)</td>
 </tr>
 <tr>
 <td><code>entity_id</code></td>
+<td><code>str \| None</code></td>
 <td>Value of the entity column (e.g. a <code>user_id</code>), or <code>None</code> when <code>by_entity</code> is not set</td>
 </tr>
 <tr>
 <td><code>metric_name</code></td>
+<td><code>str</code></td>
 <td>Name of the metric</td>
 </tr>
 <tr>
+<td><code>metric_format</code></td>
+<td><code>str \| None</code></td>
+<td>Format hint from the spec (e.g. <code>"percentage"</code>, <code>"currency:USD"</code>), or <code>None</code> if not set</td>
+</tr>
+<tr>
 <td><code>slice_type</code></td>
+<td><code>str</code></td>
 <td>Slice name, or <code>"none"</code> for the all-data baseline row</td>
 </tr>
 <tr>
 <td><code>slice_value</code></td>
+<td><code>str</code></td>
 <td>Slice value (e.g. <code>"Search"</code>), or <code>"all"</code> for the baseline</td>
 </tr>
 <tr>
 <td><code>segment_name</code></td>
+<td><code>str</code></td>
 <td>Segment name, or <code>"none"</code> for the all-data baseline row</td>
 </tr>
 <tr>
 <td><code>segment_value</code></td>
+<td><code>str</code></td>
 <td>Segment value (e.g. <code>"Google Ads"</code>), or <code>"all"</code> for the baseline</td>
 </tr>
 <tr>
 <td><code>metric_value</code></td>
+<td><code>float</code></td>
 <td>Computed numeric result</td>
 </tr>
 </tbody>
