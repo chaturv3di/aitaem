@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.2.1 — 2026-05-28
+
 ### Added
 
 - **`MetricSpec.format`** — optional metadata field for metric value interpretation.
