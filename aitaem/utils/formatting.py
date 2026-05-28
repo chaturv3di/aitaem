@@ -12,6 +12,7 @@ STANDARD_COLUMNS: list[str] = [
     "period_end_date",
     "entity_id",
     "metric_name",
+    "metric_format",
     "slice_type",
     "slice_value",
     "segment_name",

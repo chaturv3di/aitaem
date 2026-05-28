@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### Added
+
+- **`MetricSpec.format`** — optional metadata field for metric value interpretation.
+  Allowed values: `percentage`, `absolute`, `ratio`, `currency`, and `currency:<CODE>` where
+  `<CODE>` is a 3-letter uppercase ISO 4217 currency code (e.g. `currency:USD`). Plain
+  `"currency"` is valid for monetary metrics with mixed or unspecified currency. Validated at
+  spec load time; invalid values raise `SpecValidationError`.
+
+- **`metric_format` output column** — every `compute()` result now includes a `metric_format`
+  column (inserted after `metric_name`) carrying the spec's `format` value, or `None` when
+  `format` is not set. The output schema now has 11 columns.
+
+- **`hourly` period type** — `period_type="hourly"` produces one output row per clock hour.
+  `time_window` now accepts full ISO datetime strings (e.g. `"2024-01-15T08:00:00"`) when
+  using hourly granularity; plain date strings fall back to midnight. Sub-hour precision in the
+  start value is silently truncated to the nearest full hour.
+
+- **`METRIC_FORMAT_VALUES`** — new constant exported from `aitaem`, a `frozenset` of the simple
+  format values: `{"percentage", "absolute", "ratio", "currency"}`.
+
+### Changed (Breaking)
+
+- **`STANDARD_COLUMNS`** now has **11 entries**. The `metric_format` column is inserted at
+  index 5 (after `metric_name`). Code that relies on column position or count (e.g.
+  `df.iloc[:, 9]`) must be updated.
+
 ## v0.2.0 — 2026-05-27
 
 ### Changed (Breaking)
