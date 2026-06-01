@@ -970,6 +970,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#validationresult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ValidationResult
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ValidationResult">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#referenced_columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        referenced_columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#metricspec" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1481,6 +1509,34 @@
     <span class="md-ellipsis">
       
         Duplicate name enforcement
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validationresult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ValidationResult
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ValidationResult">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#referenced_columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        referenced_columns
       
     </span>
   </a>
@@ -2975,6 +3031,122 @@ validated consistently for simplicity.</p>
 <p>All loading paths (<code>from_yaml</code>, <code>from_string</code>, <code>add</code>) raise <code>SpecValidationError</code> if a
 spec with the same name has already been loaded into the same cache. Uniqueness is
 enforced <strong>per spec type</strong> — a metric and a slice may share a name without conflict.</p>
+<hr />
+<h2 id="validationresult">ValidationResult</h2>
+<p><code>ValidationResult</code> is returned by <code>MetricSpec.validate()</code>, <code>SliceSpec.validate()</code>,
+<code>SegmentSpec.validate()</code>, and the lower-level <code>validate_metric_spec()</code> /
+<code>validate_slice_spec()</code> / <code>validate_segment_spec()</code> functions.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>valid</code></td>
+<td><code>bool</code></td>
+<td><code>True</code> if the spec passed all validation checks</td>
+</tr>
+<tr>
+<td><code>errors</code></td>
+<td><code>list[ValidationError]</code></td>
+<td>List of validation errors (empty when valid)</td>
+</tr>
+<tr>
+<td><code>referenced_columns</code></td>
+<td><code>dict[str, list[str]] \| None</code></td>
+<td>Column map — see below</td>
+</tr>
+</tbody>
+</table>
+<h3 id="referenced_columns"><code>referenced_columns</code></h3>
+<p>Maps each spec field to the unqualified column names it references. Populated only when
+<code>valid is True</code>; <code>None</code> when the spec is invalid.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Always check <code>result.valid</code> before using <code>result.referenced_columns</code>. When the spec is
+invalid, the field is <code>None</code> — not an empty dict.</p>
+</div>
+<p><strong>Keys for metric specs:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"numerator"</code></td>
+<td>SQL expression (AST-parsed)</td>
+</tr>
+<tr>
+<td><code>"denominator"</code></td>
+<td>SQL expression (AST-parsed), present only if the field is set</td>
+</tr>
+<tr>
+<td><code>"timestamp_col"</code></td>
+<td>Plain string field</td>
+</tr>
+<tr>
+<td><code>"entities"</code></td>
+<td>Plain list field, present only if the field is set</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Keys for slice leaf specs:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"values[i].where"</code></td>
+<td>SQL WHERE expression (AST-parsed), one key per value</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Keys for wildcard slice specs:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"where"</code></td>
+<td>The bare column name</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Keys for composite slice specs:</strong> empty dict <code>{}</code> — no SQL expressions to extract from.</p>
+<p><strong>Example — metric spec:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">metric_spec</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">valid</span><span class="p">:</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="k">for</span> <span class="n">field</span><span class="p">,</span> <span class="n">columns</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">referenced_columns</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">field</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">columns</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="c1"># numerator:     [&#39;revenue&#39;]</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="c1"># denominator:   [&#39;impressions&#39;]</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="c1"># timestamp_col: [&#39;created_at&#39;]</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="c1"># entities:      [&#39;user_id&#39;]</span>
+</code></pre></div>
+<p><strong>Example — slice spec:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">slice_spec</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">valid</span><span class="p">:</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">referenced_columns</span><span class="p">)</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="c1"># {&#39;values[0].where&#39;: [&#39;region&#39;], &#39;values[1].where&#39;: [&#39;region&#39;, &#39;country&#39;]}</span>
+</code></pre></div>
+<p>Column names are <strong>unqualified</strong> — for <code>SUM(t.revenue)</code> the extracted name is <code>"revenue"</code>,
+not <code>"t.revenue"</code>. This is sufficient for single-source specs where each <code>MetricSpec.source</code>
+points to one table.</p>
 <hr />
 <h2 id="metricspec">MetricSpec</h2>
 
