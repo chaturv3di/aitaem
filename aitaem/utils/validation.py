@@ -263,6 +263,8 @@ def validate_metric_spec(spec_dict: dict) -> ValidationResult:
     referenced_columns: dict[str, list[str]] | None = None
     if not errors:
         col_map: dict[str, list[str]] = {}
+        assert isinstance(numerator, str)
+        assert isinstance(timestamp_col, str)
         col_map["numerator"] = _extract_columns_from_sql(numerator, context="select")
         if denominator:
             col_map["denominator"] = _extract_columns_from_sql(denominator, context="select")

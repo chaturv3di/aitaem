@@ -1,7 +1,5 @@
 """Unit tests for _extract_columns_from_sql and referenced_columns in ValidationResult."""
 
-import pytest
-
 from aitaem.utils.validation import (
     _extract_columns_from_sql,
     validate_metric_spec,
