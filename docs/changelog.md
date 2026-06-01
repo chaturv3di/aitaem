@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- **`ValidationResult.referenced_columns`** — populated on successful spec validation; a
+  `dict[str, list[str]]` mapping each spec field to the unqualified column names it references.
+  `None` when the spec is invalid. Intended for downstream consumers who hold a warehouse
+  connection and want to verify that every referenced column is present in the source table
+  before computing metrics. See [Column introspection](user-guide/specs.md#column-introspection)
+  for usage.
+
 ## v0.2.1 — 2026-05-28
 
 ### Added
