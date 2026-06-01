@@ -404,3 +404,39 @@ slice:
         spec = SliceSpec.from_yaml(yaml_str)
         assert spec.is_wildcard is False
         assert spec.column == ""
+
+
+class TestSliceSpecValidateReferencedColumns:
+    def test_leaf_spec_propagates_columns(self):
+        spec = SliceSpec.from_yaml("""
+slice:
+  name: geo
+  values:
+    - name: us
+      where: "region = 'US'"
+""")
+        result = spec.validate()
+        assert result.valid
+        assert result.referenced_columns == {"values[0].where": ["region"]}
+
+    def test_wildcard_spec_propagates_column(self):
+        spec = SliceSpec.from_yaml("""
+slice:
+  name: industry
+  where: industry
+""")
+        result = spec.validate()
+        assert result.valid
+        assert result.referenced_columns == {"where": ["industry"]}
+
+    def test_composite_spec_empty_referenced_columns(self):
+        spec = SliceSpec.from_yaml("""
+slice:
+  name: combo
+  cross_product:
+    - geo
+    - device
+""")
+        result = spec.validate()
+        assert result.valid
+        assert result.referenced_columns == {}

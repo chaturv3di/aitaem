@@ -40,6 +40,19 @@ class ValidationError:
 class ValidationResult:
     valid: bool
     errors: list[ValidationError]
+    referenced_columns: dict[str, list[str]] | None = None
+    """Maps each spec field to the unqualified column names it references.
+
+    Populated only when ``valid is True``; ``None`` when the spec is invalid.
+    Always check ``result.valid`` before using this field.
+
+    Keys for metric specs: ``"numerator"``, ``"denominator"`` (if set),
+    ``"timestamp_col"``, ``"entities"`` (if set).
+
+    Keys for slice leaf specs: ``"values[i].where"`` (one per value).
+    Keys for wildcard slice specs: ``"where"``.
+    Keys for composite slice specs: empty dict ``{}``.
+    """
 
 
 def _validate_sql_expression(
@@ -60,6 +73,34 @@ def _validate_sql_expression(
     except Exception as e:
         return ValidationError(field=field, message=f"Invalid SQL syntax: {e}")
     return None
+
+
+def _extract_columns_from_sql(expr: str, context: str = "select") -> list[str]:
+    """Extract unqualified column names from a SQL expression via sqlglot AST.
+
+    Returns an empty list if sqlglot is not installed or the expression cannot be parsed.
+    Column names are deduplicated while preserving order of first appearance.
+    The table qualifier is stripped — ``t.revenue`` yields ``"revenue"``.
+    """
+    try:
+        import sqlglot
+        import sqlglot.expressions as exp
+    except ImportError:
+        return []
+
+    try:
+        if context == "select":
+            tree = sqlglot.parse_one(f"SELECT {expr}")
+        else:
+            tree = sqlglot.parse_one(f"SELECT 1 WHERE {expr}")
+    except Exception:
+        return []
+
+    seen: dict[str, None] = {}
+    for node in tree.walk():
+        if isinstance(node, exp.Column):
+            seen[node.name] = None
+    return list(seen)
 
 
 def _contains_aggregate_call(expr: str) -> bool:
@@ -219,7 +260,18 @@ def validate_metric_spec(spec_dict: dict) -> ValidationResult:
                         )
                     )
 
-    return ValidationResult(valid=len(errors) == 0, errors=errors)
+    referenced_columns: dict[str, list[str]] | None = None
+    if not errors:
+        col_map: dict[str, list[str]] = {}
+        col_map["numerator"] = _extract_columns_from_sql(numerator, context="select")
+        if denominator:
+            col_map["denominator"] = _extract_columns_from_sql(denominator, context="select")
+        col_map["timestamp_col"] = [timestamp_col.strip()]
+        if entities:
+            col_map["entities"] = [e.strip() for e in entities if isinstance(e, str) and e.strip()]
+        referenced_columns = col_map
+
+    return ValidationResult(valid=len(errors) == 0, errors=errors, referenced_columns=referenced_columns)
 
 
 def _validate_values_list(values: list, item_type: str, errors: list[ValidationError]) -> None:
@@ -392,7 +444,23 @@ def validate_slice_spec(spec_dict: dict) -> ValidationResult:
             )
         )
 
-    return ValidationResult(valid=len(errors) == 0, errors=errors)
+    referenced_columns: dict[str, list[str]] | None = None
+    if not errors:
+        col_map: dict[str, list[str]] = {}
+        if values is not None and isinstance(values, list):
+            for i, value in enumerate(values):
+                if isinstance(value, dict):
+                    where_expr = value.get("where", "")
+                    if where_expr and isinstance(where_expr, str):
+                        col_map[f"values[{i}].where"] = _extract_columns_from_sql(
+                            where_expr, context="where"
+                        )
+        elif where is not None and isinstance(where, str) and where.strip():
+            col_map["where"] = [where.strip()]
+        # composite: cross_product holds slice names, not SQL; col_map stays empty
+        referenced_columns = col_map
+
+    return ValidationResult(valid=len(errors) == 0, errors=errors, referenced_columns=referenced_columns)
 
 
 def validate_segment_spec(spec_dict: dict) -> ValidationResult:

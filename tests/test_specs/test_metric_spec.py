@@ -413,3 +413,54 @@ class TestMetricSpecValidate:
         spec = MetricSpec.from_yaml(valid_metric_ratio_yaml)
         with pytest.raises((AttributeError, TypeError)):
             spec.name = "changed"  # type: ignore
+
+
+class TestMetricSpecValidateReferencedColumns:
+    def test_validate_propagates_referenced_columns(self):
+        spec = MetricSpec(
+            name="revenue",
+            source="duckdb://db/tbl",
+            numerator="SUM(amount)",
+            timestamp_col="created_at",
+        )
+        result = spec.validate()
+        assert result.valid
+        assert result.referenced_columns is not None
+        assert result.referenced_columns["numerator"] == ["amount"]
+        assert result.referenced_columns["timestamp_col"] == ["created_at"]
+
+    def test_validate_includes_entities_columns(self):
+        spec = MetricSpec(
+            name="revenue",
+            source="duckdb://db/tbl",
+            numerator="SUM(amount)",
+            timestamp_col="created_at",
+            entities=["user_id", "org_id"],
+        )
+        result = spec.validate()
+        assert result.valid
+        assert result.referenced_columns["entities"] == ["user_id", "org_id"]
+
+    def test_validate_includes_denominator_columns(self):
+        spec = MetricSpec(
+            name="ctr",
+            source="duckdb://db/tbl",
+            numerator="SUM(clicks)",
+            denominator="SUM(impressions)",
+            timestamp_col="event_ts",
+        )
+        result = spec.validate()
+        assert result.valid
+        assert result.referenced_columns["denominator"] == ["impressions"]
+
+    def test_validate_invalid_spec_referenced_columns_is_none(self):
+        spec = MetricSpec(
+            name="bad",
+            source="duckdb://db/tbl",
+            numerator="SUM(amount)",
+            timestamp_col="created_at",
+            format="not_a_valid_format",
+        )
+        result = spec.validate()
+        assert not result.valid
+        assert result.referenced_columns is None

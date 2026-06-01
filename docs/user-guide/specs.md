@@ -267,6 +267,42 @@ segment:
 
 ---
 
+## Column introspection
+
+After loading a spec you can inspect every column it references without needing a warehouse
+connection. This is useful for downstream validation — for example, verifying that every
+referenced column exists in the source table before running `compute()`.
+
+```python
+result = metric_spec.validate()
+if result.valid:
+    print(result.referenced_columns)
+    # {
+    #   'numerator':     ['revenue'],
+    #   'denominator':   ['impressions'],
+    #   'timestamp_col': ['created_at'],
+    #   'entities':      ['user_id'],
+    # }
+```
+
+For slice specs:
+
+```python
+result = slice_spec.validate()
+if result.valid:
+    print(result.referenced_columns)
+    # {'values[0].where': ['region'], 'values[1].where': ['region', 'country']}
+```
+
+!!! note
+    `referenced_columns` is `None` when the spec is invalid — always check `result.valid` first.
+
+    Column names are unqualified: `SUM(t.revenue)` yields `"revenue"`. For wildcard slices,
+    the bare column name is returned directly. For composite slices, an empty dict `{}` is
+    returned (composite specs contain no SQL expressions).
+
+---
+
 ## Loading specs
 
 Use `SpecCache` to load all specs before computing:
