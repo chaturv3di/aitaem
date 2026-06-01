@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.2.2 — 2026-06-01
+
 ### Added
 
 - **`ValidationResult.referenced_columns`** — populated on successful spec validation; a
