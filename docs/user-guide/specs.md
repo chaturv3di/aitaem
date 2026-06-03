@@ -384,3 +384,62 @@ metric:
 """,
 )
 ```
+
+---
+
+## Compatibility Scanning
+
+Before calling `compute()`, use `MetricCompute.scan()` to check which slices and segments are
+usable with each metric. The scan introspects source table schemas and returns a
+`ScanResult` with one `CompatibilityResult` per metric × spec pair.
+
+```python
+from aitaem import SpecCache, ConnectionManager, MetricCompute
+
+cache = SpecCache.from_yaml(
+    metric_paths="metrics/",
+    slice_paths="slices/",
+    segment_paths="segments/",
+)
+conn = ConnectionManager.from_yaml("connections.yaml")
+mc = MetricCompute(cache, conn)
+
+result = mc.scan()
+
+# Slices compatible with the "ctr" metric
+compatible_slices = result.compatible_slices("ctr")
+# e.g. ["campaign_type", "country"]
+
+# Segments compatible with the "ctr" metric
+compatible_segs = result.compatible_segments("ctr")
+# e.g. ["platform"]
+
+# Pass scan results directly into compute()
+df = mc.compute(
+    metrics="ctr",
+    slices=compatible_slices,
+    segments=compatible_segs[0] if compatible_segs else None,
+)
+```
+
+For slices, the scan checks that every column referenced in `values[].where` (or the bare
+`column` field for wildcard slices) exists in the metric's source table.
+
+For segments, only the **fact-table side** is checked: the scan verifies that at least one join
+key candidate (`join_keys`, or `entity_id` when `join_keys` is empty) exists in the metric's
+source table. The DIM-table columns (used in `values[].where`) are on the segment's own source
+and are not validated here.
+
+```python
+# Inspect a specific result
+r = result.for_spec("platform")[0]
+print(r.compatible)        # True
+print(r.valid_join_keys)   # ["platform"]
+print(r.missing_columns)   # []
+
+# Find which metrics an incompatible slice is blocking
+r = result.for_spec("bad_slice")[0]
+print(r.compatible)        # False
+print(r.missing_columns)   # ["nonexistent_column"]
+print(r.reason)            # "columns not found in source table: ['nonexistent_column']"
+```
