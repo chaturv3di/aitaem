@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Added
+
+- **`MetricCompute.scan()`** — pre-flight compatibility scan that introspects source table
+  schemas and returns a `ScanResult` with one `CompatibilityResult` per metric × slice and
+  per metric × segment pair. Schema introspection is batched by unique source URI.
+
+- **`CompatibilityResult`** — frozen dataclass carrying the compatibility verdict for a single
+  metric × spec pair: `compatible`, `valid_join_keys`, `missing_columns`, and `reason`.
+
+- **`ScanResult`** — container for the full compatibility matrix with query helpers:
+  `compatible_slices()`, `compatible_segments()`, `compatible_metrics()`, `for_metric()`,
+  and `for_spec()`.
+
 ## v0.3.0 — 2026-06-03
 
 ### Added

@@ -1,3 +1,4 @@
+from aitaem.specs.compatibility import CompatibilityResult, ScanResult
 from aitaem.specs.loader import (
     SpecCache,
     load_spec_from_file,
@@ -18,4 +19,6 @@ __all__ = [
     "load_spec_from_file",
     "load_spec_from_string",
     "load_specs_from_directory",
+    "CompatibilityResult",
+    "ScanResult",
 ]

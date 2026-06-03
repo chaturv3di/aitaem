@@ -128,6 +128,41 @@ points to one table.
 
 ---
 
+## Compatibility
+
+`CompatibilityResult` and `ScanResult` are returned by `MetricCompute.scan()`. They carry the
+pre-flight compatibility verdict for every metric × slice and metric × segment pair loaded into
+a `SpecCache`.
+
+### CompatibilityResult
+
+One result per metric × spec pair.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `metric_name` | `str` | Name of the metric |
+| `spec_name` | `str` | Name of the slice or segment |
+| `spec_type` | `Literal["slice", "segment"]` | Which kind of spec this row covers |
+| `compatible` | `bool` | `True` when the spec is usable with this metric |
+| `valid_join_keys` | `list[str]` | *Segment only* — join-key candidates present in the metric's source table |
+| `missing_columns` | `list[str]` | Columns (slices) or join-key candidates (segments) absent from the source table |
+| `reason` | `str \| None` | Human-readable explanation when `compatible` is `False`; `None` when `compatible` is `True` |
+
+### ScanResult
+
+Container for the full compatibility matrix. The `results` tuple holds every
+`CompatibilityResult` in metric-declaration order.
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `compatible_slices(metric_name)` | `list[str]` | Names of slices compatible with the given metric |
+| `compatible_segments(metric_name)` | `list[str]` | Names of segments compatible with the given metric |
+| `compatible_metrics(spec_name)` | `list[str]` | Metric names compatible with the given slice or segment |
+| `for_metric(metric_name)` | `list[CompatibilityResult]` | All rows for the given metric |
+| `for_spec(spec_name)` | `list[CompatibilityResult]` | All rows for the given slice or segment across all metrics |
+
+---
+
 ## MetricSpec
 
 ::: aitaem.specs.metric.MetricSpec

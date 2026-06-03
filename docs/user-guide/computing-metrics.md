@@ -221,6 +221,24 @@ This produces rows for:
 
 ---
 
+## Pre-flight Check
+
+Use `mc.scan()` before `compute()` to verify that your slices and segments are compatible with
+a given metric's source table. This avoids runtime failures caused by missing columns.
+
+```python
+result = mc.scan()
+compatible = result.compatible_slices("ctr")  # ["campaign_type", "country"]
+
+df = mc.compute(metrics="ctr", slices=compatible)
+```
+
+See [Compatibility Scanning](specs.md#compatibility-scanning) in the Writing Specs guide for
+a full walkthrough, and the [Specs API reference](../api/specs.md#compatibility) for
+`CompatibilityResult` and `ScanResult` field descriptions.
+
+---
+
 ## Error Handling
 
 | Exception | Raised when |

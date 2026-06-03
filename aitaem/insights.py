@@ -6,13 +6,95 @@ MetricCompute is the main entry point for computing metrics from specs.
 
 from __future__ import annotations
 
+import logging
 import pandas as pd
 
 from aitaem.connectors.connection import ConnectionManager
 from aitaem.query.builder import PeriodType, QueryBuilder
 from aitaem.query.executor import QueryExecutor
+from aitaem.specs.compatibility import CompatibilityResult, ScanResult
 from aitaem.specs.loader import SpecCache
 from aitaem.utils.formatting import ensure_standard_output
+
+logger = logging.getLogger(__name__)
+
+
+def _run_scan(spec_cache: SpecCache, connection_manager: ConnectionManager) -> ScanResult:
+    """Core logic for MetricCompute.scan() — separated for independent testability."""
+    from aitaem.query.builder import QueryBuilder
+
+    results: list[CompatibilityResult] = []
+
+    # Batch schema introspections by unique source URI
+    unique_uris: set[str] = {m.source for m in spec_cache.metrics.values()}
+    source_columns: dict[str, frozenset[str]] = {}
+    for uri in unique_uris:
+        try:
+            connector = connection_manager.get_connection_for_source(uri)
+            table_name = QueryBuilder._parse_table_name_from_uri(uri)
+            source_columns[uri] = frozenset(connector.get_table(table_name).schema().names)
+        except Exception as e:
+            logger.warning(
+                "scan: could not introspect schema for '%s' (%s) — metrics with this source will be skipped",
+                uri,
+                type(e).__name__,
+            )
+
+    slices = list(spec_cache.slices.values())
+    segments = list(spec_cache.segments.values())
+
+    for metric in spec_cache.metrics.values():
+        cols = source_columns.get(metric.source)
+        if cols is None:
+            continue
+
+        for slice_spec in slices:
+            components = (
+                [spec_cache.get_slice(n) for n in slice_spec.cross_product]
+                if slice_spec.is_composite
+                else [slice_spec]
+            )
+            required: set[str] = set()
+            for comp in components:
+                for col_list in (comp.validate().referenced_columns or {}).values():
+                    required.update(col_list)
+
+            missing = sorted(required - cols)
+            compatible = len(missing) == 0
+            results.append(
+                CompatibilityResult(
+                    metric_name=metric.name,
+                    spec_name=slice_spec.name,
+                    spec_type="slice",
+                    compatible=compatible,
+                    valid_join_keys=[],
+                    missing_columns=missing,
+                    reason=None
+                    if compatible
+                    else f"columns not found in source table: {missing}",
+                )
+            )
+
+        for seg in segments:
+            candidates: set[str] = set(seg.join_keys) if seg.join_keys else {seg.entity_id}
+            valid_keys = sorted(candidates & cols)
+            missing_keys = sorted(candidates - cols)
+            compatible = len(valid_keys) > 0
+            results.append(
+                CompatibilityResult(
+                    metric_name=metric.name,
+                    spec_name=seg.name,
+                    spec_type="segment",
+                    compatible=compatible,
+                    valid_join_keys=valid_keys,
+                    missing_columns=missing_keys,
+                    reason=None
+                    if compatible
+                    else f"no valid join keys found in source table: {sorted(candidates)}",
+                )
+            )
+
+    return ScanResult(results=tuple(results))
 
 
 class MetricCompute:
@@ -130,3 +212,21 @@ class MetricCompute:
         executor = QueryExecutor(self.connection_manager)
         df = executor.execute(query_groups, output_format=output_format)
         return ensure_standard_output(df)
+
+    def scan(self) -> ScanResult:
+        """Introspect source schemas and return a compatibility matrix for all loaded specs.
+
+        For each loaded metric, checks every loaded slice and segment:
+
+        - **Slice**: compatible when all referenced columns exist in the metric's source table.
+        - **Segment**: compatible when at least one join key (from ``join_keys``, or
+          ``entity_id`` when ``join_keys`` is empty) exists in the metric's source table.
+
+        Schema introspection is batched by unique source URI — each table is queried once
+        regardless of how many metrics share it. Metrics whose source connection is unavailable
+        are skipped with a warning.
+
+        Returns:
+            ScanResult with one CompatibilityResult per metric × slice and per metric × segment.
+        """
+        return _run_scan(self.spec_cache, self.connection_manager)
