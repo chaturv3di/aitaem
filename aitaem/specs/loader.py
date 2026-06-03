@@ -138,7 +138,8 @@ class SpecCache:
             spec = load_spec_from_string(yaml_str, MetricSpec)
             if spec.name in cache._metrics:
                 raise SpecValidationError(
-                    "MetricSpec", spec.name,
+                    "MetricSpec",
+                    spec.name,
                     [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
                 )
             cache._metrics[spec.name] = spec  # type: ignore[assignment]
@@ -146,7 +147,8 @@ class SpecCache:
             spec = load_spec_from_string(yaml_str, SliceSpec)
             if spec.name in cache._slices:
                 raise SpecValidationError(
-                    "SliceSpec", spec.name,
+                    "SliceSpec",
+                    spec.name,
                     [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
                 )
             cache._slices[spec.name] = spec  # type: ignore[assignment]
@@ -154,7 +156,8 @@ class SpecCache:
             spec = load_spec_from_string(yaml_str, SegmentSpec)
             if spec.name in cache._segments:
                 raise SpecValidationError(
-                    "SegmentSpec", spec.name,
+                    "SegmentSpec",
+                    spec.name,
                     [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
                 )
             cache._segments[spec.name] = spec  # type: ignore[assignment]
@@ -170,21 +173,24 @@ class SpecCache:
         if isinstance(spec, MetricSpec):
             if spec.name in self._metrics:
                 raise SpecValidationError(
-                    "MetricSpec", spec.name,
+                    "MetricSpec",
+                    spec.name,
                     [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
                 )
             self._metrics[spec.name] = spec
         elif isinstance(spec, SliceSpec):
             if spec.name in self._slices:
                 raise SpecValidationError(
-                    "SliceSpec", spec.name,
+                    "SliceSpec",
+                    spec.name,
                     [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
                 )
             self._slices[spec.name] = spec
         elif isinstance(spec, SegmentSpec):
             if spec.name in self._segments:
                 raise SpecValidationError(
-                    "SegmentSpec", spec.name,
+                    "SegmentSpec",
+                    spec.name,
                     [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
                 )
             self._segments[spec.name] = spec
@@ -277,10 +283,12 @@ class SpecCache:
                         raise SpecValidationError(
                             spec_type.__name__,
                             spec.name,
-                            [ValidationError(
-                                field="name",
-                                message=f"Duplicate spec name '{spec.name}': already loaded from a previous file",
-                            )],
+                            [
+                                ValidationError(
+                                    field="name",
+                                    message=f"Duplicate spec name '{spec.name}': already loaded from a previous file",
+                                )
+                            ],
                         )
                     result[spec.name] = spec
             else:
@@ -289,10 +297,12 @@ class SpecCache:
                     raise SpecValidationError(
                         spec_type.__name__,
                         spec.name,
-                        [ValidationError(
-                            field="name",
-                            message=f"Duplicate spec name '{spec.name}': already loaded from a previous file",
-                        )],
+                        [
+                            ValidationError(
+                                field="name",
+                                message=f"Duplicate spec name '{spec.name}': already loaded from a previous file",
+                            )
+                        ],
                     )
                 result[spec.name] = spec
         return result

@@ -240,13 +240,14 @@ slice:
 
 ## SegmentSpec
 
-A segment is similar to a slice but includes a `source` field — it can filter on a different table than the metric. This is useful when the breakdown dimension lives in a separate table.
+A segment classifies fact rows by joining to a **DIM table** (dimension table). Unlike slices, which apply filter predicates directly to the fact table, a segment resolves entity attributes from a separate DIM table — the standard star-schema pattern where classification attributes (e.g., subscription tier, region, plan type) live in their own table.
 
 ```yaml
 segment:
   name: platform
   description: Breakdown by advertising platform
-  source: duckdb://ad_campaigns.duckdb/ad_campaigns
+  source: duckdb://ad_campaigns.duckdb/dim_platforms
+  entity_id: platform
   values:
     - name: Google Ads
       where: "platform = 'Google Ads'"
@@ -256,14 +257,48 @@ segment:
       where: "platform = 'TikTok Ads'"
 ```
 
+At compute time, aitaem generates a JOIN from the fact table to the DIM table on the entity key:
+
+```sql
+FROM fact_table t
+JOIN dim_platforms _dim ON t.<join_key> = _dim.platform
+```
+
+The `<join_key>` is resolved at `compute()` time — see [`segments` parameter](computing-metrics.md#segments).
+
+!!! note
+    `values[].where` expressions are evaluated against the DIM table (aliased as `_dim`).
+    Unqualified column references are automatically qualified — `"platform = 'Google Ads'"` becomes
+    `_dim.platform = 'Google Ads'` in the generated SQL. You do **not** need to write the prefix yourself.
+
 ### Fields
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `name` | Yes | Unique identifier |
-| `source` | Yes | Source URI for this segment's table |
-| `values` | Yes | List of `{name, where}` filter definitions |
+| `source` | Yes | URI of the DIM table to join |
+| `entity_id` | Yes | Primary key column on the DIM table. Used as the right-hand side of the JOIN ON condition (`_dim.<entity_id>`). |
+| `values` | Yes | List of `{name, where}` filter definitions against DIM table columns |
+| `join_keys` | No | Whitelist of fact-table FK columns accepted as join keys. When non-empty, the join key supplied in `compute()` must be in this list. When empty (default), any column name is accepted. |
 | `description` | No | Human-readable description |
+
+### Example — customer value tier
+
+```yaml
+segment:
+  name: customer_value
+  description: Customer segmentation by lifetime value tier
+  source: duckdb://analytics.db/dim_customers
+  entity_id: customer_id
+  join_keys: [buyer_id, seller_id]
+  values:
+    - name: high_value
+      where: "lifetime_value > 1000"
+    - name: low_value
+      where: "lifetime_value <= 1000"
+```
+
+Here `customer_id` is the PK on `dim_customers`, and the `join_keys` whitelist restricts the caller to `buyer_id` or `seller_id` as the fact-table FK. At compute time you specify which one applies to the query (see [`segments` parameter](computing-metrics.md#segments)).
 
 ---
 
@@ -292,6 +327,20 @@ result = slice_spec.validate()
 if result.valid:
     print(result.referenced_columns)
     # {'values[0].where': ['region'], 'values[1].where': ['region', 'country']}
+```
+
+For segment specs:
+
+```python
+result = segment_spec.validate()
+if result.valid:
+    print(result.referenced_columns)
+    # {
+    #   'entity_id':       ['customer_id'],
+    #   'join_keys':       ['buyer_id', 'seller_id'],   # omitted when join_keys is empty
+    #   'values[0].where': ['lifetime_value'],
+    #   'values[1].where': ['lifetime_value'],
+    # }
 ```
 
 !!! note

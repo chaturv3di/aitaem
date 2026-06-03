@@ -10,7 +10,7 @@ class TestSegmentSpecFromYamlString:
     def test_valid_segment_all_fields(self, valid_segment_yaml):
         spec = SegmentSpec.from_yaml(valid_segment_yaml)
         assert spec.name == "customer_value_tier"
-        assert spec.source == "duckdb://analytics.db/customers"
+        assert spec.source == "duckdb://analytics.db/dim_customers"
         assert spec.description == "Customer segmentation by value"
         assert isinstance(spec.values, tuple)
         assert len(spec.values) == 2
@@ -28,13 +28,14 @@ class TestSegmentSpecFromYamlString:
 
     def test_source_uri_stored_correctly(self, valid_segment_yaml):
         spec = SegmentSpec.from_yaml(valid_segment_yaml)
-        assert spec.source == "duckdb://analytics.db/customers"
+        assert spec.source == "duckdb://analytics.db/dim_customers"
 
     def test_description_optional_defaults_empty(self):
         yaml_str = """
 segment:
   name: foo
   source: duckdb://db/tbl
+  entity_id: user_id
   values:
     - name: tier_a
       where: "x > 100"
@@ -161,6 +162,7 @@ source: duckdb://db/tbl
 segment:
   name: foo
   source: duckdb://db/tbl
+  entity_id: user_id
   extra_field: ignored
   values:
     - name: tier_a
@@ -177,6 +179,7 @@ class TestSegmentSpecPathMax:
 segment:
   name: padded_segment
   source: duckdb://db/tbl
+  entity_id: user_id
   description: "{padding}"
   values:
     - name: high
@@ -214,3 +217,122 @@ class TestSegmentSpecValidate:
     def test_values_tuple_is_immutable(self, valid_segment_yaml):
         spec = SegmentSpec.from_yaml(valid_segment_yaml)
         assert isinstance(spec.values, tuple)
+
+    def test_validate_referenced_columns_includes_entity_id_and_join_keys(self, valid_segment_yaml):
+        spec = SegmentSpec.from_yaml(valid_segment_yaml)
+        result = spec.validate()
+        assert result.valid is True
+        assert result.referenced_columns is not None
+        assert result.referenced_columns["entity_id"] == ["customer_id"]
+        assert result.referenced_columns["join_keys"] == ["buyer_id", "seller_id"]
+
+    def test_validate_referenced_columns_includes_where_columns(self, valid_segment_yaml):
+        spec = SegmentSpec.from_yaml(valid_segment_yaml)
+        result = spec.validate()
+        assert result.valid is True
+        assert result.referenced_columns is not None
+        assert "lifetime_value" in result.referenced_columns["values[0].where"]
+        assert "customer_status" in result.referenced_columns["values[0].where"]
+
+    def test_validate_referenced_columns_none_when_invalid(self):
+        from aitaem.utils.validation import validate_segment_spec
+
+        result = validate_segment_spec({"name": "foo", "source": "duckdb://db/tbl", "values": []})
+        assert result.valid is False
+        assert result.referenced_columns is None
+
+
+class TestSegmentSpecEntityId:
+    def test_entity_id_stored_correctly(self, valid_segment_yaml):
+        spec = SegmentSpec.from_yaml(valid_segment_yaml)
+        assert spec.entity_id == "customer_id"
+
+    def test_join_keys_stored_as_tuple(self, valid_segment_yaml):
+        spec = SegmentSpec.from_yaml(valid_segment_yaml)
+        assert isinstance(spec.join_keys, tuple)
+        assert spec.join_keys == ("buyer_id", "seller_id")
+
+    def test_join_keys_optional_defaults_empty(self):
+        yaml_str = """
+segment:
+  name: foo
+  source: duckdb://db/tbl
+  entity_id: user_id
+  values:
+    - name: tier_a
+      where: "x > 100"
+"""
+        spec = SegmentSpec.from_yaml(yaml_str)
+        assert spec.join_keys == ()
+
+    def test_missing_entity_id_raises(self):
+        yaml_str = """
+segment:
+  name: foo
+  source: duckdb://db/tbl
+  values:
+    - name: tier_a
+      where: "x > 100"
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            SegmentSpec.from_yaml(yaml_str)
+        assert any(e.field == "entity_id" for e in exc_info.value.errors)
+
+    def test_entity_id_invalid_identifier_raises(self):
+        yaml_str = """
+segment:
+  name: foo
+  source: duckdb://db/tbl
+  entity_id: "my id"
+  values:
+    - name: tier_a
+      where: "x > 100"
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            SegmentSpec.from_yaml(yaml_str)
+        assert any(e.field == "entity_id" for e in exc_info.value.errors)
+
+    def test_join_keys_empty_list_raises(self):
+        yaml_str = """
+segment:
+  name: foo
+  source: duckdb://db/tbl
+  entity_id: user_id
+  join_keys: []
+  values:
+    - name: tier_a
+      where: "x > 100"
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            SegmentSpec.from_yaml(yaml_str)
+        assert any(e.field == "join_keys" for e in exc_info.value.errors)
+
+    def test_join_keys_invalid_identifier_raises(self):
+        yaml_str = """
+segment:
+  name: foo
+  source: duckdb://db/tbl
+  entity_id: user_id
+  join_keys: ["buyer id"]
+  values:
+    - name: tier_a
+      where: "x > 100"
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            SegmentSpec.from_yaml(yaml_str)
+        assert any("join_keys" in e.field for e in exc_info.value.errors)
+
+    def test_referenced_columns_no_join_keys_key_when_absent(self):
+        yaml_str = """
+segment:
+  name: foo
+  source: duckdb://db/tbl
+  entity_id: user_id
+  values:
+    - name: tier_a
+      where: "x > 100"
+"""
+        spec = SegmentSpec.from_yaml(yaml_str)
+        result = spec.validate()
+        assert result.valid is True
+        assert "join_keys" not in (result.referenced_columns or {})

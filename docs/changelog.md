@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+### Added
+
+- **`SegmentSpec.entity_id`** — required field identifying the primary key column on the DIM
+  table. Used as the right-hand side of the generated JOIN ON condition
+  (`_dim.<entity_id>`).
+
+- **`SegmentSpec.join_keys`** — optional whitelist of fact-table FK columns that may be used
+  as join keys for this segment. When non-empty, the join key supplied at `compute()` time
+  must appear in this list; otherwise a `QueryBuildError` is raised.
+
+- **`segments` dict form in `MetricCompute.compute()`** — `segments` now accepts
+  `dict[str, str] | str | None`. The dict form maps exactly one segment name to an explicit
+  fact-table FK column, enabling the same segment spec to be joined via different columns
+  (e.g., `buyer_id` vs `seller_id` on a transactions table).
+
+- **DIM-table JOIN in generated SQL** — when a segment has `entity_id` set, aitaem generates
+  a proper JOIN from the fact table to the DIM table rather than applying segment predicates
+  inline against the fact table. Unqualified column references in `values[].where` expressions
+  are automatically qualified with `_dim.` via sqlglot AST rewriting.
+
+- **`referenced_columns` for segment specs** — `ValidationResult.referenced_columns` now
+  includes `"entity_id"`, `"join_keys"` (when non-empty), and `"values[i].where"` keys for
+  segment specs.
+
+### Changed (Breaking)
+
+- **`SegmentSpec.entity_id` is now required.** Existing segment specs without this field will
+  fail validation with a `SpecValidationError`. Add `entity_id: <dim_pk_column>` to every
+  segment spec YAML file.
+
+- **`SegmentSpec.source` is now used.** Previously parsed but ignored, `source` is now the
+  URI of the DIM table that will be joined at query time. Ensure it points to the correct DIM
+  table, not the fact table.
+
+- **`segments` in `compute()` no longer accepts `list[str]`.** The parameter type changed from
+  `str | list[str] | None` to `dict[str, str] | str | None`. Multi-segment calls are no longer
+  supported in a single `compute()` call; call `compute()` once per segment instead.
+
 ## v0.2.2 — 2026-06-01
 
 ### Added

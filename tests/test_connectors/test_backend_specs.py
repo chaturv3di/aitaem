@@ -72,8 +72,11 @@ class TestPostgresConfig:
 
     def test_explicit_host_and_port(self):
         cfg = PostgresConfig(
-            database="mydb", user="myuser", password="secret",
-            host="db.example.com", port=5433,
+            database="mydb",
+            user="myuser",
+            password="secret",
+            host="db.example.com",
+            port=5433,
         )
         assert cfg.host == "db.example.com"
         assert cfg.port == 5433

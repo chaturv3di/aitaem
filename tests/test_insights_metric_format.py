@@ -56,7 +56,12 @@ metric:
 @pytest.fixture(scope="module")
 def mc_format(ad_campaigns_connection_manager):
     cache = SpecCache.from_string(
-        metric_yaml=[_METRIC_PERCENTAGE, _METRIC_CURRENCY, _METRIC_CURRENCY_NO_CODE, _METRIC_NO_FORMAT]
+        metric_yaml=[
+            _METRIC_PERCENTAGE,
+            _METRIC_CURRENCY,
+            _METRIC_CURRENCY_NO_CODE,
+            _METRIC_NO_FORMAT,
+        ]
     )
     return MetricCompute(cache, ad_campaigns_connection_manager)
 

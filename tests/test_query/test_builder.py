@@ -64,13 +64,13 @@ def make_slice(name="geo", values=None):
     return SliceSpec(name=name, values=tuple(values))
 
 
-def make_segment(name="platform", values=None, source=DUCKDB_URI):
+def make_segment(name="platform", values=None, source=DUCKDB_URI, entity_id="user_id"):
     if values is None:
         values = (
             SegmentValue(name="Google Ads", where="platform = 'Google Ads'"),
             SegmentValue(name="Meta Ads", where="platform = 'Meta Ads'"),
         )
-    return SegmentSpec(name=name, source=source, values=tuple(values))
+    return SegmentSpec(name=name, source=source, entity_id=entity_id, values=tuple(values))
 
 
 # ---------------------------------------------------------------------------
@@ -274,11 +274,18 @@ def _run_sql_duckdb(sql: str, setup_sql: str | None = None):
 SETUP_SQL = """
 CREATE TABLE transactions AS
 SELECT * FROM (VALUES
-    ('US', 'mobile', 'premium', TRUE, 100.0, '2026-01-10'),
-    ('US', 'desktop', 'free', FALSE, 50.0, '2026-01-15'),
-    ('DE', 'mobile', 'premium', TRUE, 80.0, '2026-01-20'),
-    ('DE', 'desktop', 'free', FALSE, 40.0, '2026-01-25')
-) AS t(country_code, device_type, subscription_tier, is_logged_in, amount, event_ts)
+    (1, 'US', 'mobile', TRUE, 100.0, '2026-01-10'),
+    (2, 'US', 'desktop', FALSE, 50.0, '2026-01-15'),
+    (3, 'DE', 'mobile', TRUE, 80.0, '2026-01-20'),
+    (4, 'DE', 'desktop', FALSE, 40.0, '2026-01-25')
+) AS t(user_id, country_code, device_type, is_logged_in, amount, event_ts);
+CREATE TABLE dim_users AS
+SELECT * FROM (VALUES
+    (1, 'premium'),
+    (2, 'free'),
+    (3, 'premium'),
+    (4, 'free')
+) AS t(user_id, subscription_tier)
 """
 
 _geo_slice = SliceSpec(
@@ -297,7 +304,8 @@ _device_slice = SliceSpec(
 )
 _user_tier_segment = SegmentSpec(
     name="user_tier",
-    source=DUCKDB_URI,
+    source="duckdb://analytics.db/dim_users",
+    entity_id="user_id",
     values=(
         SegmentValue(name="premium", where="subscription_tier = 'premium'"),
         SegmentValue(name="free", where="subscription_tier = 'free'"),
@@ -322,6 +330,7 @@ class TestBuildMetricSegmentQuery:
         period_start=None,
         period_end=None,
         table="transactions",
+        segment_join_key=None,
     ):
         sql = QueryBuilder._build_metric_segment_query(
             metric=metric,
@@ -332,6 +341,7 @@ class TestBuildMetricSegmentQuery:
             period_type=period_type,
             period_start=period_start,
             period_end=period_end,
+            segment_join_key=segment_join_key,
         )
         return sql, _run_sql_duckdb(sql, SETUP_SQL)
 
@@ -437,6 +447,129 @@ class TestBuildMetricSegmentQuery:
 
 
 # ---------------------------------------------------------------------------
+# 10c. Segment DIM join SQL structure
+# ---------------------------------------------------------------------------
+
+
+class TestSegmentDimJoinSql:
+    """SQL structure and DuckDB execution tests for segment DIM join (plan 20)."""
+
+    def test_qualify_where_no_table_prefix(self):
+        result = QueryBuilder._qualify_where_with_dim_alias("subscription_tier = 'premium'")
+        assert "_dim.subscription_tier" in result
+        # bare unqualified form must not appear
+        assert "WHEN subscription_tier" not in result
+        assert result.startswith("_dim.")
+
+    def test_qualify_where_already_qualified_unchanged(self):
+        result = QueryBuilder._qualify_where_with_dim_alias("_dim.subscription_tier = 'premium'")
+        assert "_dim.subscription_tier" in result
+        # should not double-qualify
+        assert "_dim._dim." not in result
+
+    def test_qualify_where_compound_expression(self):
+        result = QueryBuilder._qualify_where_with_dim_alias(
+            "lifetime_value > 1000 AND customer_status = 'active'"
+        )
+        assert "_dim.lifetime_value" in result
+        assert "_dim.customer_status" in result
+
+    def test_segment_case_when_uses_dim_prefix(self):
+        seg = SegmentSpec(
+            name="tier",
+            source="duckdb://db/dim_users",
+            entity_id="user_id",
+            values=(
+                SegmentValue(name="premium", where="subscription_tier = 'premium'"),
+                SegmentValue(name="free", where="subscription_tier = 'free'"),
+            ),
+        )
+        expr = QueryBuilder._build_segment_case_when_expr(seg, "_segment")
+        assert "_dim.subscription_tier" in expr
+        # bare unqualified form must not appear in WHEN clauses
+        assert "WHEN subscription_tier" not in expr
+
+    def test_all_time_sql_contains_dim_join(self):
+        sql = QueryBuilder._build_metric_segment_query(
+            metric=_txn_metric,
+            table_name="transactions",
+            slice_specs=None,
+            segment_spec=_user_tier_segment,
+            time_filter_sql=None,
+            period_type="all_time",
+            period_start=None,
+            period_end=None,
+        )
+        assert "JOIN dim_users _dim ON t.user_id = _dim.user_id" in sql
+        assert "SELECT\n        t.*" in sql
+
+    def test_all_time_sql_no_segment_no_join(self):
+        sql = QueryBuilder._build_metric_segment_query(
+            metric=_txn_metric,
+            table_name="transactions",
+            slice_specs=None,
+            segment_spec=None,
+            time_filter_sql=None,
+            period_type="all_time",
+            period_start=None,
+            period_end=None,
+        )
+        assert "JOIN" not in sql
+        assert "SELECT\n        *" in sql
+
+    def test_all_time_dim_join_executes_against_duckdb(self):
+        sql = QueryBuilder._build_metric_segment_query(
+            metric=_txn_metric,
+            table_name="transactions",
+            slice_specs=None,
+            segment_spec=_user_tier_segment,
+            time_filter_sql=None,
+            period_type="all_time",
+            period_start=None,
+            period_end=None,
+        )
+        df = _run_sql_duckdb(sql, SETUP_SQL)
+        assert set(df["segment_value"]) == {"premium", "free"}
+        assert all(df["segment_name"] == "user_tier")
+        assert df["metric_value"].notna().all()
+
+    def test_explicit_join_key_used_in_sql(self):
+        seg = SegmentSpec(
+            name="tier",
+            source="duckdb://db/dim_users",
+            entity_id="user_id",
+            join_keys=("buyer_id", "seller_id"),
+            values=(SegmentValue(name="premium", where="subscription_tier = 'premium'"),),
+        )
+        sql = QueryBuilder._build_metric_segment_query(
+            metric=_txn_metric,
+            table_name="transactions",
+            slice_specs=None,
+            segment_spec=seg,
+            time_filter_sql=None,
+            period_type="all_time",
+            period_start=None,
+            period_end=None,
+            segment_join_key="buyer_id",
+        )
+        assert "ON t.buyer_id = _dim.user_id" in sql
+
+    def test_default_join_key_falls_back_to_entity_id(self):
+        sql = QueryBuilder._build_metric_segment_query(
+            metric=_txn_metric,
+            table_name="transactions",
+            slice_specs=None,
+            segment_spec=_user_tier_segment,
+            time_filter_sql=None,
+            period_type="all_time",
+            period_start=None,
+            period_end=None,
+            segment_join_key=None,
+        )
+        assert "ON t.user_id = _dim.user_id" in sql
+
+
+# ---------------------------------------------------------------------------
 # 10b. _resolve_slice_components
 # ---------------------------------------------------------------------------
 
@@ -483,35 +616,30 @@ class TestResolveSliceComponents:
 
 
 class TestBuildQueriesForMetric:
-    def test_two_segments_returns_three_queries(self):
-        seg1 = make_segment("platform")
-        seg2 = SegmentSpec(
-            name="login_status",
-            source=DUCKDB_URI,
-            values=(
-                SegmentValue(name="logged_in", where="is_logged_in = TRUE"),
-                SegmentValue(name="visitor", where="is_logged_in = FALSE"),
-            ),
-        )
+    def test_one_segment_returns_two_queries(self):
+        # 1 segment + no-segment baseline, no slices = 2 queries
+        seg = make_segment("platform")
         metric = make_metric()
         queries = QueryBuilder._build_queries_for_metric(
             metric=metric,
             slice_specs=None,
-            segment_specs=[seg1, seg2],
+            segment_spec=seg,
+            segment_join_key=None,
             time_window=None,
             period_type="all_time",
             period_start=None,
             period_end=None,
         )
-        assert len(queries) == 3
+        assert len(queries) == 2
 
     def test_no_segments_returns_two_queries(self):
-        # 1 slice spec + no-slice baseline = (1+1) × (0+1) = 2
+        # 1 slice spec + no-slice baseline = (1+1) × 1 = 2
         metric = make_metric()
         queries = QueryBuilder._build_queries_for_metric(
             metric=metric,
             slice_specs=[make_slice()],
-            segment_specs=None,
+            segment_spec=None,
+            segment_join_key=None,
             time_window=None,
             period_type="all_time",
             period_start=None,
@@ -528,30 +656,25 @@ class TestBuildQueriesForMetric:
 class TestBuildQueriesIntegration:
     def test_one_source_one_metric_no_segments(self):
         metric = make_metric()
-        groups = QueryBuilder.build_queries([metric], slice_specs=None, segment_specs=None)
+        groups = QueryBuilder.build_queries([metric], slice_specs=None, segment_spec=None)
         assert len(groups) == 1
         assert len(groups[0].sql_queries) == 1
 
-    def test_one_source_two_metrics_two_segments(self):
+    def test_one_source_two_metrics_one_segment(self):
         m1 = make_metric("revenue")
         m2 = make_ratio_metric("ctr")
-        seg1 = make_segment("platform")
-        seg2 = SegmentSpec(
-            name="login_status",
-            source=DUCKDB_URI,
-            values=(SegmentValue(name="logged_in", where="is_logged_in = TRUE"),),
-        )
-        groups = QueryBuilder.build_queries([m1, m2], slice_specs=None, segment_specs=[seg1, seg2])
+        seg = make_segment("platform")
+        groups = QueryBuilder.build_queries([m1, m2], slice_specs=None, segment_spec=seg)
         assert len(groups) == 1
-        # 2 metrics × (2 segment specs + 1 no-segment) = 6 queries
-        assert len(groups[0].sql_queries) == 6
+        # 2 metrics × (1 segment + 1 no-segment baseline) = 4 queries
+        assert len(groups[0].sql_queries) == 4
 
     def test_two_sources_correct_grouping(self):
         source2 = "duckdb://other.db/orders"
         m1 = make_metric("revenue", source=DUCKDB_URI)
         m2 = make_metric("orders", source=source2)
         m3 = make_metric("clicks", source=DUCKDB_URI)
-        groups = QueryBuilder.build_queries([m1, m2, m3], slice_specs=None, segment_specs=None)
+        groups = QueryBuilder.build_queries([m1, m2, m3], slice_specs=None, segment_spec=None)
         assert len(groups) == 2
         sources = {g.source for g in groups}
         assert sources == {DUCKDB_URI, source2}
@@ -561,14 +684,14 @@ class TestBuildQueriesIntegration:
 
     def test_raises_on_empty_metrics(self):
         with pytest.raises(QueryBuildError, match="metric_specs must not be empty"):
-            QueryBuilder.build_queries([], slice_specs=None, segment_specs=None)
+            QueryBuilder.build_queries([], slice_specs=None, segment_spec=None)
 
     def test_time_window_filters_by_metric_timestamp_col(self):
         metric = make_metric()  # has timestamp_col="event_ts"
         groups = QueryBuilder.build_queries(
             [metric],
             slice_specs=None,
-            segment_specs=None,
+            segment_spec=None,
             time_window=("2026-01-01", "2026-02-01"),
         )
         assert len(groups) == 1
@@ -582,7 +705,7 @@ class TestBuildQueriesIntegration:
             QueryBuilder.build_queries(
                 [metric],
                 slice_specs=[composite],
-                segment_specs=None,
+                segment_spec=None,
                 spec_cache=None,
             )
 
@@ -735,14 +858,14 @@ class TestByEntityBuildQueriesValidation:
         )
         with pytest.raises(QueryBuildError, match="by_entity='device_id'"):
             QueryBuilder.build_queries(
-                [metric], slice_specs=None, segment_specs=None, by_entity="device_id"
+                [metric], slice_specs=None, segment_spec=None, by_entity="device_id"
             )
 
     def test_by_entity_with_entities_none_raises(self):
         metric = make_metric()  # entities=None
         with pytest.raises(QueryBuildError, match="by_entity='user_id'"):
             QueryBuilder.build_queries(
-                [metric], slice_specs=None, segment_specs=None, by_entity="user_id"
+                [metric], slice_specs=None, segment_spec=None, by_entity="user_id"
             )
 
     def test_by_entity_valid_passes(self):
@@ -754,14 +877,14 @@ class TestByEntityBuildQueriesValidation:
             entities=["user_id", "device_id"],
         )
         groups = QueryBuilder.build_queries(
-            [metric], slice_specs=None, segment_specs=None, by_entity="user_id"
+            [metric], slice_specs=None, segment_spec=None, by_entity="user_id"
         )
         assert len(groups) == 1
 
     def test_by_entity_none_skips_validation(self):
         metric = make_metric()  # entities=None, by_entity=None → ok
         groups = QueryBuilder.build_queries(
-            [metric], slice_specs=None, segment_specs=None, by_entity=None
+            [metric], slice_specs=None, segment_spec=None, by_entity=None
         )
         assert len(groups) == 1
 
