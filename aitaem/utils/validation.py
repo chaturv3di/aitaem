@@ -52,6 +52,9 @@ class ValidationResult:
     Keys for slice leaf specs: ``"values[i].where"`` (one per value).
     Keys for wildcard slice specs: ``"where"``.
     Keys for composite slice specs: empty dict ``{}``.
+
+    Keys for segment specs: ``"entity_id"``, ``"join_keys"`` (if non-empty),
+    ``"values[i].where"`` (one per value).
     """
 
 
