@@ -58,11 +58,31 @@ df = mc.compute(metrics="ctr", slices=["campaign_type", "geo"])
 
 ### `segments`
 
-One or more segment names. Each segment is computed independently and stacked in the output.
+A segment to apply to the metric query. At most **one segment** per `compute()` call is supported.
+
+Two forms are accepted:
+
+**String** — uses the segment spec's `entity_id` as the fact-table join key (the default):
 
 ```python
 df = mc.compute(metrics="ctr", segments="platform")
 ```
+
+**Dict** — supplies an explicit fact-table FK column, overriding the default:
+
+```python
+# Join dim_customers on the buyer_id column of the fact table
+df = mc.compute(metrics="revenue", segments={"customer_value": "buyer_id"})
+
+# Same segment, different fact-side join key — seller's perspective
+df = mc.compute(metrics="revenue", segments={"customer_value": "seller_id"})
+```
+
+The dict form is required when the fact table exposes multiple FK columns that can join to the same DIM (e.g. a transactions table with both `buyer_id` and `seller_id`).
+
+!!! note
+    When `join_keys` is set on the segment spec, the explicit join key must appear in that
+    whitelist; otherwise a `QueryBuildError` is raised.
 
 ### `time_window`
 
@@ -206,6 +226,8 @@ This produces rows for:
 | Exception | Raised when |
 |-----------|-------------|
 | `SpecNotFoundError` | A metric, slice, or segment name is not in the cache |
+| `QueryBuildError` | `segments` dict has more than one entry |
+| `QueryBuildError` | The explicit join key in the `segments` dict is not in the spec's `join_keys` whitelist (when the whitelist is non-empty) |
 | `QueryBuildError` | `time_window` is set but a metric has no `timestamp_col` |
 | `QueryBuildError` | `by_entity` is set but a metric does not list it in `entities` |
 | `QueryExecutionError` | All query groups fail to execute |
