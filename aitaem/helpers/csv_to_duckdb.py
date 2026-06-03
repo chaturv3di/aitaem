@@ -80,8 +80,7 @@ def load_csvs_to_duckdb(
             csv_str = str(csv_file)
             if overwrite:
                 con.execute(
-                    f"CREATE OR REPLACE TABLE {table_name} AS "
-                    f"SELECT * FROM read_csv_auto(?)",
+                    f"CREATE OR REPLACE TABLE {table_name} AS SELECT * FROM read_csv_auto(?)",
                     [csv_str],
                 )
                 logger.debug("Created table '%s' from '%s'.", table_name, csv_file.name)

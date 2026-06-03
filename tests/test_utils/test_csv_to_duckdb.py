@@ -75,11 +75,13 @@ class TestDirectory:
         db_path = tmp_path / "test.db"
         conn = load_csvs_to_duckdb(csv_dir, db_path)
         from aitaem.utils.exceptions import TableNotFoundError
+
         with pytest.raises(TableNotFoundError):
             conn.get_table("bad-name")
 
     def test_skips_invalid_logs_warning(self, csv_dir, tmp_path, caplog):
         import logging
+
         db_path = tmp_path / "test.db"
         with caplog.at_level(logging.WARNING, logger="aitaem.utils.csv_to_duckdb"):
             load_csvs_to_duckdb(csv_dir, db_path)

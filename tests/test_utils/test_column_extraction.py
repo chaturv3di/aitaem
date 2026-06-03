@@ -11,6 +11,7 @@ from aitaem.utils.validation import (
 # _extract_columns_from_sql
 # ---------------------------------------------------------------------------
 
+
 class TestExtractColumnsFromSql:
     def test_simple_aggregate(self):
         assert _extract_columns_from_sql("SUM(revenue)") == ["revenue"]
@@ -106,7 +107,10 @@ class TestMetricReferencedColumns:
         assert result.referenced_columns["numerator"] == []
 
     def test_complex_numerator_extracts_multiple_columns(self):
-        spec = {**VALID_METRIC, "numerator": "SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END)"}
+        spec = {
+            **VALID_METRIC,
+            "numerator": "SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END)",
+        }
         result = validate_metric_spec(spec)
         assert result.valid
         cols = result.referenced_columns["numerator"]
@@ -129,6 +133,7 @@ class TestMetricReferencedColumns:
 # ---------------------------------------------------------------------------
 # validate_slice_spec — referenced_columns
 # ---------------------------------------------------------------------------
+
 
 class TestSliceReferencedColumns:
     def test_leaf_single_value(self):

@@ -116,11 +116,14 @@ metric:
             load_yaml_spec_dict("", "slice")
         assert exc_info.value.spec_type == "slice"
 
-    @pytest.mark.parametrize("spec_type,yaml_str", [
-        ("metric", VALID_METRIC_YAML),
-        ("slice", VALID_SLICE_YAML),
-        ("segment", VALID_SEGMENT_YAML),
-    ])
+    @pytest.mark.parametrize(
+        "spec_type,yaml_str",
+        [
+            ("metric", VALID_METRIC_YAML),
+            ("slice", VALID_SLICE_YAML),
+            ("segment", VALID_SEGMENT_YAML),
+        ],
+    )
     def test_correct_dict_returned_for_each_spec_type(self, spec_type, yaml_str):
         result = load_yaml_spec_dict(yaml_str, spec_type)
         assert result["name"] == f"test_{spec_type}"

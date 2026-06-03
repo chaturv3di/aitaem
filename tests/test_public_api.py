@@ -42,13 +42,21 @@ class TestExceptionExports:
 
     def test_aitaem_connection_error_does_not_shadow_builtin(self):
         import builtins
+
         assert aitaem.AitaemConnectionError is not builtins.ConnectionError
 
     def test_exceptions_are_aitaem_error_subclasses(self):
         for name in [
-            "AitaemConnectionError", "ConnectionNotFoundError", "TableNotFoundError",
-            "ConfigurationError", "InvalidURIError", "UnsupportedBackendError",
-            "QueryBuildError", "QueryExecutionError", "SpecValidationError", "SpecNotFoundError",
+            "AitaemConnectionError",
+            "ConnectionNotFoundError",
+            "TableNotFoundError",
+            "ConfigurationError",
+            "InvalidURIError",
+            "UnsupportedBackendError",
+            "QueryBuildError",
+            "QueryExecutionError",
+            "SpecValidationError",
+            "SpecNotFoundError",
         ]:
             cls = getattr(aitaem, name)
             assert issubclass(cls, aitaem.AitaemError), f"{name} is not a subclass of AitaemError"
@@ -72,6 +80,7 @@ class TestPeriodTypeExports:
 
     def test_valid_period_types_derived_from_literal(self):
         from typing import get_args
+
         assert aitaem.VALID_PERIOD_TYPES == frozenset(get_args(aitaem.PeriodType))
 
 
@@ -81,10 +90,12 @@ class TestIbisConnectorExport:
 
     def test_ibis_connector_same_object(self):
         from aitaem.connectors.ibis_connector import IbisConnector as _IbisConnector
+
         assert aitaem.IbisConnector is _IbisConnector
 
     def test_ibis_connector_is_class(self):
         import inspect
+
         assert inspect.isclass(aitaem.IbisConnector)
 
 
@@ -94,6 +105,7 @@ class TestStandardColumnsExport:
 
     def test_standard_columns_same_object(self):
         from aitaem.utils.formatting import STANDARD_COLUMNS as _SC
+
         assert aitaem.STANDARD_COLUMNS is _SC
 
     def test_standard_columns_is_list_of_strings(self):
@@ -102,9 +114,17 @@ class TestStandardColumnsExport:
 
     def test_standard_columns_contains_expected_columns(self):
         expected = {
-            "period_type", "period_start_date", "period_end_date",
-            "entity_id", "metric_name", "metric_format", "slice_type", "slice_value",
-            "segment_name", "segment_value", "metric_value",
+            "period_type",
+            "period_start_date",
+            "period_end_date",
+            "entity_id",
+            "metric_name",
+            "metric_format",
+            "slice_type",
+            "slice_value",
+            "segment_name",
+            "segment_value",
+            "metric_value",
         }
         assert expected == set(aitaem.STANDARD_COLUMNS)
 
@@ -115,6 +135,7 @@ class TestMetricFormatValuesExport:
 
     def test_metric_format_values_same_object(self):
         from aitaem.utils.validation import METRIC_FORMAT_VALUES as _MFV
+
         assert aitaem.METRIC_FORMAT_VALUES is _MFV
 
     def test_metric_format_values_is_frozenset(self):
@@ -135,6 +156,7 @@ class TestSpecTypeExports:
         from aitaem.specs.metric import MetricSpec as _MS
         from aitaem.specs.slice import SliceSpec as _SS, SliceValue as _SV
         from aitaem.specs.segment import SegmentSpec as _SeS, SegmentValue as _SeV
+
         assert aitaem.MetricSpec is _MS
         assert aitaem.SliceSpec is _SS
         assert aitaem.SliceValue is _SV
@@ -143,6 +165,12 @@ class TestSpecTypeExports:
 
     def test_spec_types_are_classes(self):
         import inspect
-        for cls in [aitaem.MetricSpec, aitaem.SliceSpec, aitaem.SliceValue,
-                    aitaem.SegmentSpec, aitaem.SegmentValue]:
+
+        for cls in [
+            aitaem.MetricSpec,
+            aitaem.SliceSpec,
+            aitaem.SliceValue,
+            aitaem.SegmentSpec,
+            aitaem.SegmentValue,
+        ]:
             assert inspect.isclass(cls)

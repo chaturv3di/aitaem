@@ -382,9 +382,7 @@ class TestPostgresConnectionManagement:
         mock_ibis = mocker.MagicMock()
         mocker.patch.object(ibis_connector_module, "ibis", mock_ibis)
         manager = ConnectionManager()
-        manager.add_connection(
-            "postgres", database="mydb", user="myuser", password="secret"
-        )
+        manager.add_connection("postgres", database="mydb", user="myuser", password="secret")
         assert "postgres" in manager._connections
         assert manager._connections["postgres"].is_connected
 

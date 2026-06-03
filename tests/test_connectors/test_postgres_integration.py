@@ -51,12 +51,8 @@ def test_table(pg_connector):
     table_name = "aitaem_test_integration"
     with raw_conn.cursor() as cur:
         cur.execute(f"DROP TABLE IF EXISTS {table_name}")
-        cur.execute(
-            f"CREATE TABLE {table_name} (id INT, value TEXT)"
-        )
-        cur.execute(
-            f"INSERT INTO {table_name} VALUES (1, 'alpha'), (2, 'beta'), (3, 'gamma')"
-        )
+        cur.execute(f"CREATE TABLE {table_name} (id INT, value TEXT)")
+        cur.execute(f"INSERT INTO {table_name} VALUES (1, 'alpha'), (2, 'beta'), (3, 'gamma')")
     raw_conn.commit()
 
     yield table_name
