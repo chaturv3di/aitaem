@@ -27,8 +27,10 @@ class SegmentValue:
 class SegmentSpec:
     name: str
     source: str
+    entity_id: str
     values: tuple[SegmentValue, ...]
     description: str = ""
+    join_keys: tuple[str, ...] = ()
 
     @classmethod
     def from_yaml(cls, yaml_input: str | Path) -> "SegmentSpec":
@@ -49,24 +51,33 @@ class SegmentSpec:
             raise SpecValidationError("segment", name, result.errors)
 
         values = tuple(SegmentValue(name=v["name"], where=v["where"]) for v in spec_dict["values"])
+        raw_join_keys = spec_dict.get("join_keys") or []
+        join_keys = tuple(raw_join_keys) if isinstance(raw_join_keys, list) else ()
 
-        unknown_fields = set(spec_dict.keys()) - {"name", "source", "values", "description"}
+        unknown_fields = set(spec_dict.keys()) - {
+            "name", "source", "entity_id", "values", "description", "join_keys"
+        }
         if unknown_fields:
             logger.debug("SegmentSpec '%s': ignoring unknown fields: %s", name, unknown_fields)
 
         return cls(
             name=spec_dict["name"],
             source=spec_dict["source"],
+            entity_id=spec_dict["entity_id"],
             values=values,
             description=spec_dict.get("description", ""),
+            join_keys=join_keys,
         )
 
     def validate(self) -> ValidationResult:
         """Validate spec fields and return a ValidationResult (does not raise)."""
-        spec_dict = {
+        spec_dict: dict = {
             "name": self.name,
             "source": self.source,
+            "entity_id": self.entity_id,
             "values": [{"name": v.name, "where": v.where} for v in self.values],
             "description": self.description,
         }
+        if self.join_keys:
+            spec_dict["join_keys"] = list(self.join_keys)
         return validate_segment_spec(spec_dict)

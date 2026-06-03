@@ -498,6 +498,50 @@ def validate_segment_spec(spec_dict: dict) -> ValidationResult:
         if uri_error:
             errors.append(uri_error)
 
+    entity_id = spec_dict.get("entity_id")
+    if not entity_id or not isinstance(entity_id, str) or not entity_id.strip():
+        errors.append(
+            ValidationError(
+                field="entity_id",
+                message="'entity_id' is required and must be a non-empty string",
+                suggestion="Set 'entity_id' to the primary key column of the DIM table, e.g. 'entity_id: user_id'",
+            )
+        )
+    elif not _is_valid_column_identifier(entity_id.strip()):
+        errors.append(
+            ValidationError(
+                field="entity_id",
+                message=f"'entity_id' must be a plain column identifier, got: '{entity_id}'",
+                suggestion="Use a simple column name such as 'user_id' or 'customer_id'",
+            )
+        )
+
+    join_keys = spec_dict.get("join_keys")
+    if join_keys is not None:
+        if not isinstance(join_keys, list) or len(join_keys) == 0:
+            errors.append(
+                ValidationError(
+                    field="join_keys",
+                    message="'join_keys' must be a non-empty list of column name strings",
+                )
+            )
+        else:
+            for i, key in enumerate(join_keys):
+                if not isinstance(key, str) or not key.strip():
+                    errors.append(
+                        ValidationError(
+                            field=f"join_keys[{i}]",
+                            message=f"'join_keys' entry at index {i} must be a non-empty string",
+                        )
+                    )
+                elif not _is_valid_column_identifier(key.strip()):
+                    errors.append(
+                        ValidationError(
+                            field=f"join_keys[{i}]",
+                            message=f"'join_keys' entry '{key}' must be a plain column identifier",
+                        )
+                    )
+
     values = spec_dict.get("values")
     if values is None or not isinstance(values, list) or len(values) == 0:
         errors.append(
@@ -508,4 +552,21 @@ def validate_segment_spec(spec_dict: dict) -> ValidationResult:
     else:
         _validate_values_list(values, "Segment", errors)
 
-    return ValidationResult(valid=len(errors) == 0, errors=errors)
+    referenced_columns: dict[str, list[str]] | None = None
+    if not errors:
+        col_map: dict[str, list[str]] = {}
+        assert isinstance(entity_id, str)
+        col_map["entity_id"] = [entity_id.strip()]
+        if join_keys and isinstance(join_keys, list):
+            col_map["join_keys"] = [k.strip() for k in join_keys if isinstance(k, str) and k.strip()]
+        assert isinstance(values, list)
+        for i, value in enumerate(values):
+            if isinstance(value, dict):
+                where_expr = value.get("where", "")
+                if where_expr and isinstance(where_expr, str):
+                    col_map[f"values[{i}].where"] = _extract_columns_from_sql(
+                        where_expr, context="where"
+                    )
+        referenced_columns = col_map
+
+    return ValidationResult(valid=len(errors) == 0, errors=errors, referenced_columns=referenced_columns)

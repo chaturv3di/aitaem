@@ -39,7 +39,9 @@ VALID_SEGMENT_YAML = """
 segment:
   name: customer_value_tier
   description: Customer segmentation by value
-  source: duckdb://analytics.db/customers
+  source: duckdb://analytics.db/dim_customers
+  entity_id: customer_id
+  join_keys: [buyer_id, seller_id]
   values:
     - name: high_value
       where: "lifetime_value > 1000 AND customer_status = 'active'"
