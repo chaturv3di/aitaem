@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.3.1 — 2026-06-03
+
 ### Added
 
 - **`MetricCompute.scan()`** — pre-flight compatibility scan that introspects source table
