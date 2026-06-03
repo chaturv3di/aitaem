@@ -1214,8 +1214,7 @@ valid table name.</p>
 <span class="normal"><a href="#__codelineno-0-109">109</a></span>
 <span class="normal"><a href="#__codelineno-0-110">110</a></span>
 <span class="normal"><a href="#__codelineno-0-111">111</a></span>
-<span class="normal"><a href="#__codelineno-0-112">112</a></span>
-<span class="normal"><a href="#__codelineno-0-113">113</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-20" name="__codelineno-0-20"></a><span class="k">def</span><span class="w"> </span><span class="nf">load_csvs_to_duckdb</span><span class="p">(</span>
+<span class="normal"><a href="#__codelineno-0-112">112</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-20" name="__codelineno-0-20"></a><span class="k">def</span><span class="w"> </span><span class="nf">load_csvs_to_duckdb</span><span class="p">(</span>
 <a id="__codelineno-0-21" name="__codelineno-0-21"></a>    <span class="n">csv_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
 <a id="__codelineno-0-22" name="__codelineno-0-22"></a>    <span class="n">db_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
 <a id="__codelineno-0-23" name="__codelineno-0-23"></a>    <span class="n">overwrite</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
@@ -1278,37 +1277,36 @@ valid table name.</p>
 <a id="__codelineno-0-80" name="__codelineno-0-80"></a>            <span class="n">csv_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">csv_file</span><span class="p">)</span>
 <a id="__codelineno-0-81" name="__codelineno-0-81"></a>            <span class="k">if</span> <span class="n">overwrite</span><span class="p">:</span>
 <a id="__codelineno-0-82" name="__codelineno-0-82"></a>                <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-83" name="__codelineno-0-83"></a>                    <span class="sa">f</span><span class="s2">&quot;CREATE OR REPLACE TABLE </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s2"> AS &quot;</span>
-<a id="__codelineno-0-84" name="__codelineno-0-84"></a>                    <span class="sa">f</span><span class="s2">&quot;SELECT * FROM read_csv_auto(?)&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-85" name="__codelineno-0-85"></a>                    <span class="p">[</span><span class="n">csv_str</span><span class="p">],</span>
-<a id="__codelineno-0-86" name="__codelineno-0-86"></a>                <span class="p">)</span>
-<a id="__codelineno-0-87" name="__codelineno-0-87"></a>                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Created table &#39;</span><span class="si">%s</span><span class="s2">&#39; from &#39;</span><span class="si">%s</span><span class="s2">&#39;.&quot;</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">csv_file</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-<a id="__codelineno-0-88" name="__codelineno-0-88"></a>            <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-89" name="__codelineno-0-89"></a>                <span class="n">exists</span> <span class="o">=</span> <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-90" name="__codelineno-0-90"></a>                    <span class="s2">&quot;SELECT 1 FROM information_schema.tables &quot;</span>
-<a id="__codelineno-0-91" name="__codelineno-0-91"></a>                    <span class="s2">&quot;WHERE table_schema = &#39;main&#39; AND table_name = ?&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-92" name="__codelineno-0-92"></a>                    <span class="p">[</span><span class="n">table_name</span><span class="p">],</span>
-<a id="__codelineno-0-93" name="__codelineno-0-93"></a>                <span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span>
-<a id="__codelineno-0-94" name="__codelineno-0-94"></a>                <span class="k">if</span> <span class="n">exists</span><span class="p">:</span>
-<a id="__codelineno-0-95" name="__codelineno-0-95"></a>                    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-96" name="__codelineno-0-96"></a>                        <span class="sa">f</span><span class="s2">&quot;INSERT INTO </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s2"> SELECT * FROM read_csv_auto(?)&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-97" name="__codelineno-0-97"></a>                        <span class="p">[</span><span class="n">csv_str</span><span class="p">],</span>
-<a id="__codelineno-0-98" name="__codelineno-0-98"></a>                    <span class="p">)</span>
-<a id="__codelineno-0-99" name="__codelineno-0-99"></a>                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-<a id="__codelineno-0-100" name="__codelineno-0-100"></a>                        <span class="s2">&quot;Appended rows to table &#39;</span><span class="si">%s</span><span class="s2">&#39; from &#39;</span><span class="si">%s</span><span class="s2">&#39;.&quot;</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">csv_file</span><span class="o">.</span><span class="n">name</span>
-<a id="__codelineno-0-101" name="__codelineno-0-101"></a>                    <span class="p">)</span>
-<a id="__codelineno-0-102" name="__codelineno-0-102"></a>                <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-103" name="__codelineno-0-103"></a>                    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-104" name="__codelineno-0-104"></a>                        <span class="sa">f</span><span class="s2">&quot;CREATE TABLE </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s2"> AS SELECT * FROM read_csv_auto(?)&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-105" name="__codelineno-0-105"></a>                        <span class="p">[</span><span class="n">csv_str</span><span class="p">],</span>
-<a id="__codelineno-0-106" name="__codelineno-0-106"></a>                    <span class="p">)</span>
-<a id="__codelineno-0-107" name="__codelineno-0-107"></a>                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Created table &#39;</span><span class="si">%s</span><span class="s2">&#39; from &#39;</span><span class="si">%s</span><span class="s2">&#39;.&quot;</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">csv_file</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-<a id="__codelineno-0-108" name="__codelineno-0-108"></a>    <span class="k">finally</span><span class="p">:</span>
-<a id="__codelineno-0-109" name="__codelineno-0-109"></a>        <span class="n">con</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-<a id="__codelineno-0-110" name="__codelineno-0-110"></a>
-<a id="__codelineno-0-111" name="__codelineno-0-111"></a>    <span class="n">connector</span> <span class="o">=</span> <span class="n">IbisConnector</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-112" name="__codelineno-0-112"></a>    <span class="n">connector</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">db_path</span><span class="p">))</span>
-<a id="__codelineno-0-113" name="__codelineno-0-113"></a>    <span class="k">return</span> <span class="n">connector</span>
+<a id="__codelineno-0-83" name="__codelineno-0-83"></a>                    <span class="sa">f</span><span class="s2">&quot;CREATE OR REPLACE TABLE </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s2"> AS SELECT * FROM read_csv_auto(?)&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-84" name="__codelineno-0-84"></a>                    <span class="p">[</span><span class="n">csv_str</span><span class="p">],</span>
+<a id="__codelineno-0-85" name="__codelineno-0-85"></a>                <span class="p">)</span>
+<a id="__codelineno-0-86" name="__codelineno-0-86"></a>                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Created table &#39;</span><span class="si">%s</span><span class="s2">&#39; from &#39;</span><span class="si">%s</span><span class="s2">&#39;.&quot;</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">csv_file</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+<a id="__codelineno-0-87" name="__codelineno-0-87"></a>            <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-0-88" name="__codelineno-0-88"></a>                <span class="n">exists</span> <span class="o">=</span> <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<a id="__codelineno-0-89" name="__codelineno-0-89"></a>                    <span class="s2">&quot;SELECT 1 FROM information_schema.tables &quot;</span>
+<a id="__codelineno-0-90" name="__codelineno-0-90"></a>                    <span class="s2">&quot;WHERE table_schema = &#39;main&#39; AND table_name = ?&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-91" name="__codelineno-0-91"></a>                    <span class="p">[</span><span class="n">table_name</span><span class="p">],</span>
+<a id="__codelineno-0-92" name="__codelineno-0-92"></a>                <span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span>
+<a id="__codelineno-0-93" name="__codelineno-0-93"></a>                <span class="k">if</span> <span class="n">exists</span><span class="p">:</span>
+<a id="__codelineno-0-94" name="__codelineno-0-94"></a>                    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<a id="__codelineno-0-95" name="__codelineno-0-95"></a>                        <span class="sa">f</span><span class="s2">&quot;INSERT INTO </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s2"> SELECT * FROM read_csv_auto(?)&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-96" name="__codelineno-0-96"></a>                        <span class="p">[</span><span class="n">csv_str</span><span class="p">],</span>
+<a id="__codelineno-0-97" name="__codelineno-0-97"></a>                    <span class="p">)</span>
+<a id="__codelineno-0-98" name="__codelineno-0-98"></a>                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+<a id="__codelineno-0-99" name="__codelineno-0-99"></a>                        <span class="s2">&quot;Appended rows to table &#39;</span><span class="si">%s</span><span class="s2">&#39; from &#39;</span><span class="si">%s</span><span class="s2">&#39;.&quot;</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">csv_file</span><span class="o">.</span><span class="n">name</span>
+<a id="__codelineno-0-100" name="__codelineno-0-100"></a>                    <span class="p">)</span>
+<a id="__codelineno-0-101" name="__codelineno-0-101"></a>                <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-0-102" name="__codelineno-0-102"></a>                    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<a id="__codelineno-0-103" name="__codelineno-0-103"></a>                        <span class="sa">f</span><span class="s2">&quot;CREATE TABLE </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s2"> AS SELECT * FROM read_csv_auto(?)&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-104" name="__codelineno-0-104"></a>                        <span class="p">[</span><span class="n">csv_str</span><span class="p">],</span>
+<a id="__codelineno-0-105" name="__codelineno-0-105"></a>                    <span class="p">)</span>
+<a id="__codelineno-0-106" name="__codelineno-0-106"></a>                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Created table &#39;</span><span class="si">%s</span><span class="s2">&#39; from &#39;</span><span class="si">%s</span><span class="s2">&#39;.&quot;</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">csv_file</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+<a id="__codelineno-0-107" name="__codelineno-0-107"></a>    <span class="k">finally</span><span class="p">:</span>
+<a id="__codelineno-0-108" name="__codelineno-0-108"></a>        <span class="n">con</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<a id="__codelineno-0-109" name="__codelineno-0-109"></a>
+<a id="__codelineno-0-110" name="__codelineno-0-110"></a>    <span class="n">connector</span> <span class="o">=</span> <span class="n">IbisConnector</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-111" name="__codelineno-0-111"></a>    <span class="n">connector</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">db_path</span><span class="p">))</span>
+<a id="__codelineno-0-112" name="__codelineno-0-112"></a>    <span class="k">return</span> <span class="n">connector</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>

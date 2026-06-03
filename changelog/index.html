@@ -880,6 +880,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Unreleased">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed-breaking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed (Breaking)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -895,7 +923,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added" class="md-nav__link">
+  <a href="#added_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -923,7 +951,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added_1" class="md-nav__link">
+  <a href="#added_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -934,7 +962,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed-breaking" class="md-nav__link">
+  <a href="#changed-breaking_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed (Breaking)
@@ -962,7 +990,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed-breaking_1" class="md-nav__link">
+  <a href="#changed-breaking_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed (Breaking)
@@ -973,7 +1001,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added_2" class="md-nav__link">
+  <a href="#added_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1001,7 +1029,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added_3" class="md-nav__link">
+  <a href="#added_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1062,7 +1090,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added_4" class="md-nav__link">
+  <a href="#added_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1164,6 +1192,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Unreleased">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed-breaking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed (Breaking)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1179,7 +1235,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added" class="md-nav__link">
+  <a href="#added_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1207,7 +1263,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added_1" class="md-nav__link">
+  <a href="#added_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1218,7 +1274,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed-breaking" class="md-nav__link">
+  <a href="#changed-breaking_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed (Breaking)
@@ -1246,7 +1302,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed-breaking_1" class="md-nav__link">
+  <a href="#changed-breaking_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed (Breaking)
@@ -1257,7 +1313,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added_2" class="md-nav__link">
+  <a href="#added_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1285,7 +1341,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added_3" class="md-nav__link">
+  <a href="#added_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1346,7 +1402,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added_4" class="md-nav__link">
+  <a href="#added_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1427,8 +1483,56 @@
 
 <h1 id="changelog">Changelog</h1>
 <h2 id="unreleased">Unreleased</h2>
-<h2 id="v022-2026-06-01">v0.2.2 — 2026-06-01</h2>
 <h3 id="added">Added</h3>
+<ul>
+<li>
+<p><strong><code>SegmentSpec.entity_id</code></strong> — required field identifying the primary key column on the DIM
+  table. Used as the right-hand side of the generated JOIN ON condition
+  (<code>_dim.&lt;entity_id&gt;</code>).</p>
+</li>
+<li>
+<p><strong><code>SegmentSpec.join_keys</code></strong> — optional whitelist of fact-table FK columns that may be used
+  as join keys for this segment. When non-empty, the join key supplied at <code>compute()</code> time
+  must appear in this list; otherwise a <code>QueryBuildError</code> is raised.</p>
+</li>
+<li>
+<p><strong><code>segments</code> dict form in <code>MetricCompute.compute()</code></strong> — <code>segments</code> now accepts
+  <code>dict[str, str] | str | None</code>. The dict form maps exactly one segment name to an explicit
+  fact-table FK column, enabling the same segment spec to be joined via different columns
+  (e.g., <code>buyer_id</code> vs <code>seller_id</code> on a transactions table).</p>
+</li>
+<li>
+<p><strong>DIM-table JOIN in generated SQL</strong> — when a segment has <code>entity_id</code> set, aitaem generates
+  a proper JOIN from the fact table to the DIM table rather than applying segment predicates
+  inline against the fact table. Unqualified column references in <code>values[].where</code> expressions
+  are automatically qualified with <code>_dim.</code> via sqlglot AST rewriting.</p>
+</li>
+<li>
+<p><strong><code>referenced_columns</code> for segment specs</strong> — <code>ValidationResult.referenced_columns</code> now
+  includes <code>"entity_id"</code>, <code>"join_keys"</code> (when non-empty), and <code>"values[i].where"</code> keys for
+  segment specs.</p>
+</li>
+</ul>
+<h3 id="changed-breaking">Changed (Breaking)</h3>
+<ul>
+<li>
+<p><strong><code>SegmentSpec.entity_id</code> is now required.</strong> Existing segment specs without this field will
+  fail validation with a <code>SpecValidationError</code>. Add <code>entity_id: &lt;dim_pk_column&gt;</code> to every
+  segment spec YAML file.</p>
+</li>
+<li>
+<p><strong><code>SegmentSpec.source</code> is now used.</strong> Previously parsed but ignored, <code>source</code> is now the
+  URI of the DIM table that will be joined at query time. Ensure it points to the correct DIM
+  table, not the fact table.</p>
+</li>
+<li>
+<p><strong><code>segments</code> in <code>compute()</code> no longer accepts <code>list[str]</code>.</strong> The parameter type changed from
+  <code>str | list[str] | None</code> to <code>dict[str, str] | str | None</code>. Multi-segment calls are no longer
+  supported in a single <code>compute()</code> call; call <code>compute()</code> once per segment instead.</p>
+</li>
+</ul>
+<h2 id="v022-2026-06-01">v0.2.2 — 2026-06-01</h2>
+<h3 id="added_1">Added</h3>
 <ul>
 <li><strong><code>ValidationResult.referenced_columns</code></strong> — populated on successful spec validation; a
   <code>dict[str, list[str]]</code> mapping each spec field to the unqualified column names it references.
@@ -1438,7 +1542,7 @@
   for usage.</li>
 </ul>
 <h2 id="v021-2026-05-28">v0.2.1 — 2026-05-28</h2>
-<h3 id="added_1">Added</h3>
+<h3 id="added_2">Added</h3>
 <ul>
 <li>
 <p><strong><code>MetricSpec.format</code></strong> — optional metadata field for metric value interpretation.
@@ -1463,14 +1567,14 @@
   format values: <code>{"percentage", "absolute", "ratio", "currency"}</code>.</p>
 </li>
 </ul>
-<h3 id="changed-breaking">Changed (Breaking)</h3>
+<h3 id="changed-breaking_1">Changed (Breaking)</h3>
 <ul>
 <li><strong><code>STANDARD_COLUMNS</code></strong> now has <strong>11 entries</strong>. The <code>metric_format</code> column is inserted at
   index 5 (after <code>metric_name</code>). Code that relies on column position or count (e.g.
   <code>df.iloc[:, 9]</code>) must be updated.</li>
 </ul>
 <h2 id="v020-2026-05-27">v0.2.0 — 2026-05-27</h2>
-<h3 id="changed-breaking_1">Changed (Breaking)</h3>
+<h3 id="changed-breaking_2">Changed (Breaking)</h3>
 <ul>
 <li><code>MetricSpec</code>, <code>SliceSpec</code>, <code>SegmentSpec</code>: the <code>name</code> field is now validated as a
   SQL identifier at load time. Names must match <code>^[A-Za-z_][A-Za-z0-9_]*$</code> — letters,
@@ -1498,7 +1602,7 @@
 </ul>
 <p><strong>Migration:</strong> replace any <code>except ConnectionError</code> or <code>from aitaem... import ConnectionError</code>
   with <code>AitaemConnectionError</code>, which is now importable directly from <code>aitaem</code>.</p>
-<h3 id="added_2">Added</h3>
+<h3 id="added_3">Added</h3>
 <ul>
 <li><code>STANDARD_COLUMNS: list[str]</code> is now importable directly from <code>aitaem</code>. Contains the
   ordered list of column names that <code>MetricCompute.compute()</code> always returns:
@@ -1520,7 +1624,7 @@
   properties for iterating over all loaded specs without individual <code>get_*</code> lookups.</li>
 </ul>
 <h2 id="v015-2026-04-22">v0.1.5 — 2026-04-22</h2>
-<h3 id="added_3">Added</h3>
+<h3 id="added_4">Added</h3>
 <ul>
 <li><code>SliceSpec</code>: new wildcard variant — set <code>where: &lt;column_name&gt;</code> at the spec level
   (instead of listing <code>values</code>) to auto-populate slice values from the column's distinct
@@ -1547,7 +1651,7 @@
 <li>Ensure <code>numerator</code> (and <code>denominator</code> when present) contain an explicit aggregate function call
   such as <code>SUM(col)</code>, <code>AVG(col)</code>, <code>COUNT(*)</code>, <code>MIN(col)</code>, or <code>MAX(col)</code>.</li>
 </ul>
-<h3 id="added_4">Added</h3>
+<h3 id="added_5">Added</h3>
 <ul>
 <li><code>MetricSpec</code>: new optional <code>entities</code> field — declares which entity columns the metric supports for disaggregation (e.g. <code>entities: [user_id, device_id]</code>). Must be a non-empty list if provided.</li>
 <li><code>MetricCompute.compute()</code>: new <code>by_entity</code> parameter — groups results by an entity column declared in each metric's <code>entities</code> list; raises <code>QueryBuildError</code> if any metric does not support the requested entity column.</li>
