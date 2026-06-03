@@ -998,6 +998,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compatibility
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compatibility">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compatibilityresult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CompatibilityResult
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scanresult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScanResult
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#metricspec" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1537,6 +1576,45 @@
     <span class="md-ellipsis">
       
         referenced_columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compatibility
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compatibility">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compatibilityresult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CompatibilityResult
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scanresult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScanResult
       
     </span>
   </a>
@@ -3202,6 +3280,98 @@ invalid, the field is <code>None</code> — not an empty dict.</p>
 <p>Column names are <strong>unqualified</strong> — for <code>SUM(t.revenue)</code> the extracted name is <code>"revenue"</code>,
 not <code>"t.revenue"</code>. This is sufficient for single-source specs where each <code>MetricSpec.source</code>
 points to one table.</p>
+<hr />
+<h2 id="compatibility">Compatibility</h2>
+<p><code>CompatibilityResult</code> and <code>ScanResult</code> are returned by <code>MetricCompute.scan()</code>. They carry the
+pre-flight compatibility verdict for every metric × slice and metric × segment pair loaded into
+a <code>SpecCache</code>.</p>
+<h3 id="compatibilityresult">CompatibilityResult</h3>
+<p>One result per metric × spec pair.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>metric_name</code></td>
+<td><code>str</code></td>
+<td>Name of the metric</td>
+</tr>
+<tr>
+<td><code>spec_name</code></td>
+<td><code>str</code></td>
+<td>Name of the slice or segment</td>
+</tr>
+<tr>
+<td><code>spec_type</code></td>
+<td><code>Literal["slice", "segment"]</code></td>
+<td>Which kind of spec this row covers</td>
+</tr>
+<tr>
+<td><code>compatible</code></td>
+<td><code>bool</code></td>
+<td><code>True</code> when the spec is usable with this metric</td>
+</tr>
+<tr>
+<td><code>valid_join_keys</code></td>
+<td><code>list[str]</code></td>
+<td><em>Segment only</em> — join-key candidates present in the metric's source table</td>
+</tr>
+<tr>
+<td><code>missing_columns</code></td>
+<td><code>list[str]</code></td>
+<td>Columns (slices) or join-key candidates (segments) absent from the source table</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>str \| None</code></td>
+<td>Human-readable explanation when <code>compatible</code> is <code>False</code>; <code>None</code> when <code>compatible</code> is <code>True</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="scanresult">ScanResult</h3>
+<p>Container for the full compatibility matrix. The <code>results</code> tuple holds every
+<code>CompatibilityResult</code> in metric-declaration order.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Returns</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>compatible_slices(metric_name)</code></td>
+<td><code>list[str]</code></td>
+<td>Names of slices compatible with the given metric</td>
+</tr>
+<tr>
+<td><code>compatible_segments(metric_name)</code></td>
+<td><code>list[str]</code></td>
+<td>Names of segments compatible with the given metric</td>
+</tr>
+<tr>
+<td><code>compatible_metrics(spec_name)</code></td>
+<td><code>list[str]</code></td>
+<td>Metric names compatible with the given slice or segment</td>
+</tr>
+<tr>
+<td><code>for_metric(metric_name)</code></td>
+<td><code>list[CompatibilityResult]</code></td>
+<td>All rows for the given metric</td>
+</tr>
+<tr>
+<td><code>for_spec(spec_name)</code></td>
+<td><code>list[CompatibilityResult]</code></td>
+<td>All rows for the given slice or segment across all metrics</td>
+</tr>
+</tbody>
+</table>
 <hr />
 <h2 id="metricspec">MetricSpec</h2>
 

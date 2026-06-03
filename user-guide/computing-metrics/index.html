@@ -789,6 +789,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pre-flight-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pre-flight Check
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#error-handling" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1212,6 +1223,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pre-flight-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pre-flight Check
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#error-handling" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1493,6 +1515,18 @@ field. A <code>QueryBuildError</code> is raised if any metric does not declare i
 - Each metric × all-data baseline (no slice, no segment)
 - Each metric × each slice value
 - Each metric × each segment value</p>
+<hr />
+<h2 id="pre-flight-check">Pre-flight Check</h2>
+<p>Use <code>mc.scan()</code> before <code>compute()</code> to verify that your slices and segments are compatible with
+a given metric's source table. This avoids runtime failures caused by missing columns.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">scan</span><span class="p">()</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">compatible</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">compatible_slices</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>  <span class="c1"># [&quot;campaign_type&quot;, &quot;country&quot;]</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="n">slices</span><span class="o">=</span><span class="n">compatible</span><span class="p">)</span>
+</code></pre></div>
+<p>See <a href="../specs/#compatibility-scanning">Compatibility Scanning</a> in the Writing Specs guide for
+a full walkthrough, and the <a href="../../api/specs/#compatibility">Specs API reference</a> for
+<code>CompatibilityResult</code> and <code>ScanResult</code> field descriptions.</p>
 <hr />
 <h2 id="error-handling">Error Handling</h2>
 <table>

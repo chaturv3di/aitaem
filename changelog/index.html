@@ -880,6 +880,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Unreleased">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -895,7 +912,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added" class="md-nav__link">
+  <a href="#added_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -934,7 +951,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added_1" class="md-nav__link">
+  <a href="#added_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -962,7 +979,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added_2" class="md-nav__link">
+  <a href="#added_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1012,7 +1029,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added_3" class="md-nav__link">
+  <a href="#added_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1040,7 +1057,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added_4" class="md-nav__link">
+  <a href="#added_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1101,7 +1118,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added_5" class="md-nav__link">
+  <a href="#added_6" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1203,6 +1220,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Unreleased">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1218,7 +1252,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added" class="md-nav__link">
+  <a href="#added_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1257,7 +1291,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added_1" class="md-nav__link">
+  <a href="#added_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1285,7 +1319,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added_2" class="md-nav__link">
+  <a href="#added_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1335,7 +1369,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added_3" class="md-nav__link">
+  <a href="#added_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1363,7 +1397,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added_4" class="md-nav__link">
+  <a href="#added_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1424,7 +1458,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#added_5" class="md-nav__link">
+  <a href="#added_6" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -1505,8 +1539,25 @@
 
 <h1 id="changelog">Changelog</h1>
 <h2 id="unreleased">Unreleased</h2>
-<h2 id="v030-2026-06-03">v0.3.0 — 2026-06-03</h2>
 <h3 id="added">Added</h3>
+<ul>
+<li>
+<p><strong><code>MetricCompute.scan()</code></strong> — pre-flight compatibility scan that introspects source table
+  schemas and returns a <code>ScanResult</code> with one <code>CompatibilityResult</code> per metric × slice and
+  per metric × segment pair. Schema introspection is batched by unique source URI.</p>
+</li>
+<li>
+<p><strong><code>CompatibilityResult</code></strong> — frozen dataclass carrying the compatibility verdict for a single
+  metric × spec pair: <code>compatible</code>, <code>valid_join_keys</code>, <code>missing_columns</code>, and <code>reason</code>.</p>
+</li>
+<li>
+<p><strong><code>ScanResult</code></strong> — container for the full compatibility matrix with query helpers:
+  <code>compatible_slices()</code>, <code>compatible_segments()</code>, <code>compatible_metrics()</code>, <code>for_metric()</code>,
+  and <code>for_spec()</code>.</p>
+</li>
+</ul>
+<h2 id="v030-2026-06-03">v0.3.0 — 2026-06-03</h2>
+<h3 id="added_1">Added</h3>
 <ul>
 <li>
 <p><strong><code>SegmentSpec.entity_id</code></strong> — required field identifying the primary key column on the DIM
@@ -1555,7 +1606,7 @@
 </li>
 </ul>
 <h2 id="v022-2026-06-01">v0.2.2 — 2026-06-01</h2>
-<h3 id="added_1">Added</h3>
+<h3 id="added_2">Added</h3>
 <ul>
 <li><strong><code>ValidationResult.referenced_columns</code></strong> — populated on successful spec validation; a
   <code>dict[str, list[str]]</code> mapping each spec field to the unqualified column names it references.
@@ -1565,7 +1616,7 @@
   for usage.</li>
 </ul>
 <h2 id="v021-2026-05-28">v0.2.1 — 2026-05-28</h2>
-<h3 id="added_2">Added</h3>
+<h3 id="added_3">Added</h3>
 <ul>
 <li>
 <p><strong><code>MetricSpec.format</code></strong> — optional metadata field for metric value interpretation.
@@ -1625,7 +1676,7 @@
 </ul>
 <p><strong>Migration:</strong> replace any <code>except ConnectionError</code> or <code>from aitaem... import ConnectionError</code>
   with <code>AitaemConnectionError</code>, which is now importable directly from <code>aitaem</code>.</p>
-<h3 id="added_3">Added</h3>
+<h3 id="added_4">Added</h3>
 <ul>
 <li><code>STANDARD_COLUMNS: list[str]</code> is now importable directly from <code>aitaem</code>. Contains the
   ordered list of column names that <code>MetricCompute.compute()</code> always returns:
@@ -1647,7 +1698,7 @@
   properties for iterating over all loaded specs without individual <code>get_*</code> lookups.</li>
 </ul>
 <h2 id="v015-2026-04-22">v0.1.5 — 2026-04-22</h2>
-<h3 id="added_4">Added</h3>
+<h3 id="added_5">Added</h3>
 <ul>
 <li><code>SliceSpec</code>: new wildcard variant — set <code>where: &lt;column_name&gt;</code> at the spec level
   (instead of listing <code>values</code>) to auto-populate slice values from the column's distinct
@@ -1674,7 +1725,7 @@
 <li>Ensure <code>numerator</code> (and <code>denominator</code> when present) contain an explicit aggregate function call
   such as <code>SUM(col)</code>, <code>AVG(col)</code>, <code>COUNT(*)</code>, <code>MIN(col)</code>, or <code>MAX(col)</code>.</li>
 </ul>
-<h3 id="added_5">Added</h3>
+<h3 id="added_6">Added</h3>
 <ul>
 <li><code>MetricSpec</code>: new optional <code>entities</code> field — declares which entity columns the metric supports for disaggregation (e.g. <code>entities: [user_id, device_id]</code>). Must be a non-empty list if provided.</li>
 <li><code>MetricCompute.compute()</code>: new <code>by_entity</code> parameter — groups results by an entity column declared in each metric's <code>entities</code> list; raises <code>QueryBuildError</code> if any metric does not support the requested entity column.</li>

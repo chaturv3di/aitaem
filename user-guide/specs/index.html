@@ -760,6 +760,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#compatibility-scanning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compatibility Scanning
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1256,6 +1267,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#compatibility-scanning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compatibility Scanning
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1707,6 +1729,56 @@ returned (composite specs contain no SQL expressions).</p>
 <a id="__codelineno-20-24" name="__codelineno-20-24" href="#__codelineno-20-24"></a><span class="s2">  timestamp_col: date</span>
 <a id="__codelineno-20-25" name="__codelineno-20-25" href="#__codelineno-20-25"></a><span class="s2">&quot;&quot;&quot;</span><span class="p">,</span>
 <a id="__codelineno-20-26" name="__codelineno-20-26" href="#__codelineno-20-26"></a><span class="p">)</span>
+</code></pre></div>
+<hr />
+<h2 id="compatibility-scanning">Compatibility Scanning</h2>
+<p>Before calling <code>compute()</code>, use <code>MetricCompute.scan()</code> to check which slices and segments are
+usable with each metric. The scan introspects source table schemas and returns a
+<code>ScanResult</code> with one <code>CompatibilityResult</code> per metric × spec pair.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecCache</span><span class="p">,</span> <span class="n">ConnectionManager</span><span class="p">,</span> <span class="n">MetricCompute</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="n">cache</span> <span class="o">=</span> <span class="n">SpecCache</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>    <span class="n">metric_paths</span><span class="o">=</span><span class="s2">&quot;metrics/&quot;</span><span class="p">,</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>    <span class="n">slice_paths</span><span class="o">=</span><span class="s2">&quot;slices/&quot;</span><span class="p">,</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>    <span class="n">segment_paths</span><span class="o">=</span><span class="s2">&quot;segments/&quot;</span><span class="p">,</span>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="p">)</span>
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span><span class="s2">&quot;connections.yaml&quot;</span><span class="p">)</span>
+<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a><span class="n">mc</span> <span class="o">=</span> <span class="n">MetricCompute</span><span class="p">(</span><span class="n">cache</span><span class="p">,</span> <span class="n">conn</span><span class="p">)</span>
+<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a>
+<a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a><span class="n">result</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">scan</span><span class="p">()</span>
+<a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a>
+<a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a><span class="c1"># Slices compatible with the &quot;ctr&quot; metric</span>
+<a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a><span class="n">compatible_slices</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">compatible_slices</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>
+<a id="__codelineno-21-15" name="__codelineno-21-15" href="#__codelineno-21-15"></a><span class="c1"># e.g. [&quot;campaign_type&quot;, &quot;country&quot;]</span>
+<a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a>
+<a id="__codelineno-21-17" name="__codelineno-21-17" href="#__codelineno-21-17"></a><span class="c1"># Segments compatible with the &quot;ctr&quot; metric</span>
+<a id="__codelineno-21-18" name="__codelineno-21-18" href="#__codelineno-21-18"></a><span class="n">compatible_segs</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">compatible_segments</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>
+<a id="__codelineno-21-19" name="__codelineno-21-19" href="#__codelineno-21-19"></a><span class="c1"># e.g. [&quot;platform&quot;]</span>
+<a id="__codelineno-21-20" name="__codelineno-21-20" href="#__codelineno-21-20"></a>
+<a id="__codelineno-21-21" name="__codelineno-21-21" href="#__codelineno-21-21"></a><span class="c1"># Pass scan results directly into compute()</span>
+<a id="__codelineno-21-22" name="__codelineno-21-22" href="#__codelineno-21-22"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+<a id="__codelineno-21-23" name="__codelineno-21-23" href="#__codelineno-21-23"></a>    <span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span>
+<a id="__codelineno-21-24" name="__codelineno-21-24" href="#__codelineno-21-24"></a>    <span class="n">slices</span><span class="o">=</span><span class="n">compatible_slices</span><span class="p">,</span>
+<a id="__codelineno-21-25" name="__codelineno-21-25" href="#__codelineno-21-25"></a>    <span class="n">segments</span><span class="o">=</span><span class="n">compatible_segs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">compatible_segs</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-21-26" name="__codelineno-21-26" href="#__codelineno-21-26"></a><span class="p">)</span>
+</code></pre></div>
+<p>For slices, the scan checks that every column referenced in <code>values[].where</code> (or the bare
+<code>column</code> field for wildcard slices) exists in the metric's source table.</p>
+<p>For segments, only the <strong>fact-table side</strong> is checked: the scan verifies that at least one join
+key candidate (<code>join_keys</code>, or <code>entity_id</code> when <code>join_keys</code> is empty) exists in the metric's
+source table. The DIM-table columns (used in <code>values[].where</code>) are on the segment's own source
+and are not validated here.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1"># Inspect a specific result</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="n">r</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">for_spec</span><span class="p">(</span><span class="s2">&quot;platform&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">compatible</span><span class="p">)</span>        <span class="c1"># True</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">valid_join_keys</span><span class="p">)</span>   <span class="c1"># [&quot;platform&quot;]</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">missing_columns</span><span class="p">)</span>   <span class="c1"># []</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="c1"># Find which metrics an incompatible slice is blocking</span>
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="n">r</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">for_spec</span><span class="p">(</span><span class="s2">&quot;bad_slice&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">compatible</span><span class="p">)</span>        <span class="c1"># False</span>
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">missing_columns</span><span class="p">)</span>   <span class="c1"># [&quot;nonexistent_column&quot;]</span>
+<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">reason</span><span class="p">)</span>            <span class="c1"># &quot;columns not found in source table: [&#39;nonexistent_column&#39;]&quot;</span>
 </code></pre></div>
 
 
