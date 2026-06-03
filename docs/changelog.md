@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.3.0 — 2026-06-03
+
 ### Added
 
 - **`SegmentSpec.entity_id`** — required field identifying the primary key column on the DIM
