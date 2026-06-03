@@ -29,7 +29,7 @@ from aitaem.utils.exceptions import (
     UnsupportedBackendError,
 )
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 __all__ = [
     "SpecCache",
