@@ -17,6 +17,7 @@ from aitaem.specs.slice import SliceSpec, SliceValue
 from aitaem.utils.exceptions import QueryExecutionError
 
 AD_CAMPAIGNS_SOURCE_URI = "duckdb://ad_campaigns.duckdb/ad_campaigns"
+DIM_PLATFORMS_SOURCE_URI = "duckdb://ad_campaigns.duckdb/dim_platforms"
 
 EXPECTED_OUTPUT_COLUMNS = {
     "period_type",
@@ -46,7 +47,7 @@ class TestExecuteQueryGroup:
             denominator="SUM(impressions)",
             timestamp_col="date",
         )
-        groups = QueryBuilder.build_queries([metric], slice_specs=None, segment_specs=None)
+        groups = QueryBuilder.build_queries([metric], slice_specs=None, segment_spec=None)
 
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         df = executor._execute_query_group(groups[0], "pandas")
@@ -90,7 +91,7 @@ class TestExecute:
             denominator="SUM(impressions)",
             timestamp_col="date",
         )
-        groups = QueryBuilder.build_queries([metric], slice_specs=None, segment_specs=None)
+        groups = QueryBuilder.build_queries([metric], slice_specs=None, segment_spec=None)
 
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         df = executor.execute(groups)
@@ -123,7 +124,8 @@ class TestExecute:
         )
         platform_segment = SegmentSpec(
             name="platform",
-            source=AD_CAMPAIGNS_SOURCE_URI,
+            source=DIM_PLATFORMS_SOURCE_URI,
+            entity_id="platform",
             values=(
                 SegmentValue(name="Google Ads", where="platform = 'Google Ads'"),
                 SegmentValue(name="Meta Ads", where="platform = 'Meta Ads'"),
@@ -134,7 +136,7 @@ class TestExecute:
         groups = QueryBuilder.build_queries(
             [metric],
             slice_specs=[campaign_type_slice],
-            segment_specs=[platform_segment],
+            segment_spec=platform_segment,
         )
         # (1 slice + 1 no-slice) × (1 segment + 1 no-segment) = 4 queries
         assert len(groups[0].sql_queries) == 4
@@ -175,9 +177,7 @@ class TestExecute:
             denominator="SUM(impressions)",
             timestamp_col="date",
         )
-        good_groups = QueryBuilder.build_queries(
-            [good_metric], slice_specs=None, segment_specs=None
-        )
+        good_groups = QueryBuilder.build_queries([good_metric], slice_specs=None, segment_spec=None)
 
         # Use a bigquery source — not in the manager — to force the skip path
         bad_group = QueryGroup(
@@ -213,7 +213,7 @@ class TestExecute:
             timestamp_col="date",
         )
 
-        groups = QueryBuilder.build_queries([ctr, roas], slice_specs=None, segment_specs=None)
+        groups = QueryBuilder.build_queries([ctr, roas], slice_specs=None, segment_spec=None)
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         df = executor.execute(groups)
 
@@ -229,11 +229,11 @@ class TestExecute:
             timestamp_col="date",
         )
 
-        groups_all = QueryBuilder.build_queries([metric], slice_specs=None, segment_specs=None)
+        groups_all = QueryBuilder.build_queries([metric], slice_specs=None, segment_spec=None)
         groups_windowed = QueryBuilder.build_queries(
             [metric],
             slice_specs=None,
-            segment_specs=None,
+            segment_spec=None,
             time_window=("2024-01-01", "2024-04-01"),
         )
 
@@ -298,7 +298,8 @@ class TestEndToEndIntegration:
         )
         platform_segment = SegmentSpec(
             name="platform",
-            source=AD_CAMPAIGNS_SOURCE_URI,
+            source=DIM_PLATFORMS_SOURCE_URI,
+            entity_id="platform",
             values=(
                 SegmentValue(name="Google Ads", where="platform = 'Google Ads'"),
                 SegmentValue(name="Meta Ads", where="platform = 'Meta Ads'"),
@@ -309,7 +310,7 @@ class TestEndToEndIntegration:
         groups = QueryBuilder.build_queries(
             [ctr],
             slice_specs=[geo_slice, campaign_type_slice],
-            segment_specs=[platform_segment],
+            segment_spec=platform_segment,
         )
         # 1 metric × (2 slices + 1 no-slice) × (1 segment + 1 no-segment) = 6 queries in 1 group
         assert len(groups) == 1

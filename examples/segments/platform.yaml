@@ -1,7 +1,8 @@
 segment:
   name: platform
   description: Breakdown by advertising platform
-  source: duckdb://ad_campaigns.duckdb/ad_campaigns
+  source: duckdb://ad_campaigns.duckdb/dim_platforms
+  entity_id: platform
   values:
     - name: Google Ads
       where: "platform = 'Google Ads'"

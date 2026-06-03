@@ -235,13 +235,8 @@ class TestSegmentSpecValidate:
         assert "customer_status" in result.referenced_columns["values[0].where"]
 
     def test_validate_referenced_columns_none_when_invalid(self):
-        yaml_str = """
-segment:
-  name: foo
-  source: duckdb://db/tbl
-  values: []
-"""
         from aitaem.utils.validation import validate_segment_spec
+
         result = validate_segment_spec({"name": "foo", "source": "duckdb://db/tbl", "values": []})
         assert result.valid is False
         assert result.referenced_columns is None

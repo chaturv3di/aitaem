@@ -42,7 +42,9 @@ def ad_campaigns_connector():
             'conversions': 'INTEGER',
             'ad_spend': 'DOUBLE',
             'revenue': 'DOUBLE'
-        }})
+        }});
+        CREATE TABLE dim_platforms AS
+        SELECT DISTINCT platform FROM ad_campaigns
         """
     )
 

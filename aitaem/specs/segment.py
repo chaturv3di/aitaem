@@ -55,7 +55,12 @@ class SegmentSpec:
         join_keys = tuple(raw_join_keys) if isinstance(raw_join_keys, list) else ()
 
         unknown_fields = set(spec_dict.keys()) - {
-            "name", "source", "entity_id", "values", "description", "join_keys"
+            "name",
+            "source",
+            "entity_id",
+            "values",
+            "description",
+            "join_keys",
         }
         if unknown_fields:
             logger.debug("SegmentSpec '%s': ignoring unknown fields: %s", name, unknown_fields)

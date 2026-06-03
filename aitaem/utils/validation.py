@@ -159,7 +159,7 @@ def validate_metric_spec(spec_dict: dict) -> ValidationResult:
             ValidationError(
                 field="name",
                 message=f"name '{name}' is not a valid SQL identifier "
-                        f"(must match ^[A-Za-z_][A-Za-z0-9_]*$)",
+                f"(must match ^[A-Za-z_][A-Za-z0-9_]*$)",
                 suggestion=f"rename to '{re.sub(r'[^A-Za-z0-9_]', '_', name.strip())}'",
             )
         )
@@ -273,7 +273,9 @@ def validate_metric_spec(spec_dict: dict) -> ValidationResult:
             col_map["entities"] = [e.strip() for e in entities if isinstance(e, str) and e.strip()]
         referenced_columns = col_map
 
-    return ValidationResult(valid=len(errors) == 0, errors=errors, referenced_columns=referenced_columns)
+    return ValidationResult(
+        valid=len(errors) == 0, errors=errors, referenced_columns=referenced_columns
+    )
 
 
 def _validate_values_list(values: list, item_type: str, errors: list[ValidationError]) -> None:
@@ -355,7 +357,7 @@ def validate_slice_spec(spec_dict: dict) -> ValidationResult:
             ValidationError(
                 field="name",
                 message=f"name '{name}' is not a valid SQL identifier "
-                        f"(must match ^[A-Za-z_][A-Za-z0-9_]*$)",
+                f"(must match ^[A-Za-z_][A-Za-z0-9_]*$)",
                 suggestion=f"rename to '{re.sub(r'[^A-Za-z0-9_]', '_', name.strip())}'",
             )
         )
@@ -462,7 +464,9 @@ def validate_slice_spec(spec_dict: dict) -> ValidationResult:
         # composite: cross_product holds slice names, not SQL; col_map stays empty
         referenced_columns = col_map
 
-    return ValidationResult(valid=len(errors) == 0, errors=errors, referenced_columns=referenced_columns)
+    return ValidationResult(
+        valid=len(errors) == 0, errors=errors, referenced_columns=referenced_columns
+    )
 
 
 def validate_segment_spec(spec_dict: dict) -> ValidationResult:
@@ -481,7 +485,7 @@ def validate_segment_spec(spec_dict: dict) -> ValidationResult:
             ValidationError(
                 field="name",
                 message=f"name '{name}' is not a valid SQL identifier "
-                        f"(must match ^[A-Za-z_][A-Za-z0-9_]*$)",
+                f"(must match ^[A-Za-z_][A-Za-z0-9_]*$)",
                 suggestion=f"rename to '{re.sub(r'[^A-Za-z0-9_]', '_', name.strip())}'",
             )
         )
@@ -558,7 +562,9 @@ def validate_segment_spec(spec_dict: dict) -> ValidationResult:
         assert isinstance(entity_id, str)
         col_map["entity_id"] = [entity_id.strip()]
         if join_keys and isinstance(join_keys, list):
-            col_map["join_keys"] = [k.strip() for k in join_keys if isinstance(k, str) and k.strip()]
+            col_map["join_keys"] = [
+                k.strip() for k in join_keys if isinstance(k, str) and k.strip()
+            ]
         assert isinstance(values, list)
         for i, value in enumerate(values):
             if isinstance(value, dict):
@@ -569,4 +575,6 @@ def validate_segment_spec(spec_dict: dict) -> ValidationResult:
                     )
         referenced_columns = col_map
 
-    return ValidationResult(valid=len(errors) == 0, errors=errors, referenced_columns=referenced_columns)
+    return ValidationResult(
+        valid=len(errors) == 0, errors=errors, referenced_columns=referenced_columns
+    )

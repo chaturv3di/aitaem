@@ -337,7 +337,12 @@ class TestSpecCacheAdd:
         from aitaem.specs.segment import SegmentSpec as SS, SegmentValue as SV
 
         cache = SpecCache()
-        seg = SS(name="my_seg", source="duckdb://db/table", values=(SV(name="a", where="x=1"),))
+        seg = SS(
+            name="my_seg",
+            source="duckdb://db/table",
+            entity_id="id",
+            values=(SV(name="a", where="x=1"),),
+        )
         cache.add(seg)
         result = cache.get_segment("my_seg")
         assert result is seg

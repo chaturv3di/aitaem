@@ -37,7 +37,8 @@ class QueryBuilder:
     def build_queries(
         metric_specs: list[MetricSpec],
         slice_specs: list[SliceSpec] | None,
-        segment_specs: list[SegmentSpec] | None,
+        segment_spec: SegmentSpec | None,
+        segment_join_key: str | None = None,
         time_window: tuple[str, str] | None = None,
         spec_cache: "SpecCache | None" = None,  # type: ignore[name-defined]  # noqa: F821
         period_type: str = "all_time",
@@ -46,9 +47,12 @@ class QueryBuilder:
         """Build optimized query groups (one per unique source table).
 
         Each QueryGroup contains all SQL queries for that source:
-        one per (metric × (each segment_spec + the no-segment baseline)).
+        one per (metric × slice × (segment | no-segment baseline)).
 
         Args:
+            segment_spec: A single SegmentSpec to apply, or None for no segmentation.
+            segment_join_key: Fact-table FK column to join to the segment's DIM table.
+                              Defaults to ``segment_spec.entity_id`` when omitted.
             spec_cache: Required only when composite slices are present.
             period_type: One of 'all_time', 'daily', 'weekly', 'monthly', 'yearly', 'hourly'.
                          Non-'all_time' requires time_window and timestamp_col on all metrics.
@@ -104,7 +108,8 @@ class QueryBuilder:
                     QueryBuilder._build_queries_for_metric(
                         metric=metric,
                         slice_specs=slice_specs,
-                        segment_specs=segment_specs,
+                        segment_spec=segment_spec,
+                        segment_join_key=segment_join_key,
                         time_window=time_window,
                         period_type=period_type,
                         period_start=period_start,
@@ -129,7 +134,8 @@ class QueryBuilder:
     def _build_queries_for_metric(
         metric: MetricSpec,
         slice_specs: list[SliceSpec] | None,
-        segment_specs: list[SegmentSpec] | None,
+        segment_spec: SegmentSpec | None,
+        segment_join_key: str | None,
         time_window: tuple[str, str] | None,
         period_type: str,
         period_start: str | None,
@@ -140,10 +146,10 @@ class QueryBuilder:
         """Build all SQL queries for one metric.
 
         Each SliceSpec is processed independently (+ a no-slice/all baseline).
-        For each (slice_spec | None) × (segment_spec | None) combination, one SQL
-        query is generated. Composite SliceSpecs are resolved via spec_cache.
+        For each slice × (segment | no-segment baseline) combination, one SQL query
+        is generated. Composite SliceSpecs are resolved via spec_cache.
 
-        len(result) == (len(slice_specs) + 1) × (len(segment_specs) + 1)
+        len(result) == (len(slice_specs) + 1) × (2 if segment_spec else 1)
         """
         time_filter_sql: str | None = None
         if time_window is not None:
@@ -154,18 +160,21 @@ class QueryBuilder:
         all_slice_specs: list[SliceSpec | None] = list(slice_specs) if slice_specs else []
         all_slice_specs.append(None)  # no-slice baseline
 
-        all_segment_specs: list[SegmentSpec | None] = list(segment_specs) if segment_specs else []
-        all_segment_specs.append(None)  # no-segment baseline
+        segment_states: list[SegmentSpec | None] = []
+        if segment_spec is not None:
+            segment_states.append(segment_spec)
+        segment_states.append(None)  # no-segment baseline
 
         for slice_spec in all_slice_specs:
             resolved_slices = QueryBuilder._resolve_slice_components(slice_spec, spec_cache)
-            for seg_spec in all_segment_specs:
+            for seg in segment_states:
                 queries.append(
                     QueryBuilder._build_metric_segment_query(
                         metric=metric,
                         table_name=table_name,
                         slice_specs=resolved_slices,
-                        segment_spec=seg_spec,
+                        segment_spec=seg,
+                        segment_join_key=segment_join_key if seg is not None else None,
                         time_filter_sql=time_filter_sql,
                         period_type=period_type,
                         period_start=period_start,
@@ -214,10 +223,18 @@ class QueryBuilder:
         period_type: str,
         period_start: str | None,
         period_end: str | None,
+        segment_join_key: str | None = None,
         time_window: tuple[str, str] | None = None,
         by_entity: str | None = None,
     ) -> str:
         """Build a single SQL query for one (metric, segment_spec | None) combination."""
+        # --- DIM join metadata (populated only when segment_spec is provided) ---
+        dim_table_name: str | None = None
+        effective_join_key: str | None = None
+        if segment_spec is not None:
+            dim_table_name = QueryBuilder._parse_table_name_from_uri(segment_spec.source)
+            effective_join_key = segment_join_key or segment_spec.entity_id
+
         # --- CTE SELECT columns ---
         cte_extra_cols: list[str] = []
         slice_aliases: list[str] = []
@@ -262,16 +279,30 @@ class QueryBuilder:
 
         if period_type == "all_time":
             # ---- all_time path ----
-            cte_select = "    SELECT\n        *"
-            if cte_extra_cols:
-                cte_select += ",\n        " + ",\n        ".join(cte_extra_cols)
+            if dim_table_name is not None:
+                # DIM join: alias fact table as t, join DIM table as _dim
+                cte_select = "    SELECT\n        t.*"
+                if cte_extra_cols:
+                    cte_select += ",\n        " + ",\n        ".join(cte_extra_cols)
+                cte_from = f"    FROM {table_name} t"
+                cte_dim_join = (
+                    f"    JOIN {dim_table_name} _dim"
+                    f" ON t.{effective_join_key} = _dim.{segment_spec.entity_id}"  # type: ignore[union-attr]
+                )
+                cte_where = f"    WHERE {time_filter_sql}" if time_filter_sql else ""
+                cte_lines = [cte_select, cte_from, cte_dim_join]
+                if cte_where:
+                    cte_lines.append(cte_where)
+            else:
+                cte_select = "    SELECT\n        *"
+                if cte_extra_cols:
+                    cte_select += ",\n        " + ",\n        ".join(cte_extra_cols)
+                cte_from = f"    FROM {table_name}"
+                cte_where = f"    WHERE {time_filter_sql}" if time_filter_sql else ""
+                cte_lines = [cte_select, cte_from]
+                if cte_where:
+                    cte_lines.append(cte_where)
 
-            cte_from = f"    FROM {table_name}"
-            cte_where = f"    WHERE {time_filter_sql}" if time_filter_sql else ""
-
-            cte_lines = [cte_select, cte_from]
-            if cte_where:
-                cte_lines.append(cte_where)
             cte_body = "\n".join(cte_lines)
 
             outer_select_cols = [
@@ -322,13 +353,19 @@ class QueryBuilder:
 
             ts_col = metric.timestamp_col
             cte_from = f"    FROM {table_name} t"
-            cte_join = (
+            cte_periods_join = (
                 f"    JOIN _periods p\n"
                 f"      ON CAST(t.{ts_col} AS TIMESTAMP) >= p.period_start\n"
                 f"     AND CAST(t.{ts_col} AS TIMESTAMP) <  p.period_end"
             )
 
-            cte_body = "\n".join([cte_select, cte_from, cte_join])
+            cte_lines = [cte_select, cte_from, cte_periods_join]
+            if dim_table_name is not None:
+                cte_lines.append(
+                    f"    JOIN {dim_table_name} _dim"
+                    f" ON t.{effective_join_key} = _dim.{segment_spec.entity_id}"  # type: ignore[union-attr]
+                )
+            cte_body = "\n".join(cte_lines)
 
             outer_select_cols = [
                 f"    '{period_type}'                        AS period_type",
@@ -377,11 +414,35 @@ class QueryBuilder:
 
     @staticmethod
     def _build_segment_case_when_expr(segment_spec: SegmentSpec, alias: str) -> str:
-        """Build CASE WHEN expression for a SegmentSpec."""
+        """Build CASE WHEN expression for a SegmentSpec, qualifying columns with _dim."""
         when_clauses = "\n        ".join(
-            f"WHEN {sv.where} THEN '{sv.name}'" for sv in segment_spec.values
+            f"WHEN {QueryBuilder._qualify_where_with_dim_alias(sv.where)} THEN '{sv.name}'"
+            for sv in segment_spec.values
         )
         return f"CASE\n        {when_clauses}\n        ELSE NULL\n    END AS {alias}"
+
+    @staticmethod
+    def _qualify_where_with_dim_alias(where_expr: str) -> str:
+        """Prefix unqualified column references in a WHERE expression with _dim."""
+        try:
+            import sqlglot
+            import sqlglot.expressions as exp
+        except ImportError:
+            return where_expr
+
+        try:
+            tree = sqlglot.parse_one(f"SELECT 1 WHERE {where_expr}")
+        except Exception:
+            return where_expr
+
+        for node in tree.walk():
+            if isinstance(node, exp.Column) and not node.table:
+                node.set("table", exp.to_identifier("_dim"))
+
+        where_node = tree.find(exp.Where)
+        if where_node is None:
+            return where_expr
+        return where_node.this.sql(dialect="duckdb")
 
     @staticmethod
     def _build_slice_value_concat_expr(slice_aliases: list[str]) -> str:
@@ -441,10 +502,12 @@ class QueryBuilder:
             current_dt = start_dt
             while current_dt < end_dt:
                 next_dt = current_dt + timedelta(hours=1)
-                boundaries.append((
-                    current_dt.strftime("%Y-%m-%dT%H:%M:%S"),
-                    next_dt.strftime("%Y-%m-%dT%H:%M:%S"),
-                ))
+                boundaries.append(
+                    (
+                        current_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+                        next_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+                    )
+                )
                 current_dt = next_dt
             return boundaries
 

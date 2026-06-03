@@ -53,7 +53,8 @@ _geo_slice = SliceSpec(
 
 _user_tier_segment = SegmentSpec(
     name="user_tier",
-    source=DUCKDB_URI,
+    source="duckdb://analytics.db/dim_users",
+    entity_id="user_id",
     values=(
         SegmentValue(name="premium", where="subscription_tier = 'premium'"),
         SegmentValue(name="free", where="subscription_tier = 'free'"),
@@ -64,13 +65,20 @@ _user_tier_segment = SegmentSpec(
 SETUP_SQL = """
 CREATE TABLE transactions AS
 SELECT * FROM (VALUES
-    ('US', 'premium', 100.0, TIMESTAMP '2026-01-10 00:00:00'),
-    ('US', 'free',     50.0, TIMESTAMP '2026-01-20 00:00:00'),
-    ('DE', 'premium',  80.0, TIMESTAMP '2026-02-05 00:00:00'),
-    ('DE', 'free',     40.0, TIMESTAMP '2026-02-15 00:00:00'),
-    ('US', 'premium', 120.0, TIMESTAMP '2026-03-08 00:00:00'),
-    ('US', 'free',     60.0, TIMESTAMP '2026-03-22 00:00:00')
-) AS t(country_code, subscription_tier, amount, event_ts)
+    (1, 'US', 100.0, TIMESTAMP '2026-01-10 00:00:00'),
+    (2, 'US',  50.0, TIMESTAMP '2026-01-20 00:00:00'),
+    (3, 'DE',  80.0, TIMESTAMP '2026-02-05 00:00:00'),
+    (4, 'DE',  40.0, TIMESTAMP '2026-02-15 00:00:00'),
+    (1, 'US', 120.0, TIMESTAMP '2026-03-08 00:00:00'),
+    (2, 'US',  60.0, TIMESTAMP '2026-03-22 00:00:00')
+) AS t(user_id, country_code, amount, event_ts);
+CREATE TABLE dim_users AS
+SELECT * FROM (VALUES
+    (1, 'premium'),
+    (2, 'free'),
+    (3, 'premium'),
+    (4, 'free')
+) AS t(user_id, subscription_tier)
 """
 
 
@@ -362,7 +370,7 @@ class TestBuildQueriesWithPeriodType:
             QueryBuilder.build_queries(
                 [make_metric()],
                 slice_specs=None,
-                segment_specs=None,
+                segment_spec=None,
                 time_window=("2026-01-01", "2026-04-01"),
                 period_type="quarterly",
             )
@@ -372,7 +380,7 @@ class TestBuildQueriesWithPeriodType:
             QueryBuilder.build_queries(
                 [make_metric()],
                 slice_specs=None,
-                segment_specs=None,
+                segment_spec=None,
                 time_window=None,
                 period_type="monthly",
             )
@@ -382,7 +390,7 @@ class TestBuildQueriesWithPeriodType:
             QueryBuilder.build_queries(
                 [make_metric_no_ts()],
                 slice_specs=None,
-                segment_specs=None,
+                segment_spec=None,
                 time_window=("2026-01-01", "2026-04-01"),
                 period_type="monthly",
             )
@@ -391,7 +399,7 @@ class TestBuildQueriesWithPeriodType:
         groups = QueryBuilder.build_queries(
             [make_metric()],
             slice_specs=None,
-            segment_specs=None,
+            segment_spec=None,
             time_window=("2026-01-01", "2026-04-01"),
             period_type="monthly",
         )
@@ -404,7 +412,7 @@ class TestBuildQueriesWithPeriodType:
         groups = QueryBuilder.build_queries(
             [make_metric()],
             slice_specs=None,
-            segment_specs=None,
+            segment_spec=None,
         )
         assert len(groups) == 1
         sql = groups[0].sql_queries[0]
@@ -421,21 +429,25 @@ class TestBuildQueriesWithPeriodType:
 class TestParseWindowEndpointAsDatetime:
     def test_date_only_string_gives_midnight(self):
         from datetime import datetime
+
         result = QueryBuilder._parse_window_endpoint_as_datetime("2024-01-15")
         assert result == datetime(2024, 1, 15, 0, 0, 0)
 
     def test_datetime_string_with_T_separator(self):
         from datetime import datetime
+
         result = QueryBuilder._parse_window_endpoint_as_datetime("2024-01-15T14:30:00")
         assert result == datetime(2024, 1, 15, 14, 30, 0)
 
     def test_datetime_string_with_space_separator(self):
         from datetime import datetime
+
         result = QueryBuilder._parse_window_endpoint_as_datetime("2024-01-15 14:30:00")
         assert result == datetime(2024, 1, 15, 14, 30, 0)
 
     def test_midnight_string_gives_midnight(self):
         from datetime import datetime
+
         result = QueryBuilder._parse_window_endpoint_as_datetime("2024-01-15T00:00:00")
         assert result == datetime(2024, 1, 15, 0, 0, 0)
 
@@ -483,9 +495,7 @@ class TestGeneratePeriodBoundariesHourly:
 
     def test_two_date_strings_spans_midnight(self):
         # "2024-01-01" to "2024-01-02" = 24 hourly periods
-        result = QueryBuilder._generate_period_boundaries(
-            ("2024-01-01", "2024-01-02"), "hourly"
-        )
+        result = QueryBuilder._generate_period_boundaries(("2024-01-01", "2024-01-02"), "hourly")
         assert len(result) == 24
         assert result[0] == ("2024-01-01T00:00:00", "2024-01-01T01:00:00")
         assert result[-1] == ("2024-01-01T23:00:00", "2024-01-02T00:00:00")
@@ -519,7 +529,7 @@ class TestBuildQueriesHourly:
             QueryBuilder.build_queries(
                 [make_metric()],
                 slice_specs=None,
-                segment_specs=None,
+                segment_spec=None,
                 time_window=None,
                 period_type="hourly",
             )
@@ -529,7 +539,7 @@ class TestBuildQueriesHourly:
             QueryBuilder.build_queries(
                 [make_metric_no_ts()],
                 slice_specs=None,
-                segment_specs=None,
+                segment_spec=None,
                 time_window=("2026-01-01T00:00:00", "2026-01-01T03:00:00"),
                 period_type="hourly",
             )
@@ -538,7 +548,7 @@ class TestBuildQueriesHourly:
         groups = QueryBuilder.build_queries(
             [make_metric()],
             slice_specs=None,
-            segment_specs=None,
+            segment_spec=None,
             time_window=("2026-01-01T00:00:00", "2026-01-01T03:00:00"),
             period_type="hourly",
         )
@@ -559,7 +569,7 @@ SELECT * FROM (VALUES
         groups = QueryBuilder.build_queries(
             [make_metric()],
             slice_specs=None,
-            segment_specs=None,
+            segment_spec=None,
             time_window=("2026-01-01T00:00:00", "2026-01-01T03:00:00"),
             period_type="hourly",
         )
