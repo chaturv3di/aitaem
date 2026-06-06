@@ -57,6 +57,7 @@ nav:
       - Connectors: api/connectors.md
       - Helpers: api/helpers.md
   - Changelog: changelog.md
+  - License: license.md
 
 markdown_extensions:
   - admonition
