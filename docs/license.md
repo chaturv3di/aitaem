@@ -10,7 +10,7 @@
 - **Network use (AGPL §13)**: If you modify AITAEM and expose it to users over a network (e.g. a SaaS product), you must make your modified source available to those users — even if you never ship binaries.
 - **No warranty**: Provided as-is.
 
-**Need a commercial license?** If AGPL doesn't fit your use case (e.g. you want to embed AITAEM in a proprietary product), contact [licensing@aitaem.com](mailto:licensing@aitaem.com) to discuss commercial licensing terms.
+**Need a commercial license?** If AGPL doesn't fit your use case (e.g. you want to embed AITAEM in a proprietary product), let's talk [licensing@aitaem.com](mailto:licensing@aitaem.com).
 
 > For a plain-English summary, see [tldrlegal.com — AGPL-3.0](https://www.tldrlegal.com/license/gnu-affero-general-public-license-v3-agpl-3-0).
 
