@@ -4,12 +4,15 @@
 
 ## What this means for you
 
-- **Use freely**: You can use aitaem for any purpose, including commercially.
-- **Modify and distribute**: You can modify the source code and distribute your version, but you must release your modifications under the same AGPL-3.0 license.
-- **Network use (the AGPL clause)**: If you run a modified version of aitaem as part of a service that others access over a network (e.g. a SaaS product or internal analytics platform), you must make your modified source code available to those users. This is the key difference from standard GPL.
-- **No warranty**: The software is provided as-is, without warranty of any kind.
+- **Use freely**: You can use AITAEM for any purpose, including commercially.
+- **Modify and distribute**: If you distribute AITAEM or a modified version, you must release the full corresponding source under AGPL-3.0.
+- **Combined works**: Software that imports or links to AITAEM is generally considered a derivative work and must also be AGPL-3.0 licensed.
+- **Network use (AGPL §13)**: If you modify AITAEM and expose it to users over a network (e.g. a SaaS product), you must make your modified source available to those users — even if you never ship binaries.
+- **No warranty**: Provided as-is.
 
-For a plain-English summary, see [tldrlegal.com — AGPL-3.0](https://tldrlegal.com/license/gnu-affero-general-public-license-v3-(agpl-3.0)).
+**Need a commercial license?** If AGPL doesn't fit your use case (e.g. you want to embed AITAEM in a proprietary product), contact [licensing@aitaem.com](mailto:licensing@aitaem.com) to discuss commercial licensing terms.
+
+> For a plain-English summary, see [tldrlegal.com — AGPL-3.0](https://www.tldrlegal.com/license/gnu-affero-general-public-license-v3-agpl-3-0).
 
 ## Full License Text
 
