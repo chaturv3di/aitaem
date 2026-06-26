@@ -616,3 +616,66 @@ def test_compute_to_pandas_produces_dataframe(mc):
 6. After SF-5: run `python -m pytest --cov=aitaem --cov-report=term-missing`
    — full suite passes; confirm no coverage regression.
 7. Commit after all SFs pass.
+
+---
+
+## Appendix: Remove abstract `Connector` base class
+
+Discovered during implementation: `aitaem/connectors/base.py` defines an
+abstract `Connector(ABC)` class that was designed for a world where each
+warehouse would have its own concrete subclass. That world never arrived —
+`IbisConnector` wraps ibis and handles DuckDB, BigQuery, and Postgres through
+ibis's own backend dispatch. There is exactly one concrete subclass, and there
+will never be a second. The abstract class currently causes friction: it does
+not declare `connection: ibis.BaseBackend | None`, so any code that needs to
+call `.sql()` on the underlying backend gets mypy errors and has to work around
+the gap.
+
+### Changes required
+
+**Delete**
+
+- `aitaem/connectors/base.py` — the entire file
+
+**Update `aitaem/connectors/ibis_connector.py`**
+
+- Remove `from aitaem.connectors.base import Connector`
+- Remove `(Connector)` from the class declaration; `IbisConnector` becomes a
+  plain class (no ABC inheritance)
+
+**Update `aitaem/connectors/__init__.py`**
+
+- Remove `from aitaem.connectors.base import Connector`
+- Remove `"Connector"` from `__all__`
+
+**Update `aitaem/query/executor.py`**
+
+- Already imports `IbisConnector` directly (done in this plan's mypy fix); no
+  further change needed
+
+**No changes required**
+
+- `aitaem/connectors/connection.py` — already typed against `IbisConnector`
+  throughout; no reference to `Connector`
+- `aitaem/__init__.py` — `Connector` is not re-exported at the top level
+- All test files — no test references `Connector` directly or asserts
+  `IbisConnector` is a subclass of it
+
+### Impact on public API
+
+`Connector` is exported from `aitaem.connectors` (via `__init__.py`) but is
+**not** exported from the top-level `aitaem` package. Users who import it
+directly (`from aitaem.connectors import Connector`) would break. Given that
+`Connector` has no user-facing methods beyond what `IbisConnector` exposes, the
+practical user population is expected to be zero, but this should be noted as a
+breaking change in `docs/changelog.md`.
+
+### Checklist
+
+- [ ] Delete `aitaem/connectors/base.py`
+- [ ] Remove `(Connector)` from `IbisConnector` class declaration; remove its import
+- [ ] Remove `Connector` from `aitaem/connectors/__init__.py` and `__all__`
+- [ ] Add breaking-change entry to `docs/changelog.md` under `## Unreleased`
+- [ ] Run `python -m mypy aitaem/` — should pass with no errors
+- [ ] Run `python -m pytest` — full suite passes
+- [ ] Commit
