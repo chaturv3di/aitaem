@@ -4,7 +4,7 @@ aitaem.utils.formatting - Standard output formatting utilities
 
 from __future__ import annotations
 
-import pandas as pd
+import ibis
 
 STANDARD_COLUMNS: list[str] = [
     "period_type",
@@ -21,13 +21,13 @@ STANDARD_COLUMNS: list[str] = [
 ]
 
 
-def ensure_standard_output(df: pd.DataFrame) -> pd.DataFrame:
-    """Reorder columns to match the standard output schema.
+def ensure_standard_output(table: ibis.Table) -> ibis.Table:
+    """Select and reorder columns to match the standard output schema.
 
     Raises:
-        ValueError: if any required column is missing from the DataFrame.
+        ValueError: if any required column is missing from the Table.
     """
-    missing = set(STANDARD_COLUMNS) - set(df.columns)
+    missing = set(STANDARD_COLUMNS) - set(table.columns)
     if missing:
-        raise ValueError(f"DataFrame missing expected columns: {missing}")
-    return df[STANDARD_COLUMNS]
+        raise ValueError(f"Table missing expected columns: {missing}")
+    return table.select(STANDARD_COLUMNS)

@@ -1,7 +1,7 @@
 """
 Integration tests for MetricSpec.format and the metric_format output column.
 
-Verifies that format metadata flows from spec → SQL → DataFrame correctly
+Verifies that format metadata flows from spec → SQL → ibis.Table correctly
 for both the all_time and non-all_time query paths.
 """
 
@@ -72,18 +72,18 @@ def mc_format(ad_campaigns_connection_manager):
 
 
 def test_metric_format_column_present(mc_format):
-    df = mc_format.compute("ctr_pct")
-    assert "metric_format" in df.columns
+    result = mc_format.compute("ctr_pct")
+    assert "metric_format" in result.columns
 
 
 def test_output_columns_match_standard(mc_format):
-    df = mc_format.compute("ctr_pct")
-    assert list(df.columns) == STANDARD_COLUMNS
+    result = mc_format.compute("ctr_pct")
+    assert list(result.columns) == STANDARD_COLUMNS
 
 
 def test_metric_format_column_position(mc_format):
-    df = mc_format.compute("ctr_pct")
-    cols = list(df.columns)
+    result = mc_format.compute("ctr_pct")
+    cols = result.columns
     assert cols.index("metric_format") == cols.index("metric_name") + 1
 
 
@@ -93,22 +93,22 @@ def test_metric_format_column_position(mc_format):
 
 
 def test_format_percentage_propagated(mc_format):
-    df = mc_format.compute("ctr_pct")
+    df = mc_format.compute("ctr_pct").to_pandas()
     assert df["metric_format"].iloc[0] == "percentage"
 
 
 def test_format_currency_with_code_propagated(mc_format):
-    df = mc_format.compute("total_revenue")
+    df = mc_format.compute("total_revenue").to_pandas()
     assert df["metric_format"].iloc[0] == "currency:USD"
 
 
 def test_format_currency_no_code_propagated(mc_format):
-    df = mc_format.compute("ad_spend")
+    df = mc_format.compute("ad_spend").to_pandas()
     assert df["metric_format"].iloc[0] == "currency"
 
 
 def test_format_absent_is_null(mc_format):
-    df = mc_format.compute("impressions")
+    df = mc_format.compute("impressions").to_pandas()
     assert df["metric_format"].isna().all()
 
 
@@ -118,7 +118,7 @@ def test_format_absent_is_null(mc_format):
 
 
 def test_mixed_metrics_correct_per_row_format(mc_format):
-    df = mc_format.compute(["ctr_pct", "impressions"])
+    df = mc_format.compute(["ctr_pct", "impressions"]).to_pandas()
     pct_rows = df[df["metric_name"] == "ctr_pct"]
     no_fmt_rows = df[df["metric_name"] == "impressions"]
     assert (pct_rows["metric_format"] == "percentage").all()
@@ -135,7 +135,7 @@ def test_format_propagated_in_monthly_period(mc_format):
         "total_revenue",
         time_window=("2024-01-01", "2024-04-01"),
         period_type="monthly",
-    )
+    ).to_pandas()
     assert (df["metric_format"] == "currency:USD").all()
 
 
@@ -144,5 +144,5 @@ def test_no_format_is_null_in_monthly_period(mc_format):
         "impressions",
         time_window=("2024-01-01", "2024-04-01"),
         period_type="monthly",
-    )
+    ).to_pandas()
     assert df["metric_format"].isna().all()

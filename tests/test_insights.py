@@ -7,6 +7,7 @@ loads specs from examples/ directories end-to-end.
 
 from pathlib import Path
 
+import ibis
 import pandas as pd
 import pytest
 
@@ -38,14 +39,37 @@ def mc(spec_cache, ad_campaigns_connection_manager):
 
 
 # ---------------------------------------------------------------------------
+# Return type
+# ---------------------------------------------------------------------------
+
+
+def test_compute_returns_ibis_table(mc):
+    result = mc.compute("ctr")
+    assert isinstance(result, ibis.Table)
+
+
+def test_compute_ibis_table_columns_match_standard(mc):
+    result = mc.compute("ctr")
+    assert list(result.columns) == STANDARD_COLUMNS
+
+
+def test_compute_to_pandas_produces_dataframe(mc):
+    result = mc.compute("ctr")
+    df = result.to_pandas()
+    assert isinstance(df, pd.DataFrame)
+    assert list(df.columns) == STANDARD_COLUMNS
+
+
+# ---------------------------------------------------------------------------
 # 1. Single metric, no slices or segments
 # ---------------------------------------------------------------------------
 
 
 def test_compute_single_metric_no_slices(mc):
-    df = mc.compute("ctr")
-    assert isinstance(df, pd.DataFrame)
-    assert list(df.columns) == STANDARD_COLUMNS
+    result = mc.compute("ctr")
+    assert isinstance(result, ibis.Table)
+    assert list(result.columns) == STANDARD_COLUMNS
+    df = result.to_pandas()
     assert len(df) == 1
     assert df["metric_name"].iloc[0] == "ctr"
     assert df["slice_type"].iloc[0] == "none"
@@ -59,9 +83,8 @@ def test_compute_single_metric_no_slices(mc):
 
 
 def test_compute_single_metric_with_slice(mc):
-    df = mc.compute("ctr", slices="campaign_type")
+    df = mc.compute("ctr", slices="campaign_type").to_pandas()
     # 4 campaign_type values + 1 all-slice baseline = 5 rows
-    # (no segment baseline × all)
     assert len(df) == 5
     sliced = df[df["slice_type"] == "campaign_type"]
     assert len(sliced) == 4
@@ -77,7 +100,7 @@ def test_compute_single_metric_with_slice(mc):
 
 
 def test_compute_single_metric_with_segment(mc):
-    df = mc.compute("ctr", segments="platform")
+    df = mc.compute("ctr", segments="platform").to_pandas()
     # 3 platform values + 1 all-segment baseline = 4 rows
     assert len(df) == 4
     segmented = df[df["segment_name"] == "platform"]
@@ -95,14 +118,14 @@ def test_compute_single_metric_with_segment(mc):
 
 def test_compute_with_time_window(mc):
     time_window = ("2024-01-01", "2024-04-01")
-    df = mc.compute("ctr", time_window=time_window)
+    df = mc.compute("ctr", time_window=time_window).to_pandas()
     assert df["period_start_date"].iloc[0] == "2024-01-01"
     assert df["period_end_date"].iloc[0] == "2024-04-01"
     assert df["metric_value"].notna().all()
 
     # Windowed result should differ from all-time (fewer data points)
-    df_all = mc.compute("total_revenue")  # no time_window, uses all rows
-    df_windowed = mc.compute("total_revenue", time_window=time_window)
+    df_all = mc.compute("total_revenue").to_pandas()
+    df_windowed = mc.compute("total_revenue", time_window=time_window).to_pandas()
     assert float(df_windowed["metric_value"].iloc[0]) != float(df_all["metric_value"].iloc[0])
 
 
@@ -112,7 +135,7 @@ def test_compute_with_time_window(mc):
 
 
 def test_compute_multiple_metrics(mc):
-    df = mc.compute(["ctr", "roas", "total_revenue"])
+    df = mc.compute(["ctr", "roas", "total_revenue"]).to_pandas()
     assert set(df["metric_name"]) == {"ctr", "roas", "total_revenue"}
     # 3 metrics × 1 row each (no slices/segments)
     assert len(df) == 3
@@ -124,7 +147,7 @@ def test_compute_multiple_metrics(mc):
 
 
 def test_compute_multiple_slices(mc):
-    df = mc.compute("ctr", slices=["campaign_type", "geo"])
+    df = mc.compute("ctr", slices=["campaign_type", "geo"]).to_pandas()
     # Two slices computed independently, each produces their own rows + baselines
     campaign_rows = df[df["slice_type"] == "campaign_type"]
     geo_rows = df[df["slice_type"] == "geo"]
@@ -160,15 +183,5 @@ def test_compute_slice_not_found(mc):
 
 
 def test_output_column_order(mc):
-    df = mc.compute("ctr")
-    assert list(df.columns) == STANDARD_COLUMNS
-
-
-# ---------------------------------------------------------------------------
-# 10. Default output is a pandas DataFrame
-# ---------------------------------------------------------------------------
-
-
-def test_compute_returns_pandas_by_default(mc):
-    df = mc.compute("ctr")
-    assert isinstance(df, pd.DataFrame)
+    result = mc.compute("ctr")
+    assert list(result.columns) == STANDARD_COLUMNS

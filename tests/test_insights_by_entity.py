@@ -84,18 +84,18 @@ def no_entities_mc(no_entities_spec_cache, entity_connection_manager):
 
 
 def test_default_no_by_entity_entity_id_null(entity_mc):
-    df = entity_mc.compute("revenue")
+    df = entity_mc.compute("revenue").to_pandas()
     assert "entity_id" in df.columns
     assert df["entity_id"].isna().all()
 
 
 def test_default_no_by_entity_column_order(entity_mc):
-    df = entity_mc.compute("revenue")
-    assert list(df.columns) == STANDARD_COLUMNS
+    result = entity_mc.compute("revenue")
+    assert list(result.columns) == STANDARD_COLUMNS
 
 
 def test_default_no_by_entity_one_aggregated_row(entity_mc):
-    df = entity_mc.compute("revenue")
+    df = entity_mc.compute("revenue").to_pandas()
     assert len(df) == 1
     assert df["metric_value"].iloc[0] == pytest.approx(750.0)
 
@@ -106,22 +106,22 @@ def test_default_no_by_entity_one_aggregated_row(entity_mc):
 
 
 def test_by_entity_user_id_column_order(entity_mc):
-    df = entity_mc.compute("revenue", by_entity="user_id")
-    assert list(df.columns) == STANDARD_COLUMNS
+    result = entity_mc.compute("revenue", by_entity="user_id")
+    assert list(result.columns) == STANDARD_COLUMNS
 
 
 def test_by_entity_user_id_entity_id_values(entity_mc):
-    df = entity_mc.compute("revenue", by_entity="user_id")
+    df = entity_mc.compute("revenue", by_entity="user_id").to_pandas()
     assert set(df["entity_id"]) == {"u1", "u2", "u3"}
 
 
 def test_by_entity_user_id_row_count(entity_mc):
-    df = entity_mc.compute("revenue", by_entity="user_id")
+    df = entity_mc.compute("revenue", by_entity="user_id").to_pandas()
     assert len(df) == 3
 
 
 def test_by_entity_user_id_metric_values(entity_mc):
-    df = entity_mc.compute("revenue", by_entity="user_id")
+    df = entity_mc.compute("revenue", by_entity="user_id").to_pandas()
     totals = df.set_index("entity_id")["metric_value"]
     assert totals["u1"] == pytest.approx(300.0)
     assert totals["u2"] == pytest.approx(400.0)
@@ -129,7 +129,7 @@ def test_by_entity_user_id_metric_values(entity_mc):
 
 
 def test_by_entity_device_id_values(entity_mc):
-    df = entity_mc.compute("revenue", by_entity="device_id")
+    df = entity_mc.compute("revenue", by_entity="device_id").to_pandas()
     assert set(df["entity_id"]) == {"d1", "d2"}
     totals = df.set_index("entity_id")["metric_value"]
     assert totals["d1"] == pytest.approx(300.0)  # 100+150+50
@@ -148,7 +148,7 @@ def test_by_entity_monthly_row_count(entity_mc):
         by_entity="user_id",
         time_window=("2026-01-01", "2026-04-01"),
         period_type="monthly",
-    )
+    ).to_pandas()
     assert len(df) == 3
     assert set(df["entity_id"]) == {"u1", "u2", "u3"}
 
@@ -159,7 +159,7 @@ def test_by_entity_monthly_metric_values(entity_mc):
         by_entity="user_id",
         time_window=("2026-01-01", "2026-04-01"),
         period_type="monthly",
-    )
+    ).to_pandas()
     totals = df.set_index("entity_id")["metric_value"]
     assert totals["u1"] == pytest.approx(300.0)
     assert totals["u2"] == pytest.approx(400.0)

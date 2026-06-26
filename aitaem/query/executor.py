@@ -2,15 +2,21 @@
 aitaem.query.executor - QueryExecutor
 
 Executes QueryGroups using an injected ConnectionManager.
-Gets one connector per source, executes each SQL string, pd.concat results.
+Gets one connector per source, unions ibis expressions lazily within each group,
+then unions across groups (same backend) or materialises via a caller-supplied
+cross-backend DuckDB connection (different backends).
 """
 
 from __future__ import annotations
 
 import logging
+import uuid
+from collections.abc import Callable
 
+import ibis
 import pandas as pd
 
+from aitaem.connectors.base import Connector
 from aitaem.connectors.connection import ConnectionManager
 from aitaem.query.builder import QueryGroup
 from aitaem.utils.exceptions import ConnectionNotFoundError, QueryExecutionError
@@ -31,54 +37,81 @@ class QueryExecutor:
     def execute(
         self,
         query_groups: list[QueryGroup],
-        output_format: str = "pandas",
-    ) -> pd.DataFrame:
-        """Execute all query groups sequentially and combine results.
+        cross_backend_conn_factory: Callable[[], ibis.BaseBackend] | None = None,
+    ) -> ibis.Table:
+        """Execute all query groups and combine results as a lazy ibis.Table.
 
         If a connection is missing for a group, log a warning and skip that group.
         Returns partial results if any groups succeed.
 
+        When all groups share the same backend, results are unioned lazily and
+        cross_backend_conn_factory is never called. When groups span multiple
+        backends, cross_backend_conn_factory() is called once to obtain a DuckDB
+        connection into which the combined result is loaded.
+
         Raises:
-            QueryExecutionError: if ALL groups fail to produce results
+            QueryExecutionError: if ALL groups fail to produce results.
+            QueryExecutionError: if groups span multiple backends and
+                cross_backend_conn_factory is None.
         """
-        all_dfs: list[pd.DataFrame] = []
+        tables: list[ibis.Table] = []
+        backends: list[ibis.BaseBackend] = []
 
         for group in query_groups:
-            result = self._execute_query_group(group, output_format)
-            if result is not None:
-                all_dfs.append(result)
+            try:
+                connector = self.connection_manager.get_connection_for_source(group.source)
+            except (ConnectionNotFoundError, RuntimeError) as e:
+                logger.warning("Skipping query group for source '%s': %s", group.source, e)
+                continue
 
-        if not all_dfs:
+            table = self._union_queries(group.sql_queries, connector)
+            if table is not None:
+                tables.append(table)
+                assert connector.connection is not None
+                backends.append(connector.connection)
+
+        if not tables:
             raise QueryExecutionError(
                 "All query groups failed to produce results. "
                 "Check connection configuration and query specs."
             )
 
-        return pd.concat(all_dfs, ignore_index=True)
+        if len(tables) == 1:
+            return tables[0]
 
-    def _execute_query_group(
+        if len(set(id(b) for b in backends)) == 1:
+            # All groups on the same backend — lazy union
+            combined = tables[0]
+            for t in tables[1:]:
+                combined = combined.union(t)
+            return combined
+
+        # Cross-backend: materialise each group, concat, reload into caller-supplied DuckDB.
+        # The factory is called here (lazily) so no connection is created for single-backend calls.
+        if cross_backend_conn_factory is None:
+            raise QueryExecutionError(
+                "Cross-backend query requires a cross_backend_conn_factory argument."
+            )
+        dfs = [t.to_pandas() for t in tables]
+        df = pd.concat(dfs, ignore_index=True)
+        table_name = f"__combined_{uuid.uuid4().hex[:8]}__"
+        return cross_backend_conn_factory().create_table(table_name, obj=df)
+
+    def _union_queries(
         self,
-        query_group: QueryGroup,
-        output_format: str,
-    ) -> pd.DataFrame | None:
-        """Execute all SQL queries in a single QueryGroup.
+        sql_queries: list[str],
+        connector: Connector,
+    ) -> ibis.Table | None:
+        """Combine SQL strings into a single lazy ibis.Table via SQL UNION ALL.
 
-        Returns None (with warning) if connection is unavailable.
+        Using SQL-level UNION ALL (rather than ibis expression union) lets the
+        backend handle NULL-type coercion between queries — e.g. when one query
+        returns NULL for metric_format and another returns 'percentage'.
         """
-        try:
-            connector = self.connection_manager.get_connection_for_source(query_group.source)
-        except (ConnectionNotFoundError, RuntimeError) as e:
-            logger.warning("Skipping query group for source '%s': %s", query_group.source, e)
-            return None
-
-        dfs: list[pd.DataFrame] = []
         assert connector.connection is not None
-        for sql in query_group.sql_queries:
-            ibis_expr = connector.connection.sql(sql)
-            df = connector.execute(ibis_expr, output_format)
-            dfs.append(df)
-
-        if not dfs:
+        if not sql_queries:
             return None
-
-        return pd.concat(dfs, ignore_index=True)
+        if len(sql_queries) == 1:
+            return connector.connection.sql(sql_queries[0])
+        combined = " UNION ALL ".join(f"({sql})" for sql in sql_queries)
+        return connector.connection.sql(combined)

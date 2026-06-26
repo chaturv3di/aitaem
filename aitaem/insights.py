@@ -7,7 +7,10 @@ MetricCompute is the main entry point for computing metrics from specs.
 from __future__ import annotations
 
 import logging
-import pandas as pd
+import os
+import tempfile
+
+import ibis
 
 from aitaem.connectors.connection import ConnectionManager
 from aitaem.query.builder import PeriodType, QueryBuilder
@@ -69,9 +72,7 @@ def _run_scan(spec_cache: SpecCache, connection_manager: ConnectionManager) -> S
                     compatible=compatible,
                     valid_join_keys=[],
                     missing_columns=missing,
-                    reason=None
-                    if compatible
-                    else f"columns not found in source table: {missing}",
+                    reason=None if compatible else f"columns not found in source table: {missing}",
                 )
             )
 
@@ -101,17 +102,54 @@ class MetricCompute:
     """Compute metrics from a SpecCache and ConnectionManager.
 
     Primary user interface for aitaem.  Resolves specs, builds SQL queries,
-    executes them, and returns a standardized pandas DataFrame.
+    executes them, and returns a lazy ibis.Table.
     """
 
-    def __init__(self, spec_cache: SpecCache, connection_manager: ConnectionManager) -> None:
+    def __init__(
+        self,
+        spec_cache: SpecCache,
+        connection_manager: ConnectionManager,
+        tmp_dir: str | None = "/tmp",
+    ) -> None:
         """
         Args:
             spec_cache: Loaded and validated metric, slice, and segment specs.
             connection_manager: Backend connections for query execution.
+            tmp_dir: Directory for the temporary DuckDB file used when a
+                compute() call spans multiple source backends. Defaults to
+                '/tmp', which prevents large cross-backend result sets from
+                bloating process memory. Set to None to force an in-memory
+                DuckDB instead (safe when result sets are known to be small).
+                The file is deleted automatically when this MetricCompute
+                instance is garbage collected; the OS reclaims it on reboot
+                as a final backstop.
         """
         self.spec_cache = spec_cache
         self.connection_manager = connection_manager
+        self._tmp_dir = tmp_dir
+        self._cross_backend_conn: ibis.BaseBackend | None = None
+        self._cross_backend_db_path: str | None = None
+
+    def __del__(self) -> None:
+        self._cross_backend_conn = None
+        if self._cross_backend_db_path is not None:
+            try:
+                os.unlink(self._cross_backend_db_path)
+            except OSError:
+                pass
+
+    def _get_cross_backend_conn(self) -> ibis.BaseBackend:
+        """Return the persistent cross-backend DuckDB connection, creating it on first call."""
+        if self._cross_backend_conn is None:
+            if self._tmp_dir is not None:
+                fd, path = tempfile.mkstemp(suffix=".duckdb", dir=self._tmp_dir)
+                os.close(fd)
+                os.unlink(path)  # DuckDB must create the file itself; mkstemp leaves it empty
+                self._cross_backend_db_path = path
+                self._cross_backend_conn = ibis.duckdb.connect(path)
+            else:
+                self._cross_backend_conn = ibis.duckdb.connect(":memory:")
+        return self._cross_backend_conn
 
     def compute(
         self,
@@ -121,8 +159,7 @@ class MetricCompute:
         time_window: tuple[str, str] | None = None,
         period_type: PeriodType = "all_time",
         by_entity: str | None = None,
-        output_format: str = "pandas",
-    ) -> pd.DataFrame:
+    ) -> ibis.Table:
         """Compute one or more metrics with optional slicing and segmentation.
 
         Args:
@@ -144,12 +181,22 @@ class MetricCompute:
                        every requested metric must list this column in its ``entities``
                        field. The output includes an ``entity_id`` column with the
                        entity column value; ``None`` when ``by_entity`` is not set.
-            output_format: Output format — only 'pandas' is supported in Phase 1.
 
         Returns:
-            DataFrame with columns: period_type, period_start_date, period_end_date,
-            entity_id, metric_name, slice_type, slice_value, segment_name, segment_value,
-            metric_value. ``entity_id`` is ``None`` when ``by_entity`` is not set.
+            Lazy ibis.Table with columns: period_type, period_start_date,
+            period_end_date, entity_id, metric_name, metric_format, slice_type,
+            slice_value, segment_name, segment_value, metric_value.
+            Call .to_pandas() to materialise.
+
+            When all metrics share the same source backend the returned Table is a
+            deferred expression on that backend and no data is transferred until
+            .to_pandas() (or any other materialising call) is invoked.
+
+            When metrics span multiple source backends the results are materialised
+            internally and re-exposed as a Table backed by a temporary DuckDB
+            database (file in tmp_dir, or in-memory when tmp_dir=None). This
+            database is not accessible via ConnectionManager and is cleaned up
+            when this MetricCompute instance is garbage collected.
 
         Raises:
             SpecNotFoundError: if any metric/slice/segment name is not in the cache.
@@ -208,10 +255,13 @@ class MetricCompute:
             by_entity=by_entity,
         )
 
-        # 4. Execute and return in standard column order
+        # 5. Execute and return in standard column order
         executor = QueryExecutor(self.connection_manager)
-        df = executor.execute(query_groups, output_format=output_format)
-        return ensure_standard_output(df)
+        table = executor.execute(
+            query_groups,
+            cross_backend_conn_factory=self._get_cross_backend_conn,
+        )
+        return ensure_standard_output(table)
 
     def scan(self) -> ScanResult:
         """Introspect source schemas and return a compatibility matrix for all loaded specs.
