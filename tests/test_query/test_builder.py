@@ -180,16 +180,16 @@ class TestBuildTimeFilterSql:
 class TestBuildMetricValueExpr:
     def test_sum(self):
         m = make_metric(agg="sum", numerator="SUM(amount)")
-        assert QueryBuilder._build_metric_value_expr(m) == "SUM(amount)"
+        assert QueryBuilder._build_metric_value_expr(m) == "CAST(SUM(amount) AS DOUBLE)"
 
     def test_ratio(self):
         m = make_ratio_metric()
         expr = QueryBuilder._build_metric_value_expr(m)
-        assert expr == "SUM(clicks) / NULLIF(SUM(impressions), 0)"
+        assert expr == "CAST(SUM(clicks) / NULLIF(SUM(impressions), 0) AS DOUBLE)"
 
     def test_count(self):
         m = make_metric(agg="count", numerator="COUNT(*)")
-        assert QueryBuilder._build_metric_value_expr(m) == "COUNT(*)"
+        assert QueryBuilder._build_metric_value_expr(m) == "CAST(COUNT(*) AS DOUBLE)"
 
 
 # ---------------------------------------------------------------------------

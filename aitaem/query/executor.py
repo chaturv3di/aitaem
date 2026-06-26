@@ -102,16 +102,12 @@ class QueryExecutor:
         sql_queries: list[str],
         connector: Connector,
     ) -> ibis.Table | None:
-        """Combine SQL strings into a single lazy ibis.Table via SQL UNION ALL.
-
-        Using SQL-level UNION ALL (rather than ibis expression union) lets the
-        backend handle NULL-type coercion between queries — e.g. when one query
-        returns NULL for metric_format and another returns 'percentage'.
-        """
+        """Combine SQL strings into a single lazy ibis.Table via ibis union."""
         assert connector.connection is not None
         if not sql_queries:
             return None
-        if len(sql_queries) == 1:
-            return connector.connection.sql(sql_queries[0])
-        combined = " UNION ALL ".join(f"({sql})" for sql in sql_queries)
-        return connector.connection.sql(combined)
+        tables = [connector.connection.sql(q) for q in sql_queries]
+        result = tables[0]
+        for t in tables[1:]:
+            result = result.union(t)
+        return result

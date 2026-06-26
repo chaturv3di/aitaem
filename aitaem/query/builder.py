@@ -257,7 +257,7 @@ class QueryBuilder:
 
         # --- Outer SELECT scalar columns helpers ---
         def lit(v: str | None) -> str:
-            return f"'{v}'" if v is not None else "NULL"
+            return f"'{v}'" if v is not None else "CAST(NULL AS VARCHAR)"
 
         slice_type_val = "|".join(ss.name for ss in slice_specs) if slice_specs else "none"
         slice_value_expr = (
@@ -455,8 +455,8 @@ class QueryBuilder:
     def _build_metric_value_expr(metric: MetricSpec) -> str:
         """Build the metric value SQL expression."""
         if metric.denominator is not None:
-            return f"{metric.numerator} / NULLIF({metric.denominator}, 0)"
-        return metric.numerator
+            return f"CAST({metric.numerator} / NULLIF({metric.denominator}, 0) AS DOUBLE)"
+        return f"CAST({metric.numerator} AS DOUBLE)"
 
     @staticmethod
     def _parse_window_endpoint_as_datetime(s: str) -> datetime:
