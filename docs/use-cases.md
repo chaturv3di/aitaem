@@ -19,19 +19,21 @@ backlog that never shrinks.
   slices that matter.
 - Any analyst or engineer can call `MetricCompute.compute()` to answer "CTR by campaign type for
   Q1" or "revenue by country and platform" without touching SQL.
-- Slice and segment combinations produce the full breakdown matrix in a single call, output as a
-  tidy pandas DataFrame ready for charting libraries (matplotlib, Plotly, Streamlit, etc.).
+- Slice and segment combinations produce the full breakdown matrix in a single call. Call
+  `.to_pandas()` to get a tidy DataFrame ready for charting libraries (matplotlib, Plotly,
+  Streamlit, etc.), or work directly with the returned `ibis.Table`.
 - `period_type` (monthly, weekly, quarterly) turns any metric into a time series with no
   additional code.
 
 ```python
-df = mc.compute(
+table = mc.compute(
     metrics=["ctr", "roas"],
     slices=["campaign_type", "geo"],
     segments="platform",
     time_window=("2024-01-01", "2024-04-01"),
     period_type="monthly",
 )
+df = table.to_pandas()
 ```
 
 ---
@@ -59,15 +61,15 @@ these tables by hand involves bespoke SQL per feature, repeated for every traini
 
 ```python
 # Per-user monthly ad CTR — feed directly into an ML feature pipeline
-df = mc.compute(
+table = mc.compute(
     metrics="ad_ctr",
     by_entity="user_id",
     time_window=("2023-01-01", "2024-01-01"),
     period_type="monthly",
 )
 
-# Pivot → one row per user, one column per month
-feature_table = df.pivot_table(
+# Materialise and pivot → one row per user, one column per month
+feature_table = table.to_pandas().pivot_table(
     index="entity_id",
     columns="period_start_date",
     values="metric_value",
@@ -94,8 +96,8 @@ diverge, bugs multiply, and no single source of truth exists.
   re-implementing SQL.
 - `ConnectionManager.from_yaml()` reads connection credentials from environment variables at
   runtime — no credentials baked into application code.
-- Query results are returned as pandas DataFrames and can trivially be serialised to JSON, Parquet,
-  or Arrow for downstream consumers.
+- `compute()` returns a lazy `ibis.Table`. Call `.to_pandas()` to materialise,
+  then serialise to JSON, Parquet, or Arrow for downstream consumers.
 
 ```
 YAML specs (git repo)
@@ -161,8 +163,8 @@ correctness, security, and cost risks.
   SQL.
 - `SpecCache` can be serialised and given to an LLM as context — the model knows what metrics
   exist and what slices are valid without introspecting raw schemas.
-- The fixed 10-column output schema makes it straightforward for an LLM to interpret and narrate
-  results.
+- The fixed 11-column output schema (as an `ibis.Table`) makes it straightforward for an LLM to
+  interpret and narrate results after calling `.to_pandas()`.
 - Since aitaem is explicitly designed to be LLM-friendly, it fits naturally as the "tool call"
   layer in an agentic pipeline.
 
@@ -174,7 +176,7 @@ User: "How did CTR trend by campaign type in Q1?"
           │  tool_call: compute(metrics="ctr", slices="campaign_type",
           │             time_window=("2024-01-01", "2024-04-01"), period_type="monthly")
           ▼
-   MetricCompute → DataFrame
+   MetricCompute → ibis.Table → .to_pandas()
           │
           ▼
      LLM narrates results

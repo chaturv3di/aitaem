@@ -2,28 +2,47 @@
 
 ## Unreleased
 
+## v0.4.0 — 2026-06-26
+
 ### Breaking changes
 
 - **`MetricCompute.compute()` returns `ibis.Table`** instead of `pd.DataFrame`.
   Call `.to_pandas()` on the result to materialise. When all metrics share the
-  same source backend the Table is a deferred expression and no data is
+  same source backend the Table is a fully deferred expression — no data is
   transferred until materialised. When metrics span multiple backends the results
   are materialised internally and re-exposed as a Table backed by a temporary
   DuckDB database managed by the `MetricCompute` instance.
+
+  ```python
+  # Before (v0.3.x)
+  df = mc.compute("ctr")
+
+  # After (v0.4.0)
+  table = mc.compute("ctr")   # lazy ibis.Table
+  df = table.to_pandas()      # materialise when needed
+  ```
+
 - **`MetricCompute.compute()` `output_format` parameter removed.** The parameter
   had no observable effect (only `"pandas"` was supported and was the default).
+  Remove it from any `compute()` call sites.
 - **`QueryExecutor.execute()` `output_format` parameter removed** for the same
   reason.
+- **`aitaem.connectors.Connector` removed.** The abstract base class has been
+  deleted. `IbisConnector` is now a plain class and the sole connector
+  implementation. `from aitaem.connectors import Connector` will raise an
+  `ImportError`; remove the import and use `IbisConnector` directly.
+- **SQL literals are now typed.** `metric_format` absent emits
+  `CAST(NULL AS VARCHAR)` (previously untyped `NULL`). `metric_value` is always
+  `CAST(... AS DOUBLE)`. This is transparent for most callers but affects anyone
+  inspecting raw ibis expression schemas.
 
 ### Added
 
-- **`MetricCompute.__init__` `tmp_dir` parameter**
-- **`aitaem.connectors.Connector` removed.** The abstract base class
-  `Connector` has been deleted. `IbisConnector` is now a plain class and the
-  sole connector implementation. `from aitaem.connectors import Connector` will
-  raise an `ImportError`; remove the import and use `IbisConnector` directly. (`str | None`, default `"/tmp"`).
-  Controls where the temporary DuckDB file is created for cross-backend compute
-  calls. Set to `None` to use an in-memory DuckDB instead.
+- **`MetricCompute.__init__` `tmp_dir` parameter** (`str | None`, default
+  `"/tmp"`). Controls where the temporary DuckDB file is written for cross-backend
+  compute calls. Set to `None` to use an in-memory DuckDB instead (safe when
+  result sets are known to be small). The file is deleted automatically when the
+  `MetricCompute` instance is garbage collected.
 
 ## v0.3.1 — 2026-06-03
 

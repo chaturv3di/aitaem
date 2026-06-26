@@ -40,18 +40,19 @@ conn = ConnectionManager.from_yaml("examples/connections.yaml")
 
 # 3. Compute metrics
 mc = MetricCompute(cache, conn)
-df = mc.compute(
+table = mc.compute(
     metrics="ctr",
     slices="campaign_type",
     segments="platform",
     time_window=("2024-01-01", "2024-04-01"),
 )
-print(df)
+print(table.to_pandas())
 ```
 
 ## Standard Output Format
 
-Every `compute()` call returns a pandas DataFrame with exactly these 10 columns:
+Every `compute()` call returns a lazy **`ibis.Table`** with exactly these 11 columns.
+Call `.to_pandas()` to materialise the result into a DataFrame.
 
 | Column | Description |
 |--------|-------------|
@@ -60,6 +61,7 @@ Every `compute()` call returns a pandas DataFrame with exactly these 10 columns:
 | `period_end_date` | ISO date string or `None` |
 | `entity_id` | Entity column value when `by_entity` is set; `None` otherwise |
 | `metric_name` | Name of the metric (e.g. `"ctr"`) |
+| `metric_format` | Format hint from the spec (e.g. `"percentage"`), or `None` |
 | `slice_type` | Slice name or `"none"` for the all-data baseline |
 | `slice_value` | Slice value (e.g. `"Search"`) or `"all"` |
 | `segment_name` | Segment name or `"none"` for the all-data baseline |
@@ -92,12 +94,12 @@ cache = SpecCache.from_yaml(
 mc = MetricCompute(cache, conn)
 
 # CTR by campaign type for Q1 2024
-df = mc.compute(
+table = mc.compute(
     metrics="ctr",
     slices="campaign_type",
     time_window=("2024-01-01", "2024-04-01"),
 )
-print(df[["slice_value", "metric_value"]])
+print(table.to_pandas()[["slice_value", "metric_value"]])
 ```
 
 ## Next Steps
