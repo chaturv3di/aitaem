@@ -34,7 +34,8 @@ cache = SpecCache.from_yaml(metric_paths="examples/metrics/",
                             slice_paths="examples/slices/",
                             segment_paths="examples/segments/")
 conn = ConnectionManager.from_yaml("examples/connections.yaml")
-df = MetricCompute(cache, conn).compute(metrics="ctr", slices="campaign_type")
+table = MetricCompute(cache, conn).compute(metrics="ctr", slices="campaign_type")
+df = table.to_pandas()
 ```
 
 [:fontawesome-solid-rocket: Get Started](getting-started.md){ .md-button .md-button--primary }

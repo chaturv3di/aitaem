@@ -415,11 +415,12 @@ compatible_segs = result.compatible_segments("ctr")
 # e.g. ["platform"]
 
 # Pass scan results directly into compute()
-df = mc.compute(
+table = mc.compute(
     metrics="ctr",
     slices=compatible_slices,
     segments=compatible_segs[0] if compatible_segs else None,
 )
+df = table.to_pandas()
 ```
 
 For slices, the scan checks that every column referenced in `values[].where` (or the bare

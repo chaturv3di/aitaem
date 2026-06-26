@@ -20,16 +20,19 @@ mc = MetricCompute(cache, conn)
 
 ## `compute()` Parameters
 
+`compute()` returns a lazy **`ibis.Table`**. Call `.to_pandas()` to materialise
+the result into a DataFrame.
+
 ```python
-df = mc.compute(
+table = mc.compute(
     metrics,              # required
     slices=None,          # optional
     segments=None,        # optional
     time_window=None,     # optional
     period_type="all_time",  # optional
     by_entity=None,       # optional
-    output_format="pandas",
 )
+df = table.to_pandas()
 ```
 
 ### `metrics`
@@ -38,10 +41,10 @@ One or more metric names defined in the spec cache.
 
 ```python
 # Single metric
-df = mc.compute(metrics="ctr")
+table = mc.compute(metrics="ctr")
 
 # Multiple metrics
-df = mc.compute(metrics=["ctr", "roas", "total_revenue"])
+table = mc.compute(metrics=["ctr", "roas", "total_revenue"])
 ```
 
 ### `slices`
@@ -50,10 +53,10 @@ One or more slice names. Each slice is computed independently and stacked in the
 
 ```python
 # Single slice
-df = mc.compute(metrics="ctr", slices="campaign_type")
+table = mc.compute(metrics="ctr", slices="campaign_type")
 
 # Multiple slices
-df = mc.compute(metrics="ctr", slices=["campaign_type", "geo"])
+table = mc.compute(metrics="ctr", slices=["campaign_type", "geo"])
 ```
 
 ### `segments`
@@ -65,17 +68,17 @@ Two forms are accepted:
 **String** — uses the segment spec's `entity_id` as the fact-table join key (the default):
 
 ```python
-df = mc.compute(metrics="ctr", segments="platform")
+table = mc.compute(metrics="ctr", segments="platform")
 ```
 
 **Dict** — supplies an explicit fact-table FK column, overriding the default:
 
 ```python
 # Join dim_customers on the buyer_id column of the fact table
-df = mc.compute(metrics="revenue", segments={"customer_value": "buyer_id"})
+table = mc.compute(metrics="revenue", segments={"customer_value": "buyer_id"})
 
 # Same segment, different fact-side join key — seller's perspective
-df = mc.compute(metrics="revenue", segments={"customer_value": "seller_id"})
+table = mc.compute(metrics="revenue", segments={"customer_value": "seller_id"})
 ```
 
 The dict form is required when the fact table exposes multiple FK columns that can join to the same DIM (e.g. a transactions table with both `buyer_id` and `seller_id`).
@@ -92,7 +95,7 @@ An `(start_date, end_date)` tuple of ISO 8601 date strings. Filters rows where `
     All metrics in the call must have `timestamp_col` set in their spec when `time_window` is provided.
 
 ```python
-df = mc.compute(
+table = mc.compute(
     metrics="ctr",
     slices="campaign_type",
     time_window=("2024-01-01", "2024-04-01"),
@@ -122,14 +125,14 @@ from aitaem import PeriodType, VALID_PERIOD_TYPES
 print(VALID_PERIOD_TYPES)  # frozenset({'all_time', 'daily', 'weekly', 'monthly', 'yearly', 'hourly'})
 
 # Monthly breakdown over Q1 2024
-df = mc.compute(
+table = mc.compute(
     metrics="total_revenue",
     time_window=("2024-01-01", "2024-03-31"),
     period_type="monthly",
 )
 
 # Hourly breakdown over a single day
-df = mc.compute(
+table = mc.compute(
     metrics="total_revenue",
     time_window=("2024-01-15T08:00:00", "2024-01-15T18:00:00"),
     period_type="hourly",
@@ -160,7 +163,7 @@ entity-level deep-dives — e.g., revenue per user, sessions per device.
 
 ```python
 # Ad CTR disaggregated per user (requires metric to declare entities: ['user_id', 'page_id', 'device_id'])
-df = mc.compute(
+table = mc.compute(
     metrics="ad_ctr",
     by_entity="user_id",
     time_window=("2024-01-01", "2024-04-01"),
@@ -168,22 +171,36 @@ df = mc.compute(
 )
 
 # Default — aggregate over all entities (entity_id column is NULL)
-df = mc.compute(metrics="ad_ctr")
+table = mc.compute(metrics="ad_ctr")
 ```
 
 !!! note
     All metrics in the call must list the requested `by_entity` column in their `entities`
     field. A `QueryBuildError` is raised if any metric does not declare it.
 
-### `output_format`
-
-Controls the return type. Currently only `"pandas"` is supported, which returns a `pandas.DataFrame`. This parameter is reserved for future output backends.
-
 ---
 
 ## Output Schema
 
-Every `compute()` call returns a pandas DataFrame with exactly these 11 columns:
+Every `compute()` call returns a lazy **`ibis.Table`** with exactly these 11 columns.
+The query executes on the backend and no data is transferred to Python until you call
+`.to_pandas()` (or any other ibis materialising method). This means you can inspect
+the schema, apply additional filters, or drop columns before paying the cost of moving
+data — useful when result sets are large or when you only need a subset of rows for
+inspection.
+
+```python
+table = mc.compute("ctr", slices="campaign_type")
+
+# Inspect columns without materialising
+print(table.columns)
+
+# Push a filter down to the SQL engine before pulling data
+df = table.filter(table.slice_value == "Search").to_pandas()
+```
+
+Call `.to_pandas()` to materialise into a `pandas.DataFrame`, or use any ibis
+expression method (`.filter()`, `.select()`, `.aggregate()`, etc.) directly on the table.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -206,12 +223,13 @@ Every `compute()` call returns a pandas DataFrame with exactly these 11 columns:
 Slices and segments can be combined freely. Each combination is computed as a separate query group and the results are concatenated:
 
 ```python
-df = mc.compute(
+table = mc.compute(
     metrics=["ctr", "total_revenue"],
     slices=["campaign_type", "geo"],
     segments="platform",
     time_window=("2024-01-01", "2024-07-01"),
 )
+df = table.to_pandas()
 ```
 
 This produces rows for:
@@ -230,7 +248,8 @@ a given metric's source table. This avoids runtime failures caused by missing co
 result = mc.scan()
 compatible = result.compatible_slices("ctr")  # ["campaign_type", "country"]
 
-df = mc.compute(metrics="ctr", slices=compatible)
+table = mc.compute(metrics="ctr", slices=compatible)
+df = table.to_pandas()
 ```
 
 See [Compatibility Scanning](specs.md#compatibility-scanning) in the Writing Specs guide for
