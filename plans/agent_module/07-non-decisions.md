@@ -1,0 +1,132 @@
+# Section 7 — Explicit Non-Decisions
+
+## Purpose
+
+The architecture takes positions on what *is* in scope for v1. This section names what is *deliberately not* — what we're punting on, why, and what makes the punt safe (i.e., why we can defer without painting ourselves into a corner).
+
+Each non-decision is paired with an "escape valve" — the path forward we are leaving open.
+
+---
+
+## ND-01: Streaming response API
+
+**What's deferred.** No streaming surface on `Bot.chat()` / `Bot.ask()` in v1. Responses are returned whole.
+
+**Why safe.** Streaming is incremental delivery of the same response shape — chunks of narrative, then a final structured payload. The architecture commits to a structured response; streaming can be added later as an alternative method (e.g. `Bot.chat_stream()` yielding partial responses) without changing the existing API.
+
+**Escape valve.** pydantic-ai supports streaming. When users need it, expose `chat_stream()` returning an async iterator of partial responses. No architectural changes required.
+
+**Trigger to revisit.** First real user need (interactive UI with token-by-token rendering, or progress UX during long-running tool chains).
+
+---
+
+## ND-02: Event-stream observability hooks
+
+**What's deferred.** No `@bot.on_tool_called` / `@bot.on_model_request` / event-emitter surface. Observability in v1 is "consume the aggregated `RunTrace` after the turn."
+
+**Why safe.** AD-08 commits to aggregated trace now, designed so an event stream can be added later. The aggregated trace is OTel-compatible; observability backends (Logfire, Datadog, anything OTel-aware) can consume the same data via spans even in v1.
+
+**Escape valve.** v1.x can add observability hooks as a parallel mechanism — `bot.on(...)` decorator, or `bot.events` async iterator — without touching the response shape.
+
+**Trigger to revisit.** When real-time visibility into in-flight tool calls becomes a customer requirement (e.g. a "live transparency panel" that updates as the agent works, rather than rendering after the response).
+
+---
+
+## ND-03: Error taxonomy
+
+**What's deferred.** `Status.error` with a free-text `reason: str`. No typed `error_kind` (`connection_failed`, `tool_timeout`, `validation_failed`, `model_overloaded`, etc.).
+
+**Why safe.** Adding a `reason_kind` enum to the response in v1.x is additive — old callers who only read `reason` keep working; new callers can branch on `reason_kind`. No callers depend on the absence of typed kinds.
+
+**Escape valve.** Type the kinds when they earn their cost (i.e., when downstream code routinely branches on string parsing of `reason`).
+
+**Trigger to revisit.** First time we see callers writing `if "timeout" in response.reason:` — that's the signal the taxonomy is being demanded.
+
+---
+
+## ND-04: Default prompt customization API
+
+**What's deferred.** Bots have default prompts. Users can override via subclass; we don't commit to a richer customization mechanism (kwarg override, fragment-level override, registry).
+
+**Why safe.** Subclass-override is sufficient for advanced users today; convenience kwargs are pure additions later. The architecture doesn't lock in either path.
+
+**Escape valve.** When users want it: `Bot(system_prompt=...)` constructor kwarg, or a `prompt_fragments={"precision_rule": "..."}` overrides dict, or a registered-fragments system. All purely additive.
+
+**Trigger to revisit.** First user who reports that subclassing-to-override-one-prompt is too heavy. Likely soon.
+
+---
+
+## ND-05: Default analysis tool catalogue composition
+
+**What's deferred.** The exact list of analysis tools that ships in `QueryBot`'s default tool set. Section 3 names a working set (`rank_by_value`, `filter_by_threshold`, `distribution_summary`, `period_over_period`, `contribution_share`) based on common analytical patterns, but the architecture does not commit that exact composition.
+
+**Why safe.** Bots in v1 accept `tools=[...]` and ship with a sensible default. Adding, renaming, or deprecating default tools is a backward-compatible operation as long as the existing default tool *names and schemas* are stable.
+
+**Escape valve.** Real-world experience and user feedback during early v1 use will surface the right default set. We can ship the working set as v1.0 and refine in v1.x.
+
+**Trigger to revisit.** Usage data showing which tools the LLM actually uses, and which it ignores or misuses.
+
+---
+
+## ND-06: Cost/token-budget controls
+
+**What's deferred.** No built-in per-bot budget enforcement (e.g. "stop after $0.50 of inference" or "max 10 tool calls"). pydantic-ai exposes `UsageLimits`; we don't expose a higher-level interface.
+
+**Why safe.** pydantic-ai's mechanism is reachable via subclass / advanced configuration. The bot's response already carries usage in `RunTrace`; callers can enforce budgets at their level.
+
+**Escape valve.** Expose a `limits=...` constructor kwarg in v1.x mapping to pydantic-ai's UsageLimits.
+
+**Trigger to revisit.** When users explicitly ask for this.
+
+---
+
+## ND-07: Hot-reload of SpecCache
+
+**What's deferred.** A bot constructed with a `SpecCache` instance uses that instance for its lifetime. If the caller updates specs upstream (e.g. a user creates a new metric), the existing bot does not see the change. The caller constructs a new bot.
+
+**Why safe.** Bot construction is cheap. The "new bot per session" pattern (AD-04) already implies fresh `SpecCache` lookups at construction time.
+
+**Escape valve.** `bot.reset(spec_cache=new_cache)` could be added in v1.x without breaking the in-construction lifetime model.
+
+**Trigger to revisit.** When users describe long-lived bot instances that need to track spec changes (probably never for `aitaem.agent`'s expected use; possibly for a hosted variant).
+
+---
+
+## ND-08: Concurrency / async semantics inside a single bot
+
+**What's deferred.** Whether two concurrent `chat()` calls on the *same bot instance* are safe is not committed. The architecture's expectation is one call at a time per bot; concurrent calls require separate bot instances.
+
+**Why safe.** This matches every real use case — a user is talking to one bot in one session. Concurrency lives at the caller level (a multi-tenant application with N users → N bot instances, one per active session).
+
+**Escape valve.** If anyone wants concurrent calls on one bot, document it as unsupported and let them serialize at their layer. Or add an explicit lock if that ever becomes a real ask.
+
+**Trigger to revisit.** Unlikely. Mentioned for completeness.
+
+---
+
+## ND-09: A formal `aitaem.agent` test/eval harness shipped in the repo
+
+**What's deferred (open question to user).** Whether the agent module ships a reference test/eval harness — e.g. `tests/evals/test_query_bot.py` demonstrating pydantic-evals wiring — or whether the eval substrate is documented and users build their own.
+
+**Why this is non-deciding-able by architecture alone.** Either path works at the architecture level; the decision is about library scope and maintenance burden. Flagged in Section 5 as an open question for the user.
+
+**Escape valve.** Start without; add later. Or start with, remove if maintenance burden outweighs value.
+
+---
+
+## What's NOT a non-decision
+
+For clarity: these are decisions the architecture *has* taken, not punts:
+
+- Multi-turn (`chat()`) is the primary API. Single-turn (`ask()`) is a subset.
+- The result store is on the bot, not on responses; lifetime is session-scoped.
+- Responses carry result IDs, not artifacts; artifacts are retrieved via `bot.get_result(id)`.
+- History serialization includes result store artifacts.
+- The trace structure is OTel-compatible.
+- pydantic-ai is the runtime.
+- AITAEM core never imports from `aitaem.agent`.
+- The agent module is gated by an optional install (`aitaem[agent]`).
+- Tools return minimal LLM-facing summaries; never round-trip bulk data through the LLM.
+- AITAEM's Ibis-return `compute()` is the assumed shape; migration is a hard prerequisite.
+
+These are committed in Section 2 and the architecture follows from them.
