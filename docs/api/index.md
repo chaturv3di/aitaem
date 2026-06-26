@@ -19,7 +19,7 @@ from aitaem.helpers import load_csvs_to_duckdb
 
 | Class | Module | Purpose |
 |-------|--------|---------|
-| [`MetricCompute`](insights.md) | `aitaem.insights` | Primary interface — compute metrics |
+| [`MetricCompute`](insights.md) | `aitaem.insights` | Primary interface — compute metrics; `compute()` returns a lazy `ibis.Table` |
 | [`SpecCache`](specs.md) | `aitaem.specs.loader` | Load and cache YAML specs |
 | [`MetricSpec`](specs.md#aitaem.specs.metric.MetricSpec) | `aitaem.specs.metric` | Metric spec dataclass |
 | [`SliceSpec`](specs.md#aitaem.specs.slice.SliceSpec) | `aitaem.specs.slice` | Slice spec dataclass |
@@ -35,7 +35,7 @@ from aitaem.helpers import load_csvs_to_duckdb
 |--------|------|---------|
 | `VALID_PERIOD_TYPES` | `frozenset[str]` | Set of valid `period_type` values |
 | `PeriodType` | `Literal[...]` | Type alias for `period_type` — use in annotations and Pydantic models |
-| `STANDARD_COLUMNS` | `list[str]` | Ordered list of column names that `MetricCompute.compute()` always returns |
+| `STANDARD_COLUMNS` | `list[str]` | Ordered list of column names that `MetricCompute.compute()` always returns as an `ibis.Table` |
 
 ```python
 from aitaem import PeriodType, VALID_PERIOD_TYPES

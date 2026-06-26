@@ -2,10 +2,13 @@
 Tests for aitaem.query.executor — QueryExecutor
 
 Sub-feature coverage:
- 13. _execute_query_group: integration with in-memory DuckDB; verify output schema
- 14. execute: multiple groups → combined DataFrame; all fail → exception; partial failure → warning
+ _union_queries: lazy ibis.Table union per group
+ execute: returns ibis.Table; single/multi-backend; all fail → exception; partial failure → warning
 """
 
+import logging
+
+import ibis
 import pytest
 
 from aitaem.connectors.connection import ConnectionManager
@@ -33,13 +36,49 @@ EXPECTED_OUTPUT_COLUMNS = {
 
 
 # ---------------------------------------------------------------------------
-# 13. _execute_query_group
+# _union_queries
 # ---------------------------------------------------------------------------
 
 
-class TestExecuteQueryGroup:
-    def test_basic_output_schema(self, ad_campaigns_connection_manager):
-        """Verify output DataFrame has all expected columns and non-null metric_value."""
+class TestUnionQueries:
+    def test_union_queries_single_sql_returns_ibis_table(self, ad_campaigns_connection_manager):
+        connector = ad_campaigns_connection_manager.get_connection("duckdb")
+        executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
+        sql = "SELECT 1 AS metric_value"
+        result = executor._union_queries([sql], connector)
+        assert isinstance(result, ibis.Table)
+
+    def test_union_queries_multiple_sqls_returns_ibis_table(self, ad_campaigns_connection_manager):
+        connector = ad_campaigns_connection_manager.get_connection("duckdb")
+        executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
+        sqls = ["SELECT 1 AS metric_value", "SELECT 2 AS metric_value"]
+        result = executor._union_queries(sqls, connector)
+        assert isinstance(result, ibis.Table)
+
+    def test_union_queries_result_materialises_correctly(self, ad_campaigns_connection_manager):
+        connector = ad_campaigns_connection_manager.get_connection("duckdb")
+        executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
+        sqls = ["SELECT 1 AS metric_value", "SELECT 2 AS metric_value"]
+        result = executor._union_queries(sqls, connector)
+        df = result.to_pandas()
+        assert list(df.columns) == ["metric_value"]
+        assert set(df["metric_value"].tolist()) == {1, 2}
+
+    def test_union_queries_empty_list_returns_none(self, ad_campaigns_connection_manager):
+        connector = ad_campaigns_connection_manager.get_connection("duckdb")
+        executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
+        result = executor._union_queries([], connector)
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# execute
+# ---------------------------------------------------------------------------
+
+
+class TestExecute:
+    def test_execute_returns_ibis_table(self, ad_campaigns_connection_manager):
+        """execute() always returns an ibis.Table."""
         metric = MetricSpec(
             name="ctr",
             source=AD_CAMPAIGNS_SOURCE_URI,
@@ -48,40 +87,10 @@ class TestExecuteQueryGroup:
             timestamp_col="date",
         )
         groups = QueryBuilder.build_queries([metric], slice_specs=None, segment_spec=None)
-
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
-        df = executor._execute_query_group(groups[0], "pandas")
+        result = executor.execute(groups)
+        assert isinstance(result, ibis.Table)
 
-        assert df is not None
-        assert EXPECTED_OUTPUT_COLUMNS.issubset(set(df.columns))
-        assert df["metric_value"].notna().all()
-        assert df["metric_name"].iloc[0] == "ctr"
-
-    def test_returns_none_on_missing_connection(self, caplog):
-        """Returns None and logs warning when source has no configured connection."""
-        isolated_manager = ConnectionManager()
-
-        group = QueryGroup(
-            source="duckdb://nonexistent.db/some_table",
-            metrics=[],
-            sql_queries=["SELECT 1"],
-        )
-        executor = QueryExecutor(connection_manager=isolated_manager)
-        import logging
-
-        with caplog.at_level(logging.WARNING):
-            result = executor._execute_query_group(group, "pandas")
-
-        assert result is None
-        assert any("nonexistent.db" in r.message or "Skipping" in r.message for r in caplog.records)
-
-
-# ---------------------------------------------------------------------------
-# 14. execute
-# ---------------------------------------------------------------------------
-
-
-class TestExecute:
     def test_full_integration_no_slice_no_segment(self, ad_campaigns_connection_manager):
         """End-to-end: single metric, no slices, no segments → 1 row with correct schema."""
         metric = MetricSpec(
@@ -94,7 +103,8 @@ class TestExecute:
         groups = QueryBuilder.build_queries([metric], slice_specs=None, segment_spec=None)
 
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
-        df = executor.execute(groups)
+        result = executor.execute(groups)
+        df = result.to_pandas()
 
         assert EXPECTED_OUTPUT_COLUMNS.issubset(set(df.columns))
         assert len(df) == 1
@@ -142,7 +152,8 @@ class TestExecute:
         assert len(groups[0].sql_queries) == 4
 
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
-        df = executor.execute(groups)
+        result = executor.execute(groups)
+        df = result.to_pandas()
 
         assert EXPECTED_OUTPUT_COLUMNS.issubset(set(df.columns))
         assert df["metric_value"].notna().all()
@@ -179,7 +190,6 @@ class TestExecute:
         )
         good_groups = QueryBuilder.build_queries([good_metric], slice_specs=None, segment_spec=None)
 
-        # Use a bigquery source — not in the manager — to force the skip path
         bad_group = QueryGroup(
             source="bigquery://my-project/my_dataset/my_table",
             metrics=[],
@@ -187,17 +197,16 @@ class TestExecute:
         )
 
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
-        import logging
-
         with caplog.at_level(logging.WARNING):
-            df = executor.execute(good_groups + [bad_group])
+            result = executor.execute(good_groups + [bad_group])
 
-        assert df is not None
+        assert isinstance(result, ibis.Table)
+        df = result.to_pandas()
         assert len(df) > 0
         assert any("Skipping" in r.message for r in caplog.records)
 
     def test_multiple_metrics_combined(self, ad_campaigns_connection_manager):
-        """Multiple metrics from same source are combined into single DataFrame."""
+        """Multiple metrics from same source are combined into single ibis.Table."""
         ctr = MetricSpec(
             name="ctr",
             source=AD_CAMPAIGNS_SOURCE_URI,
@@ -215,7 +224,8 @@ class TestExecute:
 
         groups = QueryBuilder.build_queries([ctr, roas], slice_specs=None, segment_spec=None)
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
-        df = executor.execute(groups)
+        result = executor.execute(groups)
+        df = result.to_pandas()
 
         assert set(df["metric_name"].unique()) == {"ctr", "roas"}
         assert len(df) == 2
@@ -238,11 +248,8 @@ class TestExecute:
         )
 
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
-        df_all = executor.execute(groups_all)
-        df_windowed = executor.execute(groups_windowed)
-
-        total = float(df_all["metric_value"].iloc[0])
-        windowed = float(df_windowed["metric_value"].iloc[0])
+        total = float(executor.execute(groups_all).to_pandas()["metric_value"].iloc[0])
+        windowed = float(executor.execute(groups_windowed).to_pandas()["metric_value"].iloc[0])
         assert windowed < total
 
 
@@ -261,12 +268,6 @@ class TestEndToEndIntegration:
         1 metric (ctr) × 2 independent slices (geo, campaign_type) × 1 segment (platform).
 
         New independent slicing: (2 slices + 1 no-slice) × (1 segment + 1 no-segment) = 6 queries.
-
-        Assertions:
-        - slice_type contains 'geo', 'campaign_type', and 'none'
-        - segment rows have platform values OR 'none'
-        - metric_value non-null
-        - all standard output columns present
         """
         ctr = MetricSpec(
             name="ctr",
@@ -317,7 +318,9 @@ class TestEndToEndIntegration:
         assert len(groups[0].sql_queries) == 6
 
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
-        df = executor.execute(groups)
+        result = executor.execute(groups)
+        assert isinstance(result, ibis.Table)
+        df = result.to_pandas()
 
         assert EXPECTED_OUTPUT_COLUMNS.issubset(set(df.columns))
         assert df["metric_value"].notna().all()

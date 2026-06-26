@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- **`MetricCompute.compute()` returns `ibis.Table`** instead of `pd.DataFrame`.
+  Call `.to_pandas()` on the result to materialise. When all metrics share the
+  same source backend the Table is a deferred expression and no data is
+  transferred until materialised. When metrics span multiple backends the results
+  are materialised internally and re-exposed as a Table backed by a temporary
+  DuckDB database managed by the `MetricCompute` instance.
+- **`MetricCompute.compute()` `output_format` parameter removed.** The parameter
+  had no observable effect (only `"pandas"` was supported and was the default).
+- **`QueryExecutor.execute()` `output_format` parameter removed** for the same
+  reason.
+
+### Added
+
+- **`MetricCompute.__init__` `tmp_dir` parameter**
+- **`aitaem.connectors.Connector` removed.** The abstract base class
+  `Connector` has been deleted. `IbisConnector` is now a plain class and the
+  sole connector implementation. `from aitaem.connectors import Connector` will
+  raise an `ImportError`; remove the import and use `IbisConnector` directly. (`str | None`, default `"/tmp"`).
+  Controls where the temporary DuckDB file is created for cross-backend compute
+  calls. Set to `None` to use an in-memory DuckDB instead.
+
 ## v0.3.1 — 2026-06-03
 
 ### Added
