@@ -1089,7 +1089,7 @@
 <tr>
 <td><a href="insights/"><code>MetricCompute</code></a></td>
 <td><code>aitaem.insights</code></td>
-<td>Primary interface — compute metrics</td>
+<td>Primary interface — compute metrics; <code>compute()</code> returns a lazy <code>ibis.Table</code></td>
 </tr>
 <tr>
 <td><a href="specs/"><code>SpecCache</code></a></td>
@@ -1156,7 +1156,7 @@
 <tr>
 <td><code>STANDARD_COLUMNS</code></td>
 <td><code>list[str]</code></td>
-<td>Ordered list of column names that <code>MetricCompute.compute()</code> always returns</td>
+<td>Ordered list of column names that <code>MetricCompute.compute()</code> always returns as an <code>ibis.Table</code></td>
 </tr>
 </tbody>
 </table>
