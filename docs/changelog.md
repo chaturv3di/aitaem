@@ -17,7 +17,11 @@
 
 ### Added
 
-- **`MetricCompute.__init__` `tmp_dir` parameter** (`str | None`, default `"/tmp"`).
+- **`MetricCompute.__init__` `tmp_dir` parameter**
+- **`aitaem.connectors.Connector` removed.** The abstract base class
+  `Connector` has been deleted. `IbisConnector` is now a plain class and the
+  sole connector implementation. `from aitaem.connectors import Connector` will
+  raise an `ImportError`; remove the import and use `IbisConnector` directly. (`str | None`, default `"/tmp"`).
   Controls where the temporary DuckDB file is created for cross-backend compute
   calls. Set to `None` to use an in-memory DuckDB instead.
 

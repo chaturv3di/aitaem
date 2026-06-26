@@ -10,7 +10,6 @@ import ibis
 import pandas as pd
 
 from aitaem.connectors.backend_specs import validate_backend_config
-from aitaem.connectors.base import Connector
 from aitaem.utils.exceptions import (
     AitaemConnectionError,
     ConfigurationError,
@@ -27,7 +26,7 @@ except ImportError:
     IbisError = Exception
 
 
-class IbisConnector(Connector):
+class IbisConnector:
     """Unified connector supporting DuckDB and BigQuery via Ibis.
 
     Attributes:
