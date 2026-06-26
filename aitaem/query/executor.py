@@ -16,8 +16,8 @@ from collections.abc import Callable
 import ibis
 import pandas as pd
 
-from aitaem.connectors.base import Connector
 from aitaem.connectors.connection import ConnectionManager
+from aitaem.connectors.ibis_connector import IbisConnector
 from aitaem.query.builder import QueryGroup
 from aitaem.utils.exceptions import ConnectionNotFoundError, QueryExecutionError
 
@@ -100,7 +100,7 @@ class QueryExecutor:
     def _union_queries(
         self,
         sql_queries: list[str],
-        connector: Connector,
+        connector: IbisConnector,
     ) -> ibis.Table | None:
         """Combine SQL strings into a single lazy ibis.Table via ibis union."""
         assert connector.connection is not None
