@@ -183,6 +183,22 @@ table = mc.compute(metrics="ad_ctr")
 ## Output Schema
 
 Every `compute()` call returns a lazy **`ibis.Table`** with exactly these 11 columns.
+The query executes on the backend and no data is transferred to Python until you call
+`.to_pandas()` (or any other ibis materialising method). This means you can inspect
+the schema, apply additional filters, or drop columns before paying the cost of moving
+data — useful when result sets are large or when you only need a subset of rows for
+inspection.
+
+```python
+table = mc.compute("ctr", slices="campaign_type")
+
+# Inspect columns without materialising
+print(table.columns)
+
+# Push a filter down to the SQL engine before pulling data
+df = table.filter(table.slice_value == "Search").to_pandas()
+```
+
 Call `.to_pandas()` to materialise into a `pandas.DataFrame`, or use any ibis
 expression method (`.filter()`, `.select()`, `.aggregate()`, etc.) directly on the table.
 
