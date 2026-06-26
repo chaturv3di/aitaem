@@ -1802,11 +1802,12 @@ usable with each metric. The scan introspects source table schemas and returns a
 <a id="__codelineno-21-19" name="__codelineno-21-19" href="#__codelineno-21-19"></a><span class="c1"># e.g. [&quot;platform&quot;]</span>
 <a id="__codelineno-21-20" name="__codelineno-21-20" href="#__codelineno-21-20"></a>
 <a id="__codelineno-21-21" name="__codelineno-21-21" href="#__codelineno-21-21"></a><span class="c1"># Pass scan results directly into compute()</span>
-<a id="__codelineno-21-22" name="__codelineno-21-22" href="#__codelineno-21-22"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+<a id="__codelineno-21-22" name="__codelineno-21-22" href="#__codelineno-21-22"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
 <a id="__codelineno-21-23" name="__codelineno-21-23" href="#__codelineno-21-23"></a>    <span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span>
 <a id="__codelineno-21-24" name="__codelineno-21-24" href="#__codelineno-21-24"></a>    <span class="n">slices</span><span class="o">=</span><span class="n">compatible_slices</span><span class="p">,</span>
 <a id="__codelineno-21-25" name="__codelineno-21-25" href="#__codelineno-21-25"></a>    <span class="n">segments</span><span class="o">=</span><span class="n">compatible_segs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">compatible_segs</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-21-26" name="__codelineno-21-26" href="#__codelineno-21-26"></a><span class="p">)</span>
+<a id="__codelineno-21-27" name="__codelineno-21-27" href="#__codelineno-21-27"></a><span class="n">df</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
 </code></pre></div>
 <p>For slices, the scan checks that every column referenced in <code>values[].where</code> (or the bare
 <code>column</code> field for wildcard slices) exists in the metric's source table.</p>

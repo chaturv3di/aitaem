@@ -769,17 +769,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#output_format" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        output_format
-      
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -1230,17 +1219,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#output_format" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        output_format
-      
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -1325,44 +1303,46 @@
 </code></pre></div>
 <hr />
 <h2 id="compute-parameters"><code>compute()</code> Parameters</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+<p><code>compute()</code> returns a lazy <strong><code>ibis.Table</code></strong>. Call <code>.to_pandas()</code> to materialise
+the result into a DataFrame.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">metrics</span><span class="p">,</span>              <span class="c1"># required</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">slices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>          <span class="c1"># optional</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">segments</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>        <span class="c1"># optional</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">time_window</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>     <span class="c1"># optional</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">period_type</span><span class="o">=</span><span class="s2">&quot;all_time&quot;</span><span class="p">,</span>  <span class="c1"># optional</span>
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">by_entity</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>       <span class="c1"># optional</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">output_format</span><span class="o">=</span><span class="s2">&quot;pandas&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">)</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="p">)</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">df</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
 </code></pre></div>
 <h3 id="metrics"><code>metrics</code></h3>
 <p>One or more metric names defined in the spec cache.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Single metric</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Multiple metrics</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="s2">&quot;roas&quot;</span><span class="p">,</span> <span class="s2">&quot;total_revenue&quot;</span><span class="p">])</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="s2">&quot;roas&quot;</span><span class="p">,</span> <span class="s2">&quot;total_revenue&quot;</span><span class="p">])</span>
 </code></pre></div>
 <h3 id="slices"><code>slices</code></h3>
 <p>One or more slice names. Each slice is computed independently and stacked in the output.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Single slice</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="n">slices</span><span class="o">=</span><span class="s2">&quot;campaign_type&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="n">slices</span><span class="o">=</span><span class="s2">&quot;campaign_type&quot;</span><span class="p">)</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Multiple slices</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="n">slices</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;campaign_type&quot;</span><span class="p">,</span> <span class="s2">&quot;geo&quot;</span><span class="p">])</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="n">slices</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;campaign_type&quot;</span><span class="p">,</span> <span class="s2">&quot;geo&quot;</span><span class="p">])</span>
 </code></pre></div>
 <h3 id="segments"><code>segments</code></h3>
 <p>A segment to apply to the metric query. At most <strong>one segment</strong> per <code>compute()</code> call is supported.</p>
 <p>Two forms are accepted:</p>
 <p><strong>String</strong> — uses the segment spec's <code>entity_id</code> as the fact-table join key (the default):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="n">segments</span><span class="o">=</span><span class="s2">&quot;platform&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="n">segments</span><span class="o">=</span><span class="s2">&quot;platform&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p><strong>Dict</strong> — supplies an explicit fact-table FK column, overriding the default:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Join dim_customers on the buyer_id column of the fact table</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;revenue&quot;</span><span class="p">,</span> <span class="n">segments</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;customer_value&quot;</span><span class="p">:</span> <span class="s2">&quot;buyer_id&quot;</span><span class="p">})</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;revenue&quot;</span><span class="p">,</span> <span class="n">segments</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;customer_value&quot;</span><span class="p">:</span> <span class="s2">&quot;buyer_id&quot;</span><span class="p">})</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Same segment, different fact-side join key — seller&#39;s perspective</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;revenue&quot;</span><span class="p">,</span> <span class="n">segments</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;customer_value&quot;</span><span class="p">:</span> <span class="s2">&quot;seller_id&quot;</span><span class="p">})</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;revenue&quot;</span><span class="p">,</span> <span class="n">segments</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;customer_value&quot;</span><span class="p">:</span> <span class="s2">&quot;seller_id&quot;</span><span class="p">})</span>
 </code></pre></div>
 <p>The dict form is required when the fact table exposes multiple FK columns that can join to the same DIM (e.g. a transactions table with both <code>buyer_id</code> and <code>seller_id</code>).</p>
 <div class="admonition note">
@@ -1376,7 +1356,7 @@ whitelist; otherwise a <code>QueryBuildError</code> is raised.</p>
 <p class="admonition-title">Note</p>
 <p>All metrics in the call must have <code>timestamp_col</code> set in their spec when <code>time_window</code> is provided.</p>
 </div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">slices</span><span class="o">=</span><span class="s2">&quot;campaign_type&quot;</span><span class="p">,</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-04-01&quot;</span><span class="p">),</span>
@@ -1428,14 +1408,14 @@ whitelist; otherwise a <code>QueryBuildError</code> is raised.</p>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">VALID_PERIOD_TYPES</span><span class="p">)</span>  <span class="c1"># frozenset({&#39;all_time&#39;, &#39;daily&#39;, &#39;weekly&#39;, &#39;monthly&#39;, &#39;yearly&#39;, &#39;hourly&#39;})</span>
 <a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
 <a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="c1"># Monthly breakdown over Q1 2024</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
 <a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    <span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;total_revenue&quot;</span><span class="p">,</span>
 <a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-03-31&quot;</span><span class="p">),</span>
 <a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>    <span class="n">period_type</span><span class="o">=</span><span class="s2">&quot;monthly&quot;</span><span class="p">,</span>
 <a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="p">)</span>
 <a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>
 <a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c1"># Hourly breakdown over a single day</span>
-<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
 <a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>    <span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;total_revenue&quot;</span><span class="p">,</span>
 <a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2024-01-15T08:00:00&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-01-15T18:00:00&quot;</span><span class="p">),</span>
 <a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>    <span class="n">period_type</span><span class="o">=</span><span class="s2">&quot;hourly&quot;</span><span class="p">,</span>
@@ -1461,7 +1441,7 @@ For queries with many slices or segments, the result set can grow large quickly.
 <p>Group results by an entity column declared in the metric's <code>entities</code> field. Use this for
 entity-level deep-dives — e.g., revenue per user, sessions per device.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Ad CTR disaggregated per user (requires metric to declare entities: [&#39;user_id&#39;, &#39;page_id&#39;, &#39;device_id&#39;])</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ad_ctr&quot;</span><span class="p">,</span>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">by_entity</span><span class="o">=</span><span class="s2">&quot;user_id&quot;</span><span class="p">,</span>
 <a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-04-01&quot;</span><span class="p">),</span>
@@ -1469,18 +1449,31 @@ entity-level deep-dives — e.g., revenue per user, sessions per device.</p>
 <a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="p">)</span>
 <a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>
 <a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="c1"># Default — aggregate over all entities (entity_id column is NULL)</span>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ad_ctr&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ad_ctr&quot;</span><span class="p">)</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>All metrics in the call must list the requested <code>by_entity</code> column in their <code>entities</code>
 field. A <code>QueryBuildError</code> is raised if any metric does not declare it.</p>
 </div>
-<h3 id="output_format"><code>output_format</code></h3>
-<p>Controls the return type. Currently only <code>"pandas"</code> is supported, which returns a <code>pandas.DataFrame</code>. This parameter is reserved for future output backends.</p>
 <hr />
 <h2 id="output-schema">Output Schema</h2>
-<p>Every <code>compute()</code> call returns a pandas DataFrame with exactly these 11 columns:</p>
+<p>Every <code>compute()</code> call returns a lazy <strong><code>ibis.Table</code></strong> with exactly these 11 columns.
+The query executes on the backend and no data is transferred to Python until you call
+<code>.to_pandas()</code> (or any other ibis materialising method). This means you can inspect
+the schema, apply additional filters, or drop columns before paying the cost of moving
+data — useful when result sets are large or when you only need a subset of rows for
+inspection.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="n">slices</span><span class="o">=</span><span class="s2">&quot;campaign_type&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># Inspect columns without materialising</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="c1"># Push a filter down to the SQL engine before pulling data</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="n">df</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">slice_value</span> <span class="o">==</span> <span class="s2">&quot;Search&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
+</code></pre></div>
+<p>Call <code>.to_pandas()</code> to materialise into a <code>pandas.DataFrame</code>, or use any ibis
+expression method (<code>.filter()</code>, <code>.select()</code>, <code>.aggregate()</code>, etc.) directly on the table.</p>
 <table>
 <thead>
 <tr>
@@ -1550,12 +1543,13 @@ field. A <code>QueryBuildError</code> is raised if any metric does not declare i
 <hr />
 <h2 id="combining-slices-and-segments">Combining Slices and Segments</h2>
 <p>Slices and segments can be combined freely. Each combination is computed as a separate query group and the results are concatenated:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">metrics</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="s2">&quot;total_revenue&quot;</span><span class="p">],</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">slices</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;campaign_type&quot;</span><span class="p">,</span> <span class="s2">&quot;geo&quot;</span><span class="p">],</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="n">segments</span><span class="o">=</span><span class="s2">&quot;platform&quot;</span><span class="p">,</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-07-01&quot;</span><span class="p">),</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="n">metrics</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="s2">&quot;total_revenue&quot;</span><span class="p">],</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">slices</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;campaign_type&quot;</span><span class="p">,</span> <span class="s2">&quot;geo&quot;</span><span class="p">],</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">segments</span><span class="o">=</span><span class="s2">&quot;platform&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-07-01&quot;</span><span class="p">),</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">)</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="n">df</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
 </code></pre></div>
 <p>This produces rows for:
 - Each metric × all-data baseline (no slice, no segment)
@@ -1565,10 +1559,11 @@ field. A <code>QueryBuildError</code> is raised if any metric does not declare i
 <h2 id="pre-flight-check">Pre-flight Check</h2>
 <p>Use <code>mc.scan()</code> before <code>compute()</code> to verify that your slices and segments are compatible with
 a given metric's source table. This avoids runtime failures caused by missing columns.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">scan</span><span class="p">()</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">compatible</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">compatible_slices</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>  <span class="c1"># [&quot;campaign_type&quot;, &quot;country&quot;]</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="n">slices</span><span class="o">=</span><span class="n">compatible</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">scan</span><span class="p">()</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">compatible</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">compatible_slices</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>  <span class="c1"># [&quot;campaign_type&quot;, &quot;country&quot;]</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="n">slices</span><span class="o">=</span><span class="n">compatible</span><span class="p">)</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">df</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
 </code></pre></div>
 <p>See <a href="../specs/#compatibility-scanning">Compatibility Scanning</a> in the Writing Specs guide for
 a full walkthrough, and the <a href="../../api/specs/#compatibility">Specs API reference</a> for

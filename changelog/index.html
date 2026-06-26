@@ -901,7 +901,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Unreleased">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v040-2026-06-26" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v0.4.0 — 2026-06-26
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="v0.4.0 — 2026-06-26">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1307,7 +1318,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Unreleased">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v040-2026-06-26" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v0.4.0 — 2026-06-26
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="v0.4.0 — 2026-06-26">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1665,28 +1687,45 @@
 
 <h1 id="changelog">Changelog</h1>
 <h2 id="unreleased">Unreleased</h2>
+<h2 id="v040-2026-06-26">v0.4.0 — 2026-06-26</h2>
 <h3 id="breaking-changes">Breaking changes</h3>
 <ul>
 <li><strong><code>MetricCompute.compute()</code> returns <code>ibis.Table</code></strong> instead of <code>pd.DataFrame</code>.
   Call <code>.to_pandas()</code> on the result to materialise. When all metrics share the
-  same source backend the Table is a deferred expression and no data is
+  same source backend the Table is a fully deferred expression — no data is
   transferred until materialised. When metrics span multiple backends the results
   are materialised internally and re-exposed as a Table backed by a temporary
   DuckDB database managed by the <code>MetricCompute</code> instance.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Before (v0.3.x)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># After (v0.4.0)</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>   <span class="c1"># lazy ibis.Table</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">df</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>      <span class="c1"># materialise when needed</span>
+</code></pre></div>
+<ul>
 <li><strong><code>MetricCompute.compute()</code> <code>output_format</code> parameter removed.</strong> The parameter
-  had no observable effect (only <code>"pandas"</code> was supported and was the default).</li>
+  had no observable effect (only <code>"pandas"</code> was supported and was the default).
+  Remove it from any <code>compute()</code> call sites.</li>
 <li><strong><code>QueryExecutor.execute()</code> <code>output_format</code> parameter removed</strong> for the same
   reason.</li>
+<li><strong><code>aitaem.connectors.Connector</code> removed.</strong> The abstract base class has been
+  deleted. <code>IbisConnector</code> is now a plain class and the sole connector
+  implementation. <code>from aitaem.connectors import Connector</code> will raise an
+  <code>ImportError</code>; remove the import and use <code>IbisConnector</code> directly.</li>
+<li><strong>SQL literals are now typed.</strong> <code>metric_format</code> absent emits
+  <code>CAST(NULL AS VARCHAR)</code> (previously untyped <code>NULL</code>). <code>metric_value</code> is always
+  <code>CAST(... AS DOUBLE)</code>. This is transparent for most callers but affects anyone
+  inspecting raw ibis expression schemas.</li>
 </ul>
 <h3 id="added">Added</h3>
 <ul>
-<li><strong><code>MetricCompute.__init__</code> <code>tmp_dir</code> parameter</strong></li>
-<li><strong><code>aitaem.connectors.Connector</code> removed.</strong> The abstract base class
-  <code>Connector</code> has been deleted. <code>IbisConnector</code> is now a plain class and the
-  sole connector implementation. <code>from aitaem.connectors import Connector</code> will
-  raise an <code>ImportError</code>; remove the import and use <code>IbisConnector</code> directly. (<code>str | None</code>, default <code>"/tmp"</code>).
-  Controls where the temporary DuckDB file is created for cross-backend compute
-  calls. Set to <code>None</code> to use an in-memory DuckDB instead.</li>
+<li><strong><code>MetricCompute.__init__</code> <code>tmp_dir</code> parameter</strong> (<code>str | None</code>, default
+  <code>"/tmp"</code>). Controls where the temporary DuckDB file is written for cross-backend
+  compute calls. Set to <code>None</code> to use an in-memory DuckDB instead (safe when
+  result sets are known to be small). The file is deleted automatically when the
+  <code>MetricCompute</code> instance is garbage collected.</li>
 </ul>
 <h2 id="v031-2026-06-03">v0.3.1 — 2026-06-03</h2>
 <h3 id="added_1">Added</h3>
