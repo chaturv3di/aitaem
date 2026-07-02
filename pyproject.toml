@@ -36,6 +36,12 @@ postgres = [
     "ibis-framework[postgres]>=9.0.0",
     "psycopg[binary]>=3.0.0",
 ]
+agent-anthropic = [
+    "pydantic-ai-slim[anthropic]>=2.2.0",
+]
+agent-evals = [
+    "pydantic-ai-slim[evals]>=2.2.0",
+]
 dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
@@ -43,6 +49,7 @@ dev = [
     "ruff>=0.3.0",
     "mypy>=1.8.0",
     "build>=1.0.0",
+    "pydantic-ai-slim[evals]>=2.2.0",
 ]
 docs = [
     "mkdocs>=1.6",
@@ -50,7 +57,7 @@ docs = [
     "mkdocstrings[python]>=0.27",
     "mkdocs-autorefs>=1.2",
 ]
-all = ["aitaem[bigquery,postgres,dev,docs]"]
+all = ["aitaem[bigquery,postgres,agent-anthropic,agent-evals,dev,docs]"]
 
 [project.urls]
 Homepage = "https://github.com/chaturv3di/aitaem"
