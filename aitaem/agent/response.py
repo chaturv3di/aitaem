@@ -4,7 +4,7 @@ from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict
 
-from aitaem.agent._trace import RunTrace, Status
+from aitaem.agent.trace import RunTrace, Status
 
 PayloadT = TypeVar("PayloadT")
 

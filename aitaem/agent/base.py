@@ -3,8 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-from aitaem.agent._response import BotResponse
-from aitaem.agent._store import ResultEntry, ResultStore
+from aitaem.agent.response import BotResponse
+from aitaem.agent.store import ResultEntry, ResultStore
 
 if TYPE_CHECKING:
     from pydantic_ai import Agent
@@ -111,7 +111,7 @@ class Bot(ABC):
         load_history() to restore history with Arrow artifacts available via
         get_result(), but get_ibis() will return None on restored entries.
         """
-        from aitaem.agent._history import make_bundle
+        from aitaem.agent.history import make_bundle
 
         return make_bundle(self._message_history, self._store)
 
@@ -127,7 +127,7 @@ class Bot(ABC):
             A new bot instance with _message_history and store populated from
             data. The bot's _agent is rebuilt fresh from **kwargs.
         """
-        from aitaem.agent._history import load_bundle
+        from aitaem.agent.history import load_bundle
 
         bot = cls(**kwargs)
         bot._message_history = load_bundle(data, bot._store)

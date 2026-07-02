@@ -37,7 +37,7 @@ def dump_store(store: Any) -> dict[str, Any]:
 
 
 def load_store(store: Any, artifacts: dict[str, Any]) -> None:
-    from aitaem.agent._store import ResultEntry
+    from aitaem.agent.store import ResultEntry
 
     for result_id, data in artifacts.items():
         arrow = _b64_to_arrow(data["arrow_b64"]) if data.get("arrow_b64") else None

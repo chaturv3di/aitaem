@@ -5,7 +5,7 @@ import json
 import pyarrow as pa
 import pytest
 
-from aitaem.agent._base import Bot
+from aitaem.agent.base import Bot
 
 
 class _StubBot(Bot):

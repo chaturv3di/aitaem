@@ -7,10 +7,10 @@ from datetime import datetime, timezone
 import pyarrow as pa
 import pytest
 
-from aitaem.agent._response import BotResponse
-from aitaem.agent._store import ResultStore
-from aitaem.agent._trace import RunTrace, Status, Usage
-from aitaem.agent._base import Bot
+from aitaem.agent.response import BotResponse
+from aitaem.agent.store import ResultStore
+from aitaem.agent.trace import RunTrace, Status, Usage
+from aitaem.agent.base import Bot
 
 
 # ---------------------------------------------------------------------------

@@ -39,12 +39,6 @@ postgres = [
 agent-anthropic = [
     "pydantic-ai-slim[anthropic]>=2.2.0",
 ]
-agent-openai = [
-    "pydantic-ai-slim[openai]>=2.2.0",
-]
-agent-google = [
-    "pydantic-ai-slim[google]>=2.2.0",
-]
 agent-evals = [
     "pydantic-ai-slim[evals]>=2.2.0",
 ]
@@ -63,7 +57,7 @@ docs = [
     "mkdocstrings[python]>=0.27",
     "mkdocs-autorefs>=1.2",
 ]
-all = ["aitaem[bigquery,postgres,agent-anthropic,agent-openai,agent-google,agent-evals,dev,docs]"]
+all = ["aitaem[bigquery,postgres,agent-anthropic,agent-evals,dev,docs]"]
 
 [project.urls]
 Homepage = "https://github.com/chaturv3di/aitaem"

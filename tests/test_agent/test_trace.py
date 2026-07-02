@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 
-from aitaem.agent._trace import assemble_trace
+from aitaem.agent.trace import assemble_trace
 
 
 # ---------------------------------------------------------------------------

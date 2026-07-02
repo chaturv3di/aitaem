@@ -14,7 +14,7 @@ LLM; everything is unit-testable without network access.
 | OQ-1: Eval library | **pydantic-evals primary** (native OTel alignment, deterministic correctness). deepeval added when RAG flows arrive. |
 | OQ-2: Reference eval harness | **Ship `tests/evals/`** — consistent with blueprint philosophy (G2). Implemented in Phase 6. |
 | OQ-3: Phasing | **Confirmed**: P0 done → Phase 1 → Phase 2 → {3, 4} → 5 → 6 → 7. |
-| LLM providers | **Provider-specific extras** (`[agent-anthropic]`, `[agent-openai]`, `[agent-google]`). No bare `[agent]` extra. |
+| LLM providers | **Provider-specific extras** (`[agent-anthropic]` for now; `[agent-openai]`, `[agent-google]` added when those providers are actively used). No bare `[agent]` extra. |
 | pydantic-evals placement | **`[agent-evals]`** — separate opt-in extra for CI eval pipelines. Also added to **`[dev]`** so aitaem's own eval harness (`tests/evals/`) runs in CI. Not bundled into provider extras. |
 
 ---
@@ -113,11 +113,11 @@ toolsets=[extra_toolset])`.
 ```
 aitaem/agent/
 ├── __init__.py          # Public exports (see SF-1)
-├── _response.py         # BotResponse[PayloadT], Status
-├── _store.py            # ResultEntry, ResultStore
-├── _trace.py            # RunTrace, ToolCall, Usage, assemble_trace()
-├── _base.py             # Bot abstract base class
-└── _history.py          # dump_history / load_history helpers, HistoryBundle
+├── response.py          # BotResponse[PayloadT], Status
+├── store.py             # ResultEntry, ResultStore
+├── trace.py             # RunTrace, ToolCall, Usage, assemble_trace()
+├── base.py              # Bot abstract base class
+└── history.py           # dump_history / load_history helpers, HistoryBundle
 
 tools/
 └── check_import_graph.py  # CI script
@@ -132,7 +132,7 @@ tests/test_agent/
 ### Modified files
 
 ```
-pyproject.toml           # [agent-anthropic], [agent-openai], [agent-google], [agent-evals] extras; pydantic-evals added to [dev]
+pyproject.toml           # [agent-anthropic], [agent-evals] extras; pydantic-evals added to [dev]
 .github/workflows/ci.yml # import-graph check job, test-agent job
 ```
 
@@ -146,9 +146,9 @@ Implement in this order. Each SF is independently testable before moving to the 
 
 ### SF-1: Package structure
 
-**Files:** `aitaem/agent/__init__.py`, `aitaem/agent/_response.py`,
-`aitaem/agent/_store.py`, `aitaem/agent/_trace.py`, `aitaem/agent/_base.py`,
-`aitaem/agent/_history.py`, `tests/test_agent/__init__.py`
+**Files:** `aitaem/agent/__init__.py`, `aitaem/agent/response.py`,
+`aitaem/agent/store.py`, `aitaem/agent/trace.py`, `aitaem/agent/base.py`,
+`aitaem/agent/history.py`, `tests/test_agent/__init__.py`
 
 Create the directory and all module files. At this stage, all files except
 `__init__.py` may be empty stubs.
@@ -156,10 +156,10 @@ Create the directory and all module files. At this stage, all files except
 `aitaem/agent/__init__.py` exports — add to this incrementally as SFs complete:
 
 ```python
-from aitaem.agent._response import BotResponse, Status
-from aitaem.agent._store import ResultEntry, ResultStore
-from aitaem.agent._trace import RunTrace, ToolCall, Usage
-from aitaem.agent._base import Bot
+from aitaem.agent.response import BotResponse, Status
+from aitaem.agent.store import ResultEntry, ResultStore
+from aitaem.agent.trace import RunTrace, ToolCall, Usage
+from aitaem.agent.base import Bot
 
 __all__ = [
     "Bot",
@@ -207,13 +207,6 @@ user-facing installs.
 agent-anthropic = [
     "pydantic-ai-slim[anthropic]>=2.2.0",
 ]
-agent-openai = [
-    "pydantic-ai-slim[openai]>=2.2.0",      # also pulls in tiktoken
-]
-agent-google = [
-    "pydantic-ai-slim[google]>=2.2.0",
-]
-
 # Eval framework — opt-in for users who want to run their own eval pipelines.
 # pydantic-evals is version-locked to pydantic-ai-slim (same version number).
 # pip install aitaem[agent-anthropic,agent-evals]
@@ -232,7 +225,7 @@ dev = [
 ]
 
 # Update the catch-all:
-all = ["aitaem[bigquery,postgres,agent-anthropic,agent-openai,agent-google,agent-evals,dev,docs]"]
+all = ["aitaem[bigquery,postgres,agent-anthropic,agent-evals,dev,docs]"]
 ```
 
 **Why `pydantic-ai-slim` not `pydantic-ai`:** The bare `pydantic-ai` package is
@@ -353,7 +346,7 @@ def test_import_graph_check_passes():
 
 ### SF-4: `Status` enum, `Usage`, `ToolCall`, `RunTrace` models
 
-**File:** `aitaem/agent/_trace.py`
+**File:** `aitaem/agent/trace.py`
 
 ```python
 from __future__ import annotations
@@ -434,7 +427,7 @@ class RunTrace(BaseModel):
     duration_ms: float = 0.0           # total turn wall-clock time
 ```
 
-**Move `Status` to `_response.py` later if preferred; for now co-locate with
+**Move `Status` to `response.py` later if preferred; for now co-locate with
 the trace types since `BotResponse` references both.**
 
 **Validation:**
@@ -494,7 +487,7 @@ def test_run_trace_total_tokens_serialized():
 
 ### SF-5: `ResultEntry` and `ResultStore`
 
-**File:** `aitaem/agent/_store.py`
+**File:** `aitaem/agent/store.py`
 
 ```python
 from __future__ import annotations
@@ -624,7 +617,7 @@ def test_result_store_len_and_ids():
 
 ### SF-6: `BotResponse[PayloadT]`
 
-**File:** `aitaem/agent/_response.py`
+**File:** `aitaem/agent/response.py`
 
 ```python
 from __future__ import annotations
@@ -689,7 +682,7 @@ def test_bot_response_full_json_serialization():
 
 ### SF-7: `Bot` abstract base class
 
-**File:** `aitaem/agent/_base.py`
+**File:** `aitaem/agent/base.py`
 
 ```python
 from __future__ import annotations
@@ -863,7 +856,7 @@ def test_bot_chat_raises_not_implemented():
 
 ### SF-8: History I/O — `dump_history()` / `load_history()`
 
-**File:** `aitaem/agent/_history.py`
+**File:** `aitaem/agent/history.py`
 
 Implements the serialization helpers. The format version is pinned so that
 deserialization can detect and reject incompatible bundles in future.
@@ -951,11 +944,11 @@ def load_bundle(bundle: dict[str, Any], store: Any) -> list[Any]:
     return ModelMessagesTypeAdapter.validate_json(bundle.get("messages", "[]"))
 ```
 
-**Integrate into `Bot._base.py`** — replace the stubs in `dump_history` and
+**Integrate into `bot/base.py`** — replace the stubs in `dump_history` and
 `load_history` with concrete implementations that call these helpers:
 
 ```python
-# In aitaem/agent/_base.py — replace stub methods:
+# In aitaem/agent/base.py — replace stub methods:
 
 from aitaem.agent._history import make_bundle, load_bundle
 
@@ -1091,7 +1084,7 @@ Phase 1 does not add this (no agent runs happen here); it is a Phase 2 concern.
 
 ### SF-9: Trace assembly from pydantic-ai
 
-**File:** `aitaem/agent/_trace.py` — add `assemble_trace()` function
+**File:** `aitaem/agent/trace.py` — add `assemble_trace()` function
 
 ```python
 import json
@@ -1376,7 +1369,7 @@ test-agent:
       - name: Install agent dependencies
         run: uv pip install --system -e ".[agent-anthropic,dev]"
       - name: Run agent tests
-        run: python -m pytest tests/test_agent/ --cov=aitaem.agent
+        run: python -m pytest tests/test_agent/ --cov=aitaem/agent
 ```
 
 The existing `test` job installs only `.[dev]` (no `pydantic-ai`) so it does
@@ -1390,17 +1383,17 @@ extra, confirming the one-way dependency at the CI level.
 | File | Change |
 |---|---|
 | `aitaem/agent/__init__.py` | New — public exports for primitives layer |
-| `aitaem/agent/_response.py` | New — `BotResponse[PayloadT]`, `Status` |
-| `aitaem/agent/_store.py` | New — `ResultEntry`, `ResultStore` |
-| `aitaem/agent/_trace.py` | New — `RunTrace`, `ToolCall`, `Usage`, `assemble_trace()` |
-| `aitaem/agent/_base.py` | New — `Bot` abstract base class |
-| `aitaem/agent/_history.py` | New — `make_bundle()`, `load_bundle()`, serialization helpers |
+| `aitaem/agent/response.py` | New — `BotResponse[PayloadT]`, `Status` |
+| `aitaem/agent/store.py` | New — `ResultEntry`, `ResultStore` |
+| `aitaem/agent/trace.py` | New — `RunTrace`, `ToolCall`, `Usage`, `assemble_trace()` |
+| `aitaem/agent/base.py` | New — `Bot` abstract base class |
+| `aitaem/agent/history.py` | New — `make_bundle()`, `load_bundle()`, serialization helpers |
 | `tools/check_import_graph.py` | New — CI import-graph enforcement script |
 | `tests/test_agent/__init__.py` | New — empty |
 | `tests/test_agent/test_primitives.py` | New — SF-1 through SF-7 tests |
 | `tests/test_agent/test_trace.py` | New — SF-9 tests |
 | `tests/test_agent/test_history.py` | New — SF-8 tests |
-| `pyproject.toml` | Add `[agent]` and `[agent-evals]` extras; update `all` |
+| `pyproject.toml` | Add `[agent-anthropic]`, `[agent-evals]` extras; update `all` |
 | `.github/workflows/ci.yml` | Add `import-graph` and `test-agent` jobs |
 
 No existing files in `aitaem/` (core) are modified. The one-way dependency is
@@ -1447,7 +1440,7 @@ maintained from the start.
 10. **Full Phase 1 completion:**
     ```bash
     uv pip install -e ".[agent-anthropic,dev]"
-    python -m pytest tests/test_agent/ --cov=aitaem.agent --cov-report=term-missing
+    python -m pytest tests/test_agent/ --cov=aitaem/agent --cov-report=term-missing
     python tools/check_import_graph.py
     python -m pytest tests/ --ignore=tests/test_agent/ --cov=aitaem
     ```
