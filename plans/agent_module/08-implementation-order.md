@@ -65,6 +65,8 @@ The first convenience bot, and the most architecturally load-bearing.
 
 **Why first inside Phase 2:** Every QueryBot turn that does anything useful starts with this tool. Analysis tools depend on result store entries it creates. Construction of the `MetricCompute` itself happens in the `QueryBot` constructor (P2.4), using `spec_cache`, `connection_manager`, and `compute_kwargs` (AD-17).
 
+**Tool summary contract (applies to all Phase 2+ tools):** A tool's return value — the string that becomes `ToolReturnPart.content` and is stored in `ToolCall.llm_summary` — must be a compact, human/LLM-readable snippet. It must never contain raw result data. Metric tables can be thousands of rows; putting that in the summary would overflow context and pollute traces/logs. The full result lives in `ResultStore` only, referenced by `ToolCall.result_id`. A good summary for `compute_metrics` looks like: `"Computed 3 metrics across 2 slices. result_id=abc123"`. Each tool is responsible for producing its own summary string — there is no shared truncation utility.
+
 **Blocks:** Analysis tools, QueryBot integration.
 
 ### P2.2 — Analysis tools (lazy-mode-aware)
@@ -256,3 +258,31 @@ Each of these has been worked through against concrete scenarios in the design p
 - Hot-reload of SpecCache (ND-07).
 
 These are tracked in Section 7 with escape valves. They're v1.x or v2.0 candidates, not v1.0 implementation work.
+
+---
+
+## Appendix — Open design questions (unscheduled)
+
+These are known problems with a clear solution direction but no committed phase. They stay here until there is a concrete reason to schedule them.
+
+### OQ-A1 — Context-window management for long-running sessions
+
+**Problem:** In multi-turn conversations, the accumulated `message_history` passed to each `agent.run()` call grows unboundedly. If history + system prompt + current message exceeds the model's context window, the call fails.
+
+**Solution direction:** pydantic-ai's `ProcessHistory` capability (in `pydantic_ai.capabilities`). Pass a processor callable at agent construction time:
+
+```python
+from pydantic_ai.capabilities import ProcessHistory
+
+Agent(model=..., capabilities=[ProcessHistory(my_trimmer)])
+```
+
+The processor receives the full message list before every model request and returns a modified list. No built-in trimmer exists in pydantic-ai — must be implemented.
+
+**Key constraint (pydantic-ai issue #2050):** The processor fires before *every* model request, including each step of a tool-call loop. The message list it receives includes mid-run tool call/return pairs. Naive trimming that drops a `ToolReturnPart` without its matching `ToolCallPart` violates provider API constraints. Any trimmer must only remove complete call/return pairs as an atomic unit.
+
+**Token counting:** pydantic-ai provides no tokenizer. A safe approximation is character-count or message-count based trimming. Provider-accurate trimming requires an external tokenizer (e.g. `tiktoken` for OpenAI, already available when `[agent-openai]` is installed).
+
+**Where it lives in code:** `_build_agent()` in each concrete `Bot` subclass. The `Bot` base class docstring (Phase 1) already documents this hook so Phase 2+ implementors know where to plug in.
+
+**Why unscheduled:** Context overflow only matters in practice once real multi-turn sessions run long enough to hit limits. Monitor whether it surfaces as a real issue in Phase 2 integration testing before committing implementation effort.
