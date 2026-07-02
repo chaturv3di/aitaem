@@ -25,7 +25,7 @@ class Usage(BaseModel):
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def total_tokens(self) -> int:
         return self.input_tokens + self.output_tokens
@@ -99,12 +99,12 @@ def assemble_trace(result: Any, run_start: datetime) -> RunTrace:
 
     for msg in result.new_messages():
         if isinstance(msg, ModelRequest):
-            for part in msg.parts:
-                if isinstance(part, ToolReturnPart):
-                    tc = pending.get(part.tool_call_id)
+            for return_part in msg.parts:
+                if isinstance(return_part, ToolReturnPart):
+                    tc = pending.get(return_part.tool_call_id)
                     if tc is not None:
-                        tc["llm_summary"] = part.content
-                        tc["success"] = part.outcome == "success"
+                        tc["llm_summary"] = return_part.content
+                        tc["success"] = return_part.outcome == "success"
 
     tool_calls = [
         ToolCall(
