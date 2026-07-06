@@ -260,3 +260,28 @@ Each of these has been worked through against concrete scenarios in the design p
 These are tracked in Section 7 with escape valves. They're v1.x or v2.0 candidates, not v1.0 implementation work.
 
 ---
+
+## Appendix: Open Questions
+
+### OQ-A1 — Context-window management via `ProcessHistory`
+
+Tracked in Phase 1 foundations. Built into the `Bot` docstring as a reference pattern; no implementation shipped in v1.0.
+
+### OQ-A2: `compute_metrics` segment join-key override
+
+**Problem:** `MetricCompute.compute()` accepts `segments` as either `str` (segment name,
+uses spec's default join key) or `dict[str, str]` (name → custom join key). The Phase 2
+`compute_metrics` tool only exposes the string form.
+
+**Impact:** Users who need to override the join key via the LLM interface cannot do so
+with the default QueryBot. They would need to call `MetricCompute.compute()` directly
+or build a custom tool.
+
+**Decision trigger:** When a user reports needing non-default join key selection
+through the LLM interface (likely rare; most specs have a single natural join key).
+
+**Implementation path when triggered:** Add an optional `segment_join_key: str | None`
+parameter to the `compute_metrics` tool. Construct `segments={segment: segment_join_key}`
+when both are provided.
+
+---

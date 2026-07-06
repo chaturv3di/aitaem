@@ -64,6 +64,7 @@ class RunTrace(BaseModel):
     usage: Usage
     traceparent: str | None = None
     duration_ms: float = 0.0
+    error: str | None = None
 
 
 def assemble_trace(result: Any, run_start: datetime) -> RunTrace:
@@ -103,7 +104,11 @@ def assemble_trace(result: Any, run_start: datetime) -> RunTrace:
                 if isinstance(return_part, ToolReturnPart):
                     tc = pending.get(return_part.tool_call_id)
                     if tc is not None:
-                        tc["llm_summary"] = return_part.content
+                        content = return_part.content
+                        tc["llm_summary"] = (
+                            content if isinstance(content, str)
+                            else return_part.model_response_str()
+                        )
                         tc["success"] = return_part.outcome == "success"
 
     tool_calls = [
