@@ -19,8 +19,8 @@ pytestmark = pytest.mark.skipif(
     reason="ANTHROPIC_API_KEY not set — smoke test requires a real LLM",
 )
 
-from aitaem.agent.query_bot import QueryBot
-from aitaem.agent.trace import Status
+from aitaem.agent.query_bot import QueryBot  # noqa: E402
+from aitaem.agent.trace import Status  # noqa: E402
 
 
 def _smoke_spec_cache():

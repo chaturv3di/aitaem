@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 from aitaem.agent.base import Bot
 from aitaem.agent.response import BotResponse
@@ -187,7 +187,7 @@ class QueryBot(Bot):
                 deps=deps,
             )
             self._message_history = result.all_messages()
-            output: QueryOutput = result.output
+            output = cast(QueryOutput, result.output)
             trace = assemble_trace(result, run_start)
             self._conversation_id = trace.conversation_id
             payload = QueryBot._assemble_payload(output, trace)
@@ -223,7 +223,7 @@ class QueryBot(Bot):
         )
         try:
             result = await self._agent.run(message, deps=deps)
-            output: QueryOutput = result.output
+            output = cast(QueryOutput, result.output)
             trace = assemble_trace(result, run_start)
             self._conversation_id = trace.conversation_id
             payload = QueryBot._assemble_payload(output, trace)

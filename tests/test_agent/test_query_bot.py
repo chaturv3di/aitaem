@@ -13,7 +13,7 @@ from pydantic_ai.models.function import FunctionModel, AgentInfo
 from pydantic_ai.models.test import TestModel
 
 from aitaem.agent.query_bot import QueryBot, QueryResponse, _build_system_prompt
-from aitaem.agent.query_types import QueryOutput, QueryPayload
+from aitaem.agent.query_types import QueryOutput
 from aitaem.agent.response import BotResponse
 from aitaem.agent.trace import RunTrace, ToolCall, Usage, Status
 

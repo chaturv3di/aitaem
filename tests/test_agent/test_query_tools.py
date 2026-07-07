@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import datetime
-import json
 
 import pyarrow as pa
 import pytest
@@ -11,7 +10,6 @@ from aitaem.agent.store import ResultStore
 from aitaem.agent.query_types import (
     QueryDeps,
     QueryOutput,
-    QueryPayload,
     ComputeMetricsResult,
     RankByValueResult,
     FilterByThresholdResult,

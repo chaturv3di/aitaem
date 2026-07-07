@@ -7,6 +7,7 @@ import ibis
 import pyarrow as pa
 from pydantic_ai import RunContext
 
+from aitaem.query.builder import PeriodType
 from aitaem.agent.query_types import (
     QueryDeps,
     ComputeMetricsResult,
@@ -70,7 +71,7 @@ def compute_metrics(
     slices: list[str] | None = None,
     segment: str | None = None,
     time_window: tuple[str, str] | None = None,
-    period_type: str = "all_time",
+    period_type: PeriodType = "all_time",
     by_entity: str | None = None,
 ) -> ComputeMetricsResult:
     """Compute one or more metrics from the spec catalog.
@@ -99,7 +100,7 @@ def compute_metrics(
             metrics=metrics,
             slices=slices,
             segments=segment,
-            time_window=tuple(time_window) if time_window else None,
+            time_window=(time_window[0], time_window[1]) if time_window else None,
             period_type=period_type,
             by_entity=by_entity,
         )
@@ -121,7 +122,7 @@ def compute_metrics(
             sample=_sample_arrow(arrow_table),
             columns=arrow_table.schema.names,
             period_type=period_type,
-            time_window=tuple(time_window) if time_window else None,
+            time_window=(time_window[0], time_window[1]) if time_window else None,
             by_entity=by_entity,
             format_hints=format_hints,
             payload_summary={
@@ -145,7 +146,7 @@ def compute_metrics(
             sample=[],
             columns=[],
             period_type=period_type,
-            time_window=tuple(time_window) if time_window else None,
+            time_window=(time_window[0], time_window[1]) if time_window else None,
             by_entity=by_entity,
             format_hints={},
             error=f"{type(exc).__name__}: {exc}",
