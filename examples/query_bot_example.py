@@ -12,8 +12,6 @@ Prerequisites
 
 2. Set your Anthropic API key:
        export ANTHROPIC_API_KEY=sk-ant-...
-   or create an .env file in the project root with ANTHROPIC_API_KEY=...
-   and run via the load-env helper.
 
 3. Install the agent extra:
        pip install aitaem[agent-anthropic]
