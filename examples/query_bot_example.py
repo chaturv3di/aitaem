@@ -123,10 +123,9 @@ async def main() -> None:
     db_path = "examples/data/ad_campaigns.duckdb"
     if not os.path.exists(db_path):
         print("\nDuckDB file not found — creating from CSV …")
-        import sys as _sys
-        _sys.path.insert(0, "examples/data")
-        from setup_db import via_connector
-        via_connector()
+        from aitaem.helpers import load_csvs_to_duckdb
+        load_csvs_to_duckdb("examples/data/ad_campaigns.csv", db_path)
+        print(f"  Created {db_path}")
 
     print("\nConnecting to DuckDB …")
     conn_mgr = ConnectionManager()
