@@ -116,13 +116,21 @@ async def main() -> None:
     print(f"  {len(spec_cache.slices)} slices : {', '.join(spec_cache.slices)}")
 
     # ------------------------------------------------------------------
-    # 2. Connect to the DuckDB database.
+    # 2. Connect to the DuckDB database, creating it from the CSV if needed.
     #    Using add_connection() directly because connections.yaml also
     #    contains a BigQuery entry that requires GCP_PROJECT_ID.
     # ------------------------------------------------------------------
+    db_path = "examples/data/ad_campaigns.duckdb"
+    if not os.path.exists(db_path):
+        print("\nDuckDB file not found — creating from CSV …")
+        import sys as _sys
+        _sys.path.insert(0, "examples/data")
+        from setup_db import via_connector
+        via_connector()
+
     print("\nConnecting to DuckDB …")
     conn_mgr = ConnectionManager()
-    conn_mgr.add_connection("duckdb", path="examples/data/ad_campaigns.duckdb")
+    conn_mgr.add_connection("duckdb", path=db_path)
 
     # ------------------------------------------------------------------
     # 3. Create the QueryBot (one instance — stateful conversation).
