@@ -6,10 +6,12 @@ Manages multiple backend connections and routes queries via URI parsing.
 
 import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+import ibis
 import yaml
 
 from aitaem.connectors.backend_specs import validate_backend_config
@@ -32,16 +34,37 @@ class ConnectionManager:
         - Parse source URIs and route to appropriate connector
     """
 
-    def __init__(self) -> None:
-        """Initialize empty connection manager."""
+    def __init__(self, tmp_dir: str | None = "/tmp") -> None:
+        """Initialize empty connection manager.
+
+        Args:
+            tmp_dir: Directory for the temporary DuckDB file used when a
+                compute() call spans multiple source backends. Defaults to
+                '/tmp'. Set to None to use an in-memory DuckDB instead (safe
+                when cross-backend result sets are known to be small). The
+                file is deleted automatically when close_all() is called or
+                when this instance is garbage collected.
+
+                Note: do not add 'tmp_dir' as a key in a connections YAML
+                file — it is a Python-only parameter and will be rejected by
+                add_connection() with an UnsupportedBackendError.
+        """
         self._connections: dict[str, IbisConnector] = {}
+        self._tmp_dir = tmp_dir
+        self._cross_backend_conn: ibis.BaseBackend | None = None
+        self._cross_backend_db_path: str | None = None
 
     @classmethod
-    def from_yaml(cls, yaml_path: str) -> "ConnectionManager":
+    def from_yaml(
+        cls, yaml_path: str, tmp_dir: str | None = "/tmp"
+    ) -> "ConnectionManager":
         """Load all connections from YAML file.
 
         Args:
             yaml_path: Path to YAML configuration file
+            tmp_dir: Passed directly to ConnectionManager.__init__. Controls
+                where the temporary DuckDB file is written for cross-backend
+                compute calls. See __init__ for details.
 
         Returns:
             ConnectionManager instance with loaded connections
@@ -69,7 +92,7 @@ class ConnectionManager:
         if config is None:
             config = {}
 
-        manager = cls()
+        manager = cls(tmp_dir=tmp_dir)
 
         # Process each backend configuration
         for backend_type, backend_config in config.items():
@@ -405,11 +428,55 @@ class ConnectionManager:
             )
         return ("postgres", schema, table)
 
+    def _get_cross_backend_conn(self) -> ibis.BaseBackend:
+        """Return the persistent cross-backend DuckDB connection, creating it lazily.
+
+        Called internally when a compute() call spans multiple source backends.
+        The connection is backed by a temporary DuckDB file in tmp_dir, or an
+        in-memory database when tmp_dir is None. It is torn down by close_all().
+
+        Power users who need to inspect this connection directly can access
+        self._cross_backend_conn, but it is not part of the public API.
+        """
+        if self._cross_backend_conn is None:
+            if self._tmp_dir is not None:
+                fd, path = tempfile.mkstemp(suffix=".duckdb", dir=self._tmp_dir)
+                os.close(fd)
+                os.unlink(path)  # let DuckDB create the file itself; mkstemp leaves it empty
+                self._cross_backend_db_path = path
+                self._cross_backend_conn = ibis.duckdb.connect(path)
+            else:
+                self._cross_backend_conn = ibis.duckdb.connect(":memory:")
+        return self._cross_backend_conn
+
     def close_all(self) -> None:
-        """Close all connections."""
+        """Close all connections and release the cross-backend DuckDB if active.
+
+        Any ibis.Table objects returned by MetricCompute.compute() that are
+        backed by the cross-backend DuckDB become invalid after this call.
+        """
         for connector in self._connections.values():
             connector.close()
         self._connections.clear()
+        if self._cross_backend_conn is not None:
+            try:
+                self._cross_backend_conn.disconnect()
+            except Exception:
+                pass
+            self._cross_backend_conn = None
+        if self._cross_backend_db_path is not None:
+            try:
+                os.unlink(self._cross_backend_db_path)
+            except OSError:
+                pass
+            self._cross_backend_db_path = None
+
+    def __del__(self) -> None:
+        if self._cross_backend_db_path is not None:
+            try:
+                os.unlink(self._cross_backend_db_path)
+            except OSError:
+                pass
 
     def __repr__(self) -> str:
         """Return string representation of manager."""

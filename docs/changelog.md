@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- **`MetricCompute.__init__` `tmp_dir` parameter removed.** Pass `tmp_dir` to
+  `ConnectionManager()` or `ConnectionManager.from_yaml()` instead:
+
+  ```python
+  # Before
+  mc = MetricCompute(cache, conn, tmp_dir="/data/tmp")
+
+  # After
+  conn = ConnectionManager(tmp_dir="/data/tmp")
+  mc = MetricCompute(cache, conn)
+  ```
+
+### Added
+
+- **`ConnectionManager.__init__` accepts `tmp_dir: str | None = "/tmp"`** to
+  control where the temporary DuckDB file is written during cross-backend
+  compute calls. Previously this was a `MetricCompute` concern.
+- **`ConnectionManager.from_yaml()` accepts `tmp_dir` as a keyword argument.**
+- **`ConnectionManager.close_all()` now also tears down the cross-backend DuckDB**
+  connection and deletes its temporary file. Any `ibis.Table` objects returned by
+  `compute()` that are backed by this database become invalid after `close_all()`.
+
 ## v0.4.0 — 2026-06-26
 
 ### Breaking changes

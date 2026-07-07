@@ -7,8 +7,6 @@ MetricCompute is the main entry point for computing metrics from specs.
 from __future__ import annotations
 
 import logging
-import os
-import tempfile
 
 import ibis
 
@@ -109,47 +107,18 @@ class MetricCompute:
         self,
         spec_cache: SpecCache,
         connection_manager: ConnectionManager,
-        tmp_dir: str | None = "/tmp",
     ) -> None:
         """
         Args:
             spec_cache: Loaded and validated metric, slice, and segment specs.
             connection_manager: Backend connections for query execution.
-            tmp_dir: Directory for the temporary DuckDB file used when a
-                compute() call spans multiple source backends. Defaults to
-                '/tmp', which prevents large cross-backend result sets from
-                bloating process memory. Set to None to force an in-memory
-                DuckDB instead (safe when result sets are known to be small).
-                The file is deleted automatically when this MetricCompute
-                instance is garbage collected; the OS reclaims it on reboot
-                as a final backstop.
+                When a compute() call spans multiple source backends,
+                connection_manager handles intermediate materialisation via a
+                temporary DuckDB. Control where that file is written via the
+                ConnectionManager tmp_dir parameter.
         """
         self.spec_cache = spec_cache
         self.connection_manager = connection_manager
-        self._tmp_dir = tmp_dir
-        self._cross_backend_conn: ibis.BaseBackend | None = None
-        self._cross_backend_db_path: str | None = None
-
-    def __del__(self) -> None:
-        self._cross_backend_conn = None
-        if self._cross_backend_db_path is not None:
-            try:
-                os.unlink(self._cross_backend_db_path)
-            except OSError:
-                pass
-
-    def _get_cross_backend_conn(self) -> ibis.BaseBackend:
-        """Return the persistent cross-backend DuckDB connection, creating it on first call."""
-        if self._cross_backend_conn is None:
-            if self._tmp_dir is not None:
-                fd, path = tempfile.mkstemp(suffix=".duckdb", dir=self._tmp_dir)
-                os.close(fd)
-                os.unlink(path)  # DuckDB must create the file itself; mkstemp leaves it empty
-                self._cross_backend_db_path = path
-                self._cross_backend_conn = ibis.duckdb.connect(path)
-            else:
-                self._cross_backend_conn = ibis.duckdb.connect(":memory:")
-        return self._cross_backend_conn
 
     def compute(
         self,
@@ -194,9 +163,9 @@ class MetricCompute:
 
             When metrics span multiple source backends the results are materialised
             internally and re-exposed as a Table backed by a temporary DuckDB
-            database (file in tmp_dir, or in-memory when tmp_dir=None). This
-            database is not accessible via ConnectionManager and is cleaned up
-            when this MetricCompute instance is garbage collected.
+            managed by the ConnectionManager. Control where that file is written
+            via the ConnectionManager tmp_dir parameter. The database is torn down
+            when ConnectionManager.close_all() is called.
 
         Raises:
             SpecNotFoundError: if any metric/slice/segment name is not in the cache.
@@ -259,7 +228,7 @@ class MetricCompute:
         executor = QueryExecutor(self.connection_manager)
         table = executor.execute(
             query_groups,
-            cross_backend_conn_factory=self._get_cross_backend_conn,
+            cross_backend_conn_factory=self.connection_manager._get_cross_backend_conn,
         )
         return ensure_standard_output(table)
 

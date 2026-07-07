@@ -16,6 +16,8 @@ conn = ConnectionManager.from_yaml("connections.yaml")
 mc = MetricCompute(cache, conn)
 ```
 
+When metrics span multiple source backends, aitaem materialises intermediate results into a temporary DuckDB managed by `ConnectionManager`. See [Temporary Storage for Cross-Backend Queries](connectors.md#temporary-storage-for-cross-backend-queries) in the Connectors guide.
+
 ---
 
 ## `compute()` Parameters
