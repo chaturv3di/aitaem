@@ -478,3 +478,82 @@ duckdb:
         repr_str = repr(manager)
         assert "ConnectionManager" in repr_str
         assert "duckdb" in repr_str
+
+
+class TestCrossBackendConn:
+    """Test temporary cross-backend DuckDB management."""
+
+    def test_cross_backend_conn_returns_ibis_backend(self):
+        import ibis as ibis_mod
+
+        cm = ConnectionManager()
+        conn = cm._get_cross_backend_conn()
+        assert isinstance(conn, ibis_mod.BaseBackend)
+        cm.close_all()
+
+    def test_cross_backend_conn_is_idempotent(self):
+        cm = ConnectionManager()
+        conn1 = cm._get_cross_backend_conn()
+        conn2 = cm._get_cross_backend_conn()
+        assert conn1 is conn2
+        cm.close_all()
+
+    def test_cross_backend_conn_tmp_dir_none_uses_memory(self):
+        import ibis as ibis_mod
+
+        cm = ConnectionManager(tmp_dir=None)
+        conn = cm._get_cross_backend_conn()
+        assert isinstance(conn, ibis_mod.BaseBackend)
+        assert cm._cross_backend_db_path is None
+        cm.close_all()
+
+    def test_cross_backend_conn_tmp_dir_creates_file(self, tmp_path):
+        import os
+
+        cm = ConnectionManager(tmp_dir=str(tmp_path))
+        cm._get_cross_backend_conn()
+        assert cm._cross_backend_db_path is not None
+        assert os.path.exists(cm._cross_backend_db_path)
+        cm.close_all()
+
+    def test_close_all_deletes_temp_file(self, tmp_path):
+        import os
+
+        cm = ConnectionManager(tmp_dir=str(tmp_path))
+        cm._get_cross_backend_conn()
+        db_path = cm._cross_backend_db_path
+        assert db_path is not None
+        assert os.path.exists(db_path)
+        cm.close_all()
+        assert not os.path.exists(db_path)
+
+    def test_close_all_without_cross_backend_does_not_raise(self):
+        cm = ConnectionManager()
+        cm.close_all()  # no cross-backend conn created — should not raise
+
+    def test_tmp_dir_default_is_tmp(self):
+        cm = ConnectionManager()
+        assert cm._tmp_dir == "/tmp"
+
+    def test_from_yaml_passes_tmp_dir(self, tmp_path):
+        yaml_file = tmp_path / "connections.yaml"
+        yaml_file.write_text("duckdb:\n  path: ':memory:'\n")
+        cm = ConnectionManager.from_yaml(str(yaml_file), tmp_dir=str(tmp_path))
+        assert cm._tmp_dir == str(tmp_path)
+        cm.close_all()
+
+    def test_from_yaml_default_tmp_dir(self, tmp_path):
+        yaml_file = tmp_path / "connections.yaml"
+        yaml_file.write_text("duckdb:\n  path: ':memory:'\n")
+        cm = ConnectionManager.from_yaml(str(yaml_file))
+        assert cm._tmp_dir == "/tmp"
+        cm.close_all()
+
+    def test_cross_backend_separate_from_user_duckdb(self, tmp_path):
+        """get_connection('duckdb') must return the user connection, not the temp DuckDB."""
+        cm = ConnectionManager(tmp_dir=str(tmp_path))
+        cm.add_connection("duckdb", path=":memory:")
+        cross_conn = cm._get_cross_backend_conn()
+        user_conn = cm.get_connection("duckdb")
+        assert user_conn.connection is not cross_conn
+        cm.close_all()

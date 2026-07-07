@@ -197,8 +197,37 @@ The schema part is optional. Omit it (triple slash) when you want the server's d
 
 ---
 
+## Temporary Storage for Cross-Backend Queries
+
+When a single `compute()` call includes metrics from different backends (e.g., one from BigQuery and one from DuckDB), aitaem must materialise intermediate result sets into a temporary DuckDB database. `ConnectionManager` manages this automatically.
+
+By default the temporary file is written to `/tmp`. Pass `tmp_dir` to control the location, or set it to `None` to keep everything in memory:
+
+```python
+# File-based (default) — safe for large cross-backend result sets
+conn = ConnectionManager(tmp_dir="/tmp")
+
+# Custom directory
+conn = ConnectionManager(tmp_dir="/data/tmp")
+
+# In-memory — use when result sets are known to be small
+conn = ConnectionManager(tmp_dir=None)
+```
+
+When using `from_yaml()`, pass `tmp_dir` as a keyword argument:
+
+```python
+conn = ConnectionManager.from_yaml("connections.yaml", tmp_dir="/data/tmp")
+```
+
+The temporary database is deleted automatically when `close_all()` is called, or when the `ConnectionManager` instance is garbage collected as a final backstop.
+
+---
+
 ## Closing Connections
 
 ```python
 conn.close_all()
 ```
+
+`close_all()` closes all backend connections and, if a cross-backend compute was performed, also disconnects and deletes the temporary DuckDB database. Any `ibis.Table` objects returned by `compute()` that are backed by that temporary database become invalid after this call.
