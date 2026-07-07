@@ -3,17 +3,14 @@ QueryBot example — Global Ads Performance dataset.
 
 Demonstrates a multi-turn conversation with QueryBot using the ad campaign
 dataset bundled in examples/data/.  Each turn shows the agent's narrative,
-the assembled payload, and a preview of the underlying Arrow result.
+the assembled payload, a data sample, and the run trace.
 
 Prerequisites
 -------------
-1. Create the DuckDB database (one-time setup):
-       python examples/data/setup_db.py
-
-2. Set your Anthropic API key:
+1. Set your Anthropic API key:
        export ANTHROPIC_API_KEY=sk-ant-...
 
-3. Install the agent extra:
+2. Install the agent extra:
        pip install aitaem[agent-anthropic]
 
 Run from the project root:
@@ -26,13 +23,13 @@ import asyncio
 import os
 import sys
 import textwrap
+from typing import Any
 
 import pandas as pd
 
 from aitaem.connectors import ConnectionManager
 from aitaem.specs import SpecCache
-from aitaem.agent import QueryBot
-from aitaem.agent.trace import Status
+from aitaem.agent import QueryBot, Status
 
 
 # ---------------------------------------------------------------------------
@@ -78,13 +75,31 @@ def _print_response(turn: int, question: str, response) -> None:
 
 
 def _print_sample(response) -> None:
-    """Print the sample rows from response.payload.sample."""
     p = response.payload
     if p is None or not p.sample:
         return
     df = pd.DataFrame(p.sample).dropna(axis=1, how="all")
     print(f"\nSample ({len(p.sample)} row(s)):")
     print(df.to_string(index=False))
+
+
+def _fmt_arg(v: Any) -> str:
+    """Format a tool argument value — truncate long strings (e.g. result UUIDs)."""
+    if isinstance(v, str) and len(v) > 12:
+        return f"'{v[:8]}…'"
+    return repr(v)
+
+
+def _print_trace(response) -> None:
+    t = response.trace
+    print(f"\nTrace    : run={t.run_id[:8]}  conv={t.conversation_id[:8]}  {t.duration_ms:.0f}ms")
+    for tc in t.tool_calls:
+        non_null = {k: v for k, v in tc.args.items() if v is not None}
+        args_str = ", ".join(f"{k}={_fmt_arg(v)}" for k, v in non_null.items())
+        icon = "✓" if tc.success else "✗"
+        print(f"  {icon} {tc.name}({args_str})")
+    u = t.usage
+    print(f"Tokens   : {u.input_tokens} in / {u.output_tokens} out  ({u.total_tokens} total)")
 
 
 # ---------------------------------------------------------------------------
@@ -145,12 +160,19 @@ async def main() -> None:
     ]
 
     print("\nStarting conversation …")
+    total_tokens = 0
+    conversation_id = None
     for i, question in enumerate(questions, start=1):
         response = await bot.chat(question)
         _print_response(i, question, response)
         _print_sample(response)
+        _print_trace(response)
+        total_tokens += response.trace.usage.total_tokens
+        conversation_id = response.trace.conversation_id
 
     print(f"\n{'─' * 70}")
+    cid = conversation_id[:8] if conversation_id else "?"
+    print(f"Session  : conv={cid}  {len(questions)} turns  {total_tokens} tokens")
     print("Done.")
 
 
