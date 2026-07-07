@@ -27,6 +27,8 @@ import os
 import sys
 import textwrap
 
+import pandas as pd
+
 from aitaem.connectors import ConnectionManager
 from aitaem.specs import SpecCache
 from aitaem.agent import QueryBot
@@ -75,22 +77,14 @@ def _print_response(turn: int, question: str, response) -> None:
     print(f"Results  : {len(p.result_ids)} result(s)  primary={p.primary_result_id}")
 
 
-def _print_result_preview(bot: QueryBot, response, max_rows: int = 5) -> None:
-    """Print the first few rows of the primary result as a plain table."""
+def _print_sample(response) -> None:
+    """Print the sample rows from response.payload.sample."""
     p = response.payload
-    if p is None or p.primary_result_id is None:
+    if p is None or not p.sample:
         return
-    try:
-        entry = bot.get_result(p.primary_result_id)
-        if entry.arrow is None:
-            return
-        df = entry.arrow.to_pandas()
-        # Drop all-null columns and keep at most max_rows rows
-        df = df.dropna(axis=1, how="all").head(max_rows)
-        print(f"\nResult preview ({min(len(df), max_rows)} of {entry.arrow.num_rows} rows):")
-        print(df.to_string(index=False))
-    except Exception as exc:  # noqa: BLE001
-        print(f"  (could not preview result: {exc})")
+    df = pd.DataFrame(p.sample).dropna(axis=1, how="all")
+    print(f"\nSample ({len(p.sample)} row(s)):")
+    print(df.to_string(index=False))
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +148,7 @@ async def main() -> None:
     for i, question in enumerate(questions, start=1):
         response = await bot.chat(question)
         _print_response(i, question, response)
-        _print_result_preview(bot, response)
+        _print_sample(response)
 
     print(f"\n{'─' * 70}")
     print("Done.")

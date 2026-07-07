@@ -27,14 +27,6 @@ from aitaem.utils.exceptions import (
     SpecNotFoundError,
 )
 
-# Standard columns emitted by MetricCompute.compute().
-_STANDARD_COLS = [
-    "period_type", "period_start_date", "period_end_date", "entity_id",
-    "metric_name", "metric_format", "slice_type", "slice_value",
-    "segment_name", "segment_value", "metric_value",
-]
-_NON_VALUE_COLS = frozenset(_STANDARD_COLS) - {"metric_value"}
-
 _FILTER_OPS: dict[str, Any] = {
     ">": operator.gt, ">=": operator.ge,
     "<": operator.lt, "<=": operator.le,
@@ -126,6 +118,7 @@ def compute_metrics(
             by_entity=by_entity,
             format_hints=format_hints,
             payload_summary={
+                "result_id": result_id,
                 "metrics_used": metrics,
                 "slices_used": slices or [],
                 "segment_used": segment,
@@ -133,6 +126,7 @@ def compute_metrics(
                 "time_window": list(time_window) if time_window else None,
                 "by_entity": by_entity,
                 "format_hints": format_hints,
+                "sample": _sample_arrow(arrow_table),
             },
         )
 

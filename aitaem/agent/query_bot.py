@@ -281,6 +281,7 @@ class QueryBot(Bot):
           list fields  — union with deduplication, order of first appearance
           scalar fields — first-write wins (first call that sets a field governs)
         """
+        primary_result_id = output.result_ids[0] if output.result_ids else None
         metrics_used: list[str] = []
         slices_used: list[str] = []
         seen_metrics: set[str] = set()
@@ -290,6 +291,7 @@ class QueryBot(Bot):
         period_type: str | None = None
         by_entity: str | None = None
         format_hints: dict[str, str] = {}
+        sample: list[dict[str, Any]] | None = None
 
         for tc in trace.tool_calls:
             if not tc.llm_summary:
@@ -324,10 +326,14 @@ class QueryBot(Bot):
             for metric, fmt in (ps.get("format_hints") or {}).items():
                 if metric not in format_hints:
                     format_hints[metric] = fmt
+            # sample: pull from the tool call that produced the primary result
+            if sample is None and primary_result_id and ps.get("result_id") == primary_result_id:
+                raw = ps.get("sample")
+                sample = raw if isinstance(raw, list) else None
 
         return QueryPayload(
             result_ids=output.result_ids,
-            primary_result_id=output.result_ids[0] if output.result_ids else None,
+            primary_result_id=primary_result_id,
             metrics_used=metrics_used,
             slices_used=slices_used,
             segment_used=segment_used,
@@ -335,4 +341,5 @@ class QueryBot(Bot):
             period_type=period_type or "all_time",
             by_entity=by_entity,
             format_hints=format_hints,
+            sample=sample,
         )

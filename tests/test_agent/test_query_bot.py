@@ -232,6 +232,49 @@ def test_assemble_payload_extracts_from_payload_summary():
     assert payload.time_window == ("2024-01-01", "2024-03-31")
 
 
+def test_assemble_payload_sample_from_primary_result():
+    """sample is pulled from the tool call whose result_id matches primary_result_id."""
+    rows = [{"metric_name": "revenue", "metric_value": 100.0}]
+    output = QueryOutput(status=Status.ok, narrative="Done.", result_ids=["r1"])
+    trace = _minimal_trace(tool_calls=[
+        _tc_with_payload("tc1", "compute_metrics", payload_summary={
+            "result_id": "r1",
+            "metrics_used": ["revenue"],
+            "sample": rows,
+        }),
+    ])
+    payload = QueryBot._assemble_payload(output, trace)
+    assert payload.sample == rows
+
+
+def test_assemble_payload_sample_only_from_primary_not_secondary():
+    """sample comes from the primary result only, not other tool calls."""
+    rows_primary = [{"metric_name": "revenue", "metric_value": 100.0}]
+    rows_other = [{"metric_name": "ctr", "metric_value": 0.05}]
+    output = QueryOutput(status=Status.ok, narrative="Done.", result_ids=["r1", "r2"])
+    trace = _minimal_trace(tool_calls=[
+        _tc_with_payload("tc1", "compute_metrics", payload_summary={
+            "result_id": "r1",
+            "metrics_used": ["revenue"],
+            "sample": rows_primary,
+        }),
+        _tc_with_payload("tc2", "compute_metrics", payload_summary={
+            "result_id": "r2",
+            "metrics_used": ["ctr"],
+            "sample": rows_other,
+        }),
+    ])
+    payload = QueryBot._assemble_payload(output, trace)
+    assert payload.sample == rows_primary
+
+
+def test_assemble_payload_sample_none_when_no_results():
+    output = QueryOutput(status=Status.refused, narrative="N/A.", reason="No match.")
+    trace = _minimal_trace()
+    payload = QueryBot._assemble_payload(output, trace)
+    assert payload.sample is None
+
+
 def test_assemble_payload_list_fields_union_dedup():
     """Two compute_metrics calls — metrics_used is a deduped union; scalars use first-write wins."""
     output = QueryOutput(status=Status.ok, narrative="Done.", result_ids=["r1"])

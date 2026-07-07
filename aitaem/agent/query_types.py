@@ -73,6 +73,13 @@ class QueryPayload(BaseModel):
             "Callers use this to render metric values correctly."
         ),
     )
+    sample: list[dict[str, Any]] | None = Field(
+        default=None,
+        description=(
+            "Up to 5 rows from the primary result, with Python-native values. "
+            "None when there is no primary result."
+        ),
+    )
 
 
 # ── Tool result models (LLM reads these after each tool call) ────────────────
