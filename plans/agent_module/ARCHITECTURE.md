@@ -372,3 +372,25 @@ With AITAEM v0.4.0 shipped, P0 is done. Phase 1 (foundations) and Phase 2 prep c
 AITAEM v0.4.0 delivers the Ibis-return `compute()` and adds `tmp_dir` for cross-backend materialization. The dual-representation result store (Section 3, Section 4 §4) is realizable with the v0.4.0 API. AD-16 (one `MetricCompute` per bot) and AD-17 (opaque `compute_kwargs`) address the lifetime and forward-compatibility consequences.
 
 Any residual coordination — for instance, AITAEM-side feedback on how the bot uses `tmp_dir` in multi-tenant scenarios — is post-v1.0 territory.
+
+### OQ-5: Context-window management for long-running sessions
+
+**Problem:** In multi-turn conversations, the accumulated `message_history` passed to each `agent.run()` call grows unboundedly. If history + system prompt + current message exceeds the model's context window, the call fails.
+
+**Solution direction:** pydantic-ai's `ProcessHistory` capability (in `pydantic_ai.capabilities`). Pass a processor callable at agent construction time:
+
+```python
+from pydantic_ai.capabilities import ProcessHistory
+
+Agent(model=..., capabilities=[ProcessHistory(my_trimmer)])
+```
+
+The processor receives the full message list before every model request and returns a modified list. No built-in trimmer exists in pydantic-ai — must be implemented.
+
+**Key constraint (pydantic-ai issue #2050):** The processor fires before *every* model request, including each step of a tool-call loop. The message list it receives includes mid-run tool call/return pairs. Naive trimming that drops a `ToolReturnPart` without its matching `ToolCallPart` violates provider API constraints. Any trimmer must only remove complete call/return pairs as an atomic unit.
+
+**Token counting:** pydantic-ai provides no tokenizer. A safe approximation is character-count or message-count based trimming. Provider-accurate trimming requires an external tokenizer (e.g. `tiktoken` for OpenAI, already available when `[agent-openai]` is installed).
+
+**Where it lives in code:** `_build_agent()` in each concrete `Bot` subclass. The `Bot` base class docstring (Phase 1) already documents this hook so Phase 2+ implementors know where to plug in.
+
+**Why unscheduled:** Context overflow only matters in practice once real multi-turn sessions run long enough to hit limits. Monitor whether it surfaces as a real issue in Phase 2 integration testing before committing implementation effort.

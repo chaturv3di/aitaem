@@ -261,28 +261,27 @@ These are tracked in Section 7 with escape valves. They're v1.x or v2.0 candidat
 
 ---
 
-## Appendix — Open design questions (unscheduled)
+## Appendix: Open Questions
 
-These are known problems with a clear solution direction but no committed phase. They stay here until there is a concrete reason to schedule them.
+### OQ-A1 — Context-window management via `ProcessHistory`
 
-### OQ-A1 — Context-window management for long-running sessions
+Tracked in Phase 1 foundations. Built into the `Bot` docstring as a reference pattern; no implementation shipped in v1.0.
 
-**Problem:** In multi-turn conversations, the accumulated `message_history` passed to each `agent.run()` call grows unboundedly. If history + system prompt + current message exceeds the model's context window, the call fails.
+### OQ-A2: `compute_metrics` segment join-key override
 
-**Solution direction:** pydantic-ai's `ProcessHistory` capability (in `pydantic_ai.capabilities`). Pass a processor callable at agent construction time:
+**Problem:** `MetricCompute.compute()` accepts `segments` as either `str` (segment name,
+uses spec's default join key) or `dict[str, str]` (name → custom join key). The Phase 2
+`compute_metrics` tool only exposes the string form.
 
-```python
-from pydantic_ai.capabilities import ProcessHistory
+**Impact:** Users who need to override the join key via the LLM interface cannot do so
+with the default QueryBot. They would need to call `MetricCompute.compute()` directly
+or build a custom tool.
 
-Agent(model=..., capabilities=[ProcessHistory(my_trimmer)])
-```
+**Decision trigger:** When a user reports needing non-default join key selection
+through the LLM interface (likely rare; most specs have a single natural join key).
 
-The processor receives the full message list before every model request and returns a modified list. No built-in trimmer exists in pydantic-ai — must be implemented.
+**Implementation path when triggered:** Add an optional `segment_join_key: str | None`
+parameter to the `compute_metrics` tool. Construct `segments={segment: segment_join_key}`
+when both are provided.
 
-**Key constraint (pydantic-ai issue #2050):** The processor fires before *every* model request, including each step of a tool-call loop. The message list it receives includes mid-run tool call/return pairs. Naive trimming that drops a `ToolReturnPart` without its matching `ToolCallPart` violates provider API constraints. Any trimmer must only remove complete call/return pairs as an atomic unit.
-
-**Token counting:** pydantic-ai provides no tokenizer. A safe approximation is character-count or message-count based trimming. Provider-accurate trimming requires an external tokenizer (e.g. `tiktoken` for OpenAI, already available when `[agent-openai]` is installed).
-
-**Where it lives in code:** `_build_agent()` in each concrete `Bot` subclass. The `Bot` base class docstring (Phase 1) already documents this hook so Phase 2+ implementors know where to plug in.
-
-**Why unscheduled:** Context overflow only matters in practice once real multi-turn sessions run long enough to hit limits. Monitor whether it surfaces as a real issue in Phase 2 integration testing before committing implementation effort.
+---

@@ -245,3 +245,13 @@ def test_bot_chat_raises_not_implemented():
     bot = ConcreteBot(model="claude-sonnet-4-6")
     with pytest.raises(NotImplementedError):
         asyncio.run(bot.chat("hello"))
+
+
+# ---------------------------------------------------------------------------
+# SF-7: Phase 2 public exports
+# ---------------------------------------------------------------------------
+
+
+def test_public_exports_include_query_bot():
+    from aitaem.agent import QueryBot, QueryResponse, QueryPayload
+    assert all(x is not None for x in [QueryBot, QueryResponse, QueryPayload])
