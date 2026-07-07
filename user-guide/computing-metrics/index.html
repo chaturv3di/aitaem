@@ -1301,6 +1301,7 @@
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span><span class="s2">&quot;connections.yaml&quot;</span><span class="p">)</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">mc</span> <span class="o">=</span> <span class="n">MetricCompute</span><span class="p">(</span><span class="n">cache</span><span class="p">,</span> <span class="n">conn</span><span class="p">)</span>
 </code></pre></div>
+<p>When metrics span multiple source backends, aitaem materialises intermediate results into a temporary DuckDB managed by <code>ConnectionManager</code>. See <a href="../connectors/#temporary-storage-for-cross-backend-queries">Temporary Storage for Cross-Backend Queries</a> in the Connectors guide.</p>
 <hr />
 <h2 id="compute-parameters"><code>compute()</code> Parameters</h2>
 <p><code>compute()</code> returns a lazy <strong><code>ibis.Table</code></strong>. Call <code>.to_pandas()</code> to materialise

@@ -819,6 +819,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#temporary-storage-for-cross-backend-queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Temporary Storage for Cross-Backend Queries
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#closing-connections" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1336,6 +1347,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#temporary-storage-for-cross-backend-queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Temporary Storage for Cross-Backend Queries
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#closing-connections" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1651,9 +1673,27 @@
 </table>
 <p>The schema part is optional. Omit it (triple slash) when you want the server's default search path to resolve the table.</p>
 <hr />
-<h2 id="closing-connections">Closing Connections</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">conn</span><span class="o">.</span><span class="n">close_all</span><span class="p">()</span>
+<h2 id="temporary-storage-for-cross-backend-queries">Temporary Storage for Cross-Backend Queries</h2>
+<p>When a single <code>compute()</code> call includes metrics from different backends (e.g., one from BigQuery and one from DuckDB), aitaem must materialise intermediate result sets into a temporary DuckDB database. <code>ConnectionManager</code> manages this automatically.</p>
+<p>By default the temporary file is written to <code>/tmp</code>. Pass <code>tmp_dir</code> to control the location, or set it to <code>None</code> to keep everything in memory:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># File-based (default) — safe for large cross-backend result sets</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">(</span><span class="n">tmp_dir</span><span class="o">=</span><span class="s2">&quot;/tmp&quot;</span><span class="p">)</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># Custom directory</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">(</span><span class="n">tmp_dir</span><span class="o">=</span><span class="s2">&quot;/data/tmp&quot;</span><span class="p">)</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="c1"># In-memory — use when result sets are known to be small</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">(</span><span class="n">tmp_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
 </code></pre></div>
+<p>When using <code>from_yaml()</code>, pass <code>tmp_dir</code> as a keyword argument:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span><span class="s2">&quot;connections.yaml&quot;</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="o">=</span><span class="s2">&quot;/data/tmp&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>The temporary database is deleted automatically when <code>close_all()</code> is called, or when the <code>ConnectionManager</code> instance is garbage collected as a final backstop.</p>
+<hr />
+<h2 id="closing-connections">Closing Connections</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="n">conn</span><span class="o">.</span><span class="n">close_all</span><span class="p">()</span>
+</code></pre></div>
+<p><code>close_all()</code> closes all backend connections and, if a cross-backend compute was performed, also disconnects and deletes the temporary DuckDB database. Any <code>ibis.Table</code> objects returned by <code>compute()</code> that are backed by that temporary database become invalid after this call.</p>
 
 
 
