@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import operator
+import threading
 import uuid
 from typing import Any
 
@@ -34,6 +35,12 @@ from aitaem.utils.exceptions import (
     QueryExecutionError,
     SpecNotFoundError,
 )
+
+# DuckDB's ibis backend is not thread-safe. pydantic-ai dispatches parallel
+# tool calls via asyncio.to_thread(), so two compute_metrics calls for a
+# multi-metric question run in separate threads and race on the same connection.
+# This lock serializes all compute_metrics executions within a process.
+_COMPUTE_LOCK = threading.Lock()
 
 _FILTER_OPS: dict[str, Any] = {
     ">": operator.gt, ">=": operator.ge,
@@ -217,16 +224,18 @@ def compute_metrics(
         )
 
     try:
-        mc = MetricCompute(ctx.deps.spec_cache, ctx.deps.connection_manager)
-        ibis_table = mc.compute(
-            metrics=[resolved.metric_name],
-            slices=resolved.slice_specs or None,
-            segments=resolved.segment_spec,
-            time_window=resolved.time_window,
-            period_type=resolved.period_type,
-            by_entity=resolved.by_entity,
-        )
-        arrow_table = ibis_table.to_pyarrow()
+        with _COMPUTE_LOCK:
+            mc = MetricCompute(ctx.deps.spec_cache, ctx.deps.connection_manager)
+            ibis_table = mc.compute(
+                metrics=[resolved.metric_name],
+                slices=resolved.slice_specs or None,
+                segments=resolved.segment_spec,
+                time_window=resolved.time_window,
+                period_type=resolved.period_type,
+                by_entity=resolved.by_entity,
+            )
+            arrow_table = ibis_table.to_pyarrow()
+
         result_id = ctx.deps.store.store(arrow_table, ibis_table)
 
         format_hints: dict[str, str] = {}
@@ -254,7 +263,7 @@ def compute_metrics(
                 "sample": sample,
             },
         )
-    except (SpecNotFoundError, QueryBuildError, QueryExecutionError, AitaemConnectionError) as exc:
+    except Exception as exc:
         return ComputeMetricsResult(
             spec_token=spec_token,
             result_id="", row_count=0, sample=[], columns=[],
