@@ -28,7 +28,7 @@ from aitaem.agent.query_types import (
     ContributionShareResult,
 )
 from aitaem.agent.resolver import SpecResolver
-from aitaem.agent.store import ResultEntry
+from aitaem.agent.store import TabularEntry
 from aitaem import MetricCompute
 
 # DuckDB's ibis backend is not thread-safe. pydantic-ai dispatches parallel
@@ -44,13 +44,13 @@ _FILTER_OPS: dict[str, Any] = {
 }
 
 
-def _get_ibis_table(entry: ResultEntry) -> ibis.Table:
+def _get_ibis_table(entry: TabularEntry) -> ibis.Table:
     """Return an ibis.Table: lazy from ibis_ref if alive, else memtable over Arrow."""
     if entry.ibis_ref is not None:
         return entry.ibis_ref
     if entry.arrow is not None:
         return ibis.memtable(entry.arrow)
-    raise ValueError(f"Result entry {entry.id!r} has no data.")
+    raise ValueError(f"Result entry {entry.result_id!r} has no data.")
 
 
 def _sample_arrow(table: pa.Table, n: int = 5) -> list[dict[str, Any]]:
@@ -232,7 +232,7 @@ def compute_metrics(
             )
             arrow_table = ibis_table.to_pyarrow()
 
-        result_id = ctx.deps.store.store(arrow_table, ibis_table)
+        result_id = ctx.deps.store.store_tabular(arrow_table, ibis_table)
 
         format_hints: dict[str, str] = {}
         spec = ctx.deps.spec_cache.metrics.get(resolved.metric_name)
@@ -286,13 +286,13 @@ def rank_by_value(
     Returns:
         RankByValueResult with a new result_id for the ranked slice.
     """
-    entry = ctx.deps.store.get(result_id)
+    entry = ctx.deps.store.get_tabular(result_id)
     ibis_table = _get_ibis_table(entry)
 
     order_fn = ibis.asc if ascending else ibis.desc
     ranked = ibis_table.order_by(order_fn("metric_value")).limit(top_n)
     result_arrow = ranked.to_pyarrow()
-    new_id = ctx.deps.store.store(result_arrow, None)
+    new_id = ctx.deps.store.store_tabular(result_arrow, None)
 
     return RankByValueResult(
         result_id=new_id,
@@ -324,7 +324,7 @@ def filter_by_threshold(
     if op not in _FILTER_OPS:
         raise ValueError(f"op must be one of {list(_FILTER_OPS)}; got {op!r}")
 
-    entry = ctx.deps.store.get(result_id)
+    entry = ctx.deps.store.get_tabular(result_id)
     ibis_table = _get_ibis_table(entry)
 
     if column not in ibis_table.columns:
@@ -339,7 +339,7 @@ def filter_by_threshold(
 
     filtered = ibis_table.filter(_FILTER_OPS[op](ibis_table[column], threshold))
     result_arrow = filtered.to_pyarrow()
-    new_id = ctx.deps.store.store(result_arrow, None)
+    new_id = ctx.deps.store.store_tabular(result_arrow, None)
 
     return FilterByThresholdResult(
         result_id=new_id,
@@ -365,7 +365,7 @@ def distribution_summary(
     Returns:
         DistributionSummaryResult with per-metric statistics.
     """
-    entry = ctx.deps.store.get(result_id)
+    entry = ctx.deps.store.get_tabular(result_id)
     df = _get_ibis_table(entry).to_pandas()
 
     distributions: list[MetricDistribution] = []
@@ -388,7 +388,7 @@ def distribution_summary(
 
     stats_rows = [d.model_dump() for d in distributions]
     stats_arrow = pa.Table.from_pylist(stats_rows) if stats_rows else pa.table({})
-    new_id = ctx.deps.store.store(stats_arrow, None)
+    new_id = ctx.deps.store.store_tabular(stats_arrow, None)
 
     return DistributionSummaryResult(result_id=new_id, distributions=distributions)
 
@@ -412,7 +412,7 @@ def period_over_period(
     Returns:
         PeriodOverPeriodResult with a new result_id.
     """
-    entry = ctx.deps.store.get(result_id)
+    entry = ctx.deps.store.get_tabular(result_id)
     df = _get_ibis_table(entry).to_pandas()
 
     group_keys = [
@@ -453,7 +453,7 @@ def period_over_period(
     df = df.drop(columns=["prior_value"])
 
     result_arrow = pa.Table.from_pandas(df, preserve_index=False)
-    new_id = ctx.deps.store.store(result_arrow, None)
+    new_id = ctx.deps.store.store_tabular(result_arrow, None)
 
     periods_found = int(df["period_start_date"].nunique()) if "period_start_date" in df.columns else 0
     return PeriodOverPeriodResult(
@@ -482,7 +482,7 @@ def contribution_share(
     Returns:
         ContributionShareResult with a new result_id.
     """
-    entry = ctx.deps.store.get(result_id)
+    entry = ctx.deps.store.get_tabular(result_id)
     df = _get_ibis_table(entry).to_pandas()
 
     metric_totals = df.groupby("metric_name")["metric_value"].sum()
@@ -504,7 +504,7 @@ def contribution_share(
     df["cumulative_share"] = df.groupby("metric_name")["share"].cumsum()
 
     result_arrow = pa.Table.from_pandas(df, preserve_index=False)
-    new_id = ctx.deps.store.store(result_arrow, None)
+    new_id = ctx.deps.store.store_tabular(result_arrow, None)
 
     total_value = float(df["metric_value"].sum()) if not df["metric_value"].isna().all() else 0.0
     return ContributionShareResult(

@@ -91,7 +91,7 @@ def _make_mock_mc(arrow_table=None, raise_exc=None):
 
 def _make_deps_with_table(table: pa.Table):
     store = ResultStore()
-    rid = store.store(table, None)
+    rid = store.store_tabular(table, None)
     mock_sc = MagicMock()
     mock_sc.metrics = {}
     deps = QueryDeps(spec_cache=mock_sc, connection_manager=MagicMock(), store=store)
@@ -333,7 +333,7 @@ def test_compute_metrics_ibis_ref_stored():
     token = _setup_resolved_token(deps, ctx)
     with patch("aitaem.agent.query_tools.MetricCompute", return_value=_make_mock_mc()):
         result = compute_metrics(ctx, spec_token=token)
-    entry = deps.store.get(result.result_id)
+    entry = deps.store.get_tabular(result.result_id)
     assert entry.ibis_ref is not None
 
 

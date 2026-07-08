@@ -29,7 +29,7 @@ def test_dump_history_empty():
 def test_dump_load_roundtrip_with_arrow_artifact():
     bot = _StubBot(model="claude-sonnet-4-6")
     table = pa.table({"metric_value": [1.0, 2.0], "metric_name": ["ctr", "ctr"]})
-    rid = bot.store.store(table, None, metadata={"metric": "ctr"})
+    rid = bot.store.store_tabular(table, None, metadata={"metric": "ctr"})
 
     bundle = bot.dump_history()
     assert rid in bundle["artifacts"]
@@ -44,7 +44,7 @@ def test_dump_load_roundtrip_with_arrow_artifact():
 
 def test_dump_load_roundtrip_null_arrow():
     bot = _StubBot(model="claude-sonnet-4-6")
-    rid = bot.store.store(None, None)
+    rid = bot.store.store_tabular(None, None)
     bundle = bot.dump_history()
     assert bundle["artifacts"][rid]["arrow_b64"] is None
 
@@ -62,6 +62,6 @@ def test_load_history_wrong_schema_version():
 def test_bundle_is_json_serializable():
     bot = _StubBot(model="claude-sonnet-4-6")
     table = pa.table({"x": [1, 2]})
-    bot.store.store(table, None)
+    bot.store.store_tabular(table, None)
     bundle = bot.dump_history()
     _ = json.dumps(bundle)
