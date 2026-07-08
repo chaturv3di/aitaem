@@ -3,7 +3,7 @@ from __future__ import annotations
 import operator
 import threading
 import uuid
-from typing import Any
+from typing import Any, Literal, cast
 
 import ibis
 import pyarrow as pa
@@ -29,12 +29,6 @@ from aitaem.agent.query_types import (
 from aitaem.agent.resolver import SpecResolver
 from aitaem.agent.store import ResultEntry
 from aitaem import MetricCompute
-from aitaem.utils.exceptions import (
-    AitaemConnectionError,
-    QueryBuildError,
-    QueryExecutionError,
-    SpecNotFoundError,
-)
 
 # DuckDB's ibis backend is not thread-safe. pydantic-ai dispatches parallel
 # tool calls via asyncio.to_thread(), so two compute_metrics calls for a
@@ -77,7 +71,7 @@ def _sample_arrow(table: pa.Table, n: int = 5) -> list[dict[str, Any]]:
 def record_intent(
     ctx: RunContext[QueryDeps],
     metric_concept: str,
-    scope: str,
+    scope: Literal["overall", "subset"],
     subset_description: str | None = None,
     slice_type: str | None = None,
     slice_value: str | None = None,
@@ -119,7 +113,7 @@ def record_intent(
         segment_name=segment_name,
         segment_value=segment_value,
         period_type=period_type,
-        time_window=tuple(time_window) if time_window else None,
+        time_window=(time_window[0], time_window[1]) if time_window else None,
         by_entity=by_entity,
     )
     ctx.deps.intents.append(intent)
@@ -231,7 +225,7 @@ def compute_metrics(
                 slices=resolved.slice_specs or None,
                 segments=resolved.segment_spec,
                 time_window=resolved.time_window,
-                period_type=resolved.period_type,
+                period_type=cast(PeriodType, resolved.period_type),
                 by_entity=resolved.by_entity,
             )
             arrow_table = ibis_table.to_pyarrow()

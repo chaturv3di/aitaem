@@ -299,7 +299,7 @@ class QueryBot(Bot):
         # RBAC-differentiated users naturally land in separate routing lanes.
         tenant_id = self._tenant_id or _permission_fingerprint(self._spec_cache)
 
-        agent = Agent(
+        agent = Agent(  # type: ignore[call-overload]
             model=self._model,
             deps_type=QueryDeps,
             output_type=QueryOutput,

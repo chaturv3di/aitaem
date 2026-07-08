@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import difflib
+from typing import Any
 
 from aitaem.agent.query_types import ExactMatch, MetricIntent, NearMiss, SpecMatchResult
 
@@ -18,7 +19,7 @@ class SpecResolver:
         proposed_metric_name: str,
         proposed_slices: list[str],
         proposed_segment: str | None,
-        spec_cache: object,  # aitaem.SpecCache
+        spec_cache: Any,  # aitaem.SpecCache
     ) -> SpecMatchResult:
         """Validate the proposed names against the catalog.
 
