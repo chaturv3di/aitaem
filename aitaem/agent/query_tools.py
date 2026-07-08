@@ -3,6 +3,7 @@ from __future__ import annotations
 import operator
 import threading
 import uuid
+from contextlib import nullcontext
 from typing import Any, Literal, cast
 
 import ibis
@@ -218,7 +219,8 @@ def compute_metrics(
         )
 
     try:
-        with _COMPUTE_LOCK:
+        lock = _COMPUTE_LOCK if ctx.deps.connection_manager.requires_compute_lock else nullcontext()
+        with lock:
             mc = MetricCompute(ctx.deps.spec_cache, ctx.deps.connection_manager)
             ibis_table = mc.compute(
                 metrics=[resolved.metric_name],

@@ -471,6 +471,21 @@ class ConnectionManager:
                 pass
             self._cross_backend_db_path = None
 
+    @property
+    def requires_compute_lock(self) -> bool:
+        """True when DuckDB is or may be involved in query execution.
+
+        Returns False only for pure remote-backend setups (single BigQuery or
+        Postgres connection), where concurrent tool calls can safely run in
+        parallel. Returns True when:
+        - DuckDB is a registered backend (ibis DuckDB is not thread-safe), or
+        - Multiple backends are configured (cross-backend queries materialise
+          through an internal DuckDB scratch connection).
+        """
+        if "duckdb" in self._connections:
+            return True
+        return len(self._connections) > 1
+
     def __del__(self) -> None:
         if self._cross_backend_db_path is not None:
             try:
