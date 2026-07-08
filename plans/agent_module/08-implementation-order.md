@@ -118,19 +118,60 @@ The first convenience bot, and the most architecturally load-bearing.
 
 The second convenience bot. Depends on Phase 1 + Phase 2 patterns.
 
-### P3.1 — Schema introspection tools
+> **Phase 3 (Plan 27) note:** DefinitionBot is primarily a **single-turn bot** — `ask()` is
+> the primary entry point. Within one `agent.run()` call, the LLM loops through schema
+> exploration, drafting, and token-gated validation. `chat()` is provided for cross-turn
+> context but multi-turn interactive spec refinement is deferred to v1.x (ND-10).
+>
+> Detailed implementation plan: `plans/27-agent-phase3.md`.
 
-**What:** `list_tables`, `describe_table` tools that wrap `IbisConnector` schema queries. Internal to `DefinitionBot`; not part of any other bot's default set.
+### P3.0 — Prerequisite: `list_tables()` in aitaem core
 
-### P3.2 — Spec validation tool
+**What:** Add `IbisConnector.list_tables(pattern=None) → list[str]` and
+`ConnectionManager.list_tables(backend_type=None, pattern=None) → dict[str, list[str]]`.
+Small additive change to `aitaem` core (not the agent module).
 
-**What:** A tool wrapping `*Spec.from_string().validate()`. Returns structured validation results, including `referenced_columns` for cross-table-reference checking.
+**Why first:** DefinitionBot's `list_tables` tool calls `ConnectionManager.list_tables()`.
+This must exist in core before the tool layer is written.
 
-### P3.3 — Default prompt and DefinitionBot integration
+**Blocks:** SF-3 and SF-4 (list_tables and describe_table tools).
 
-**What:** The `DefinitionBot` class, default prompt (incorporates a table-selection step and the single-table-source constraint for metric specs), and `DefinitionPayload`.
+### P3.1 — Type models (`definition_types.py`)
 
-**Why this phase:** DefinitionBot has narrower scope than QueryBot but exercises a different part of the AITAEM API (schema, validation). Sequencing after QueryBot means QueryBot's patterns are battle-tested before DefinitionBot inherits them.
+**What:** `DefinitionDeps`, `DefinitionOutput`, `DefinitionPayload`, `DefinitionIntent`,
+`SpecDraft`, and all tool result models (`RecordDefinitionIntentResult`, `ListTablesResult`,
+`DescribeTableResult`, `DraftSpecResult`, `ValidateSpecResult`, `ValidationIssue`,
+`ColumnInfo`).
+
+### P3.2 — Tools (`definition_tools.py`)
+
+**What:** Five tools in 4-step gate order:
+1. `record_definition_intent` — capture spec type + description + optional existing YAML
+2. `list_tables` — delegate to `ConnectionManager.list_tables()`
+3. `describe_table` — schema for one table via `IbisConnector.get_table()`
+4. `draft_spec` — store LLM-written YAML in `DefinitionDeps.draft_registry`; return `draft_id`
+5. `validate_spec` — 5-check gate: structural + SQL, name conflict, composite cross-ref,
+   column existence (live), ResultStore store + spec_draft_token mint
+
+**Why this order:** `draft_spec` / `validate_spec` are the anti-hallucination gate and
+require the type models from P3.1. Schema tools (P3.0 prerequisite) unlock P3.2.
+
+### P3.3 — Bot class (`definition_bot.py`)
+
+**What:** `DefinitionBot(Bot)` constructor, `_build_layer_a_definition()`,
+`_build_layer_b_definition(spec_cache)`, `_build_agent()`, `chat()`, `ask()`,
+`_assemble_payload(output, store)`, `_error_response()`. `DefinitionResponse` typed alias.
+
+**Why last in Phase 3:** Requires all type models and tools from P3.1–P3.2.
+
+### P3.4 — `__init__.py` update and tests
+
+**What:** Add all Phase 3 exports to `aitaem/agent/__init__.py`. Full FunctionModel
+integration tests verifying the 4-step flow end-to-end without a real LLM.
+
+**Why this phase:** DefinitionBot has narrower scope than QueryBot but exercises a different
+part of the AITAEM API (schema, validation). Sequencing after QueryBot means QueryBot's
+patterns are battle-tested before DefinitionBot inherits them.
 
 ---
 
