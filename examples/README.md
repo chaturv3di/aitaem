@@ -1,6 +1,6 @@
 # aitaem Examples
 
-This directory contains a worked example using a real ad campaign performance dataset.
+This directory contains worked examples using a real ad campaign performance dataset.
 It demonstrates how to define metrics, slices, and segments using aitaem YAML specs,
 and serves as the fixture dataset for integration tests.
 
@@ -56,20 +56,22 @@ duckdb:
 
 ## Metrics
 
-| File                      | Metric | Formula                              |
-|---------------------------|--------|--------------------------------------|
-| `metrics/ctr.yaml`        | CTR    | `SUM(clicks) / SUM(impressions)`     |
-| `metrics/cpc.yaml`        | CPC    | `SUM(ad_spend) / SUM(clicks)`        |
-| `metrics/cpa.yaml`        | CPA    | `SUM(ad_spend) / SUM(conversions)`   |
-| `metrics/roas.yaml`       | ROAS   | `SUM(revenue) / SUM(ad_spend)`       |
+| File                           | Metric           | Formula                              |
+|--------------------------------|------------------|--------------------------------------|
+| `metrics/total_revenue.yaml`   | total_revenue    | `SUM(revenue)`                       |
+| `metrics/avg_revenue.yaml`     | avg_revenue      | `AVG(revenue)`                       |
+| `metrics/max_revenue.yaml`     | max_revenue      | `MAX(revenue)`                       |
+| `metrics/campaign_count.yaml`  | campaign_count   | `COUNT(*)`                           |
+| `metrics/ctr.yaml`             | ctr              | `SUM(clicks) / SUM(impressions)`     |
+| `metrics/roas.yaml`            | roas             | `SUM(revenue) / SUM(ad_spend)`       |
 
 ## Slices
 
-| File                         | Slice           | Values                                      |
-|------------------------------|-----------------|---------------------------------------------|
-| `slices/campaign_type.yaml`  | campaign_type   | Search, Display, Video, Shopping            |
-| `slices/industry.yaml`       | industry        | SaaS, E-commerce, EdTech, Fintech, Healthcare |
-| `slices/country.yaml`        | country         | USA, UK, Germany, India, Canada, Australia, UAE |
+| File                         | Slice          | Values                                              |
+|------------------------------|----------------|-----------------------------------------------------|
+| `slices/campaign_type.yaml`  | campaign_type  | Search, Display, Video, Shopping                    |
+| `slices/industry.yaml`       | industry       | SaaS, E-commerce, EdTech, Fintech, Healthcare       |
+| `slices/geo.yaml`            | geo            | USA, EU (UK + Germany), APAC (India + Australia), ROW |
 
 ## Segments
 
@@ -77,33 +79,62 @@ duckdb:
 |---------------------------|----------|--------------------------------------|
 | `segments/platform.yaml`  | platform | Google Ads, Meta Ads, TikTok Ads     |
 
+> **Note**: The `platform` segment references a `dim_platforms` dimension table that is
+> not present in the example DuckDB, so it is excluded from the QueryBot examples.
+
 ---
 
-## Usage
+## Examples
+
+| File                                  | Description                                                    |
+|---------------------------------------|----------------------------------------------------------------|
+| `query_bot_example.py` / `.ipynb`     | Multi-turn QueryBot conversation over the ad campaign dataset  |
+| `intent_resolution_example.py` / `.ipynb` | Deep-dive into the three-step intent → resolve → compute flow and prompt-cache efficiency |
+
+### QueryBot quick start
 
 ```python
+from aitaem.connectors import ConnectionManager
+from aitaem.specs import SpecCache
+from aitaem.agent import QueryBot
+
+spec_cache = SpecCache.from_yaml(
+    metric_paths="examples/metrics/",
+    slice_paths="examples/slices/",
+)
+
+conn_mgr = ConnectionManager()
+conn_mgr.add_connection("duckdb", path="examples/data/ad_campaigns.duckdb")
+
+bot = QueryBot(
+    model="anthropic:claude-haiku-4-5-20251001",
+    spec_cache=spec_cache,
+    connection_manager=conn_mgr,
+)
+
+response = await bot.chat("What was total revenue and ROAS across all campaigns?")
+print(response.narrative)
+```
+
+### MetricCompute (programmatic)
+
+```python
+from aitaem import MetricCompute
 from aitaem.specs import SpecCache
 from aitaem.connectors import ConnectionManager
-from aitaem.insights import MetricCompute
 
-# Step 1: Load and validate specs (run from project root)
 cache = SpecCache.from_yaml(
-    metric_paths='examples/metrics/',
-    slice_paths='examples/slices/',
-    segment_paths='examples/segments/',
+    metric_paths="examples/metrics/",
+    slice_paths="examples/slices/",
 )
+conn_mgr = ConnectionManager.from_yaml("examples/connections.yaml")
 
-# Step 2: Set up backend connections
-conn_mgr = ConnectionManager.from_yaml('examples/connections.yaml')
-
-# Step 3: Compute CTR sliced by campaign type, segmented by platform
 mc = MetricCompute(cache, conn_mgr)
-df = mc.compute(
-    metrics='ctr',
-    slices='campaign_type',
-    segments='platform',
-    time_window=('2024-01-01', '2024-07-01'),
-    timestamp_col='date',
+result = mc.compute(
+    metrics="ctr",
+    slices="campaign_type",
+    time_window=("2024-01-01", "2024-07-01"),
+    period_type="monthly",
 )
-print(df)
+print(result.to_pandas())
 ```
