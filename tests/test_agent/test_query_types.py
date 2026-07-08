@@ -1,10 +1,8 @@
 """SF-1: Type model tests for the v0.2 resolution types."""
 from __future__ import annotations
 
-import pytest
 from aitaem.agent.query_types import (
     MetricIntent,
-    ResolvedSpec,
     ExactMatch,
     NearMiss,
     SpecMatchResult,

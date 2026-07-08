@@ -164,7 +164,7 @@ def test_metric_distribution_optional_stats():
 def test_record_intent_appends_to_deps():
     deps = _make_deps()
     ctx = _make_ctx(deps)
-    result = record_intent(ctx, metric_concept="revenue", scope="overall")
+    record_intent(ctx, metric_concept="revenue", scope="overall")
     assert len(deps.intents) == 1
     assert deps.intents[0].metric_concept == "revenue"
 

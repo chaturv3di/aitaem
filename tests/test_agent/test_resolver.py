@@ -1,7 +1,6 @@
 """SF-2: SpecResolver unit tests."""
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
 
 from aitaem.agent.resolver import SpecResolver
