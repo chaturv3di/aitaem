@@ -1,5 +1,5 @@
 """
-Smoke test: one real LLM chat() turn against a mocked MetricCompute.
+Smoke tests: real LLM runs against a mocked MetricCompute.
 Skipped automatically when ANTHROPIC_API_KEY is unset.
 
 Regular CI  : collected, skipped (no secret).
@@ -29,6 +29,7 @@ def _smoke_spec_cache():
     rev.description = "Total revenue in USD"
     rev.format = "currency:USD"
     rev.entities = None
+    rev.timestamp_col = "created_at"
     sc.metrics = {"revenue": rev}
     sc.slices = {}
     sc.segments = {}
@@ -56,8 +57,8 @@ def _smoke_mc():
     return mc
 
 
-def test_query_bot_smoke_single_turn():
-    """One real-LLM chat() turn. MetricCompute is mocked; no database required."""
+def test_query_bot_smoke_three_step_flow():
+    """One real-LLM chat() turn exercising record_intent → resolve_intent → compute_metrics."""
     bot = QueryBot(
         model="anthropic:claude-haiku-4-5-20251001",
         spec_cache=_smoke_spec_cache(),
@@ -76,7 +77,37 @@ def test_query_bot_smoke_single_turn():
     assert entry.arrow is not None
     assert entry.arrow.num_rows == 1
 
+    # Verify the 3-step flow was used
+    tool_names = [tc.name for tc in response.trace.tool_calls]
+    assert "record_intent" in tool_names, f"record_intent missing from tool_calls: {tool_names}"
+    assert "resolve_intent" in tool_names, f"resolve_intent missing from tool_calls: {tool_names}"
+    assert "compute_metrics" in tool_names, f"compute_metrics missing from tool_calls: {tool_names}"
+
     assert "revenue" in response.payload.metrics_used
     assert response.payload.format_hints.get("revenue") == "currency:USD", (
         f"format_hints missing or wrong: {response.payload.format_hints}"
     )
+
+
+def test_query_bot_smoke_prompt_cache_hit_on_turn_2():
+    """Turn 2 in the same session should show cache_read_tokens > 0 (Anthropic only)."""
+    bot = QueryBot(
+        model="anthropic:claude-haiku-4-5-20251001",
+        spec_cache=_smoke_spec_cache(),
+        connection_manager=MagicMock(),
+    )
+    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_smoke_mc()):
+        asyncio.run(bot.chat("What was total revenue?"))
+        response2 = asyncio.run(bot.chat("What about last month?"))
+
+    # On turn 2, Layers A+B must be served from cache (Anthropic only).
+    # RunTrace.Usage.cache_read_tokens mirrors pydantic-ai's Usage.cache_read_tokens.
+    # Anthropic: populated from the API response's cache_read_input_tokens.
+    # OpenAI: server-side caching is not guaranteed in test environments, so we
+    # skip the assertion for non-Anthropic providers.
+    if "anthropic:" in bot._model:
+        assert response2.trace.usage.cache_read_tokens > 0, (
+            "cache_read_tokens is 0 — Layers A+B were not served from cache on turn 2. "
+            "Check that anthropic_cache_instructions='5m' is set and that the static "
+            "instructions are not being regenerated between turns."
+        )

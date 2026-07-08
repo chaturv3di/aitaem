@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import operator
-from typing import Any
+import threading
+import uuid
+from contextlib import nullcontext
+from typing import Any, Literal, cast
 
 import ibis
 import pyarrow as pa
@@ -10,6 +13,12 @@ from pydantic_ai import RunContext
 from aitaem.query.builder import PeriodType
 from aitaem.agent.query_types import (
     QueryDeps,
+    MetricIntent,
+    ResolvedSpec,
+    ExactMatch,
+    NearMiss,
+    RecordIntentResult,
+    ResolveIntentResult,
     ComputeMetricsResult,
     RankByValueResult,
     FilterByThresholdResult,
@@ -18,14 +27,15 @@ from aitaem.agent.query_types import (
     PeriodOverPeriodResult,
     ContributionShareResult,
 )
+from aitaem.agent.resolver import SpecResolver
 from aitaem.agent.store import ResultEntry
 from aitaem import MetricCompute
-from aitaem.utils.exceptions import (
-    AitaemConnectionError,
-    QueryBuildError,
-    QueryExecutionError,
-    SpecNotFoundError,
-)
+
+# DuckDB's ibis backend is not thread-safe. pydantic-ai dispatches parallel
+# tool calls via asyncio.to_thread(), so two compute_metrics calls for a
+# multi-metric question run in separate threads and race on the same connection.
+# This lock serializes all compute_metrics executions within a process.
+_COMPUTE_LOCK = threading.Lock()
 
 _FILTER_OPS: dict[str, Any] = {
     ">": operator.gt, ">=": operator.ge,
@@ -57,95 +67,208 @@ def _sample_arrow(table: pa.Table, n: int = 5) -> list[dict[str, Any]]:
     ]
 
 
-def compute_metrics(
+# ── Step 1: record_intent ────────────────────────────────────────────────────
+
+def record_intent(
     ctx: RunContext[QueryDeps],
-    metrics: list[str],
-    slices: list[str] | None = None,
-    segment: str | None = None,
+    metric_concept: str,
+    scope: Literal["overall", "subset"],
+    subset_description: str | None = None,
+    slice_type: str | None = None,
+    slice_value: str | None = None,
+    segment_name: str | None = None,
+    segment_value: str | None = None,
+    period_type: str = "all_time",
     time_window: tuple[str, str] | None = None,
-    period_type: PeriodType = "all_time",
     by_entity: str | None = None,
-) -> ComputeMetricsResult:
-    """Compute one or more metrics from the spec catalog.
+) -> RecordIntentResult:
+    """Record the user's metric intent. Call once per metric in the question.
 
     Args:
-        metrics: One or more metric names. Must exactly match names in the catalog.
-        slices: Optional slice names to break the metric down by. Each slice
-            produces additional rows in the result.
-        segment: Optional segment name for entity-level segmentation. Only one
-            segment per call is supported.
-        time_window: (start_date, end_date) as ISO-8601 strings (e.g.
-            ("2024-01-01", "2024-03-31")). Required when period_type is not
-            "all_time". Requires timestamp_col to be set on each metric spec.
-        period_type: Granularity for time grouping. One of: "all_time",
-            "hourly", "daily", "weekly", "monthly", "yearly".
-        by_entity: Column name for entity-level grouping. Each metric must
-            list this column in its entities field.
+        metric_concept: Free-text name as interpreted from the user's question.
+            (e.g. "click-through rate", "monthly revenue"). Not a canonical catalog name.
+        scope: "overall" for unfiltered aggregate; "subset" if the user wants a
+            filtered or broken-down view (requires slice_type or segment_name).
+        subset_description: Optional prose description of the filter (e.g.
+            "only US users who clicked in January").
+        slice_type: Proposed slice spec name for a breakdown (e.g. "by_country").
+        slice_value: Specific filter value within the slice (e.g. "US").
+        segment_name: Proposed segment spec name for entity-level segmentation.
+        segment_value: Specific segment filter value.
+        period_type: "all_time" | "hourly" | "daily" | "weekly" | "monthly" | "yearly".
+            Non-"all_time" requires time_window.
+        time_window: [start_iso, end_iso]. For hourly, use YYYY-MM-DDTHH:MM:SS,
+            floored to the hour.
+        by_entity: Entity column for entity-level questions ("which user", "top 10 advertisers").
+
+    Returns:
+        RecordIntentResult with intent_id (integer index into the intents list).
+        Pass this intent_id to resolve_intent.
+    """
+    intent = MetricIntent(
+        metric_concept=metric_concept,
+        scope=scope,
+        subset_description=subset_description,
+        slice_type=slice_type,
+        slice_value=slice_value,
+        segment_name=segment_name,
+        segment_value=segment_value,
+        period_type=period_type,
+        time_window=(time_window[0], time_window[1]) if time_window else None,
+        by_entity=by_entity,
+    )
+    ctx.deps.intents.append(intent)
+    return RecordIntentResult(intent_id=len(ctx.deps.intents) - 1)
+
+
+# ── Step 2: resolve_intent ───────────────────────────────────────────────────
+
+def resolve_intent(
+    ctx: RunContext[QueryDeps],
+    intent_id: int,
+    metric_name: str,
+    slices: list[str] | None = None,
+    segment: str | None = None,
+) -> ResolveIntentResult:
+    """Validate proposed canonical names against the catalog and mint a spec_token.
+
+    Must be called after record_intent. Pass the intent_id from record_intent.
+
+    Args:
+        intent_id: Integer returned by record_intent for this metric.
+        metric_name: Proposed canonical metric name (must exactly match catalog).
+        slices: Proposed slice spec names (for breakdowns). Defaults to no slices.
+        segment: Proposed segment spec name. Defaults to no segment.
+
+    Returns:
+        ResolveIntentResult:
+          - exact_match: set if the proposal is valid. spec_token is the handle
+            for compute_metrics. Proceed to compute_metrics(spec_token=...).
+          - near_misses: set when exact_match is None. Each entry explains why a
+            proposed name did not match. Set status=refused and cite these.
+    """
+    if intent_id < 0 or intent_id >= len(ctx.deps.intents):
+        return ResolveIntentResult(
+            exact_match=None,
+            near_misses=[NearMiss(name=metric_name, why_not="unknown_metric")],
+        )
+
+    intent = ctx.deps.intents[intent_id]
+    resolver = SpecResolver()
+    match_result = resolver.resolve(
+        intent=intent,
+        proposed_metric_name=metric_name,
+        proposed_slices=slices or [],
+        proposed_segment=segment,
+        spec_cache=ctx.deps.spec_cache,
+    )
+
+    if match_result.exact_match is None:
+        return ResolveIntentResult(exact_match=None, near_misses=match_result.near_misses)
+
+    spec_token = f"sm_{uuid.uuid4().hex}"
+    resolved = ResolvedSpec(
+        metric_name=metric_name,
+        slice_specs=slices or [],
+        segment_spec=segment,
+        period_type=intent.period_type,
+        time_window=intent.time_window,
+        by_entity=intent.by_entity,
+        intent_slice_value=intent.slice_value,
+        intent_segment_value=intent.segment_value,
+    )
+    ctx.deps.spec_registry[spec_token] = resolved
+
+    exact = ExactMatch(
+        spec_token=spec_token,
+        metric_name=metric_name,
+        slices=slices or [],
+        segment=segment,
+    )
+    return ResolveIntentResult(exact_match=exact, near_misses=[])
+
+
+# ── Step 3: compute_metrics ──────────────────────────────────────────────────
+
+def compute_metrics(
+    ctx: RunContext[QueryDeps],
+    spec_token: str,
+) -> ComputeMetricsResult:
+    """Execute a resolved metric spec and store the result.
+
+    Call this only after resolve_intent returns an exact_match. Pass
+    exact_match.spec_token directly — do not construct or modify the token.
+
+    Args:
+        spec_token: Opaque handle returned by resolve_intent.exact_match.spec_token.
 
     Returns:
         ComputeMetricsResult with result_id pointing to the stored artifact.
         On failure, result_id is "" and error contains the exception message.
     """
-    try:
-        mc = MetricCompute(ctx.deps.spec_cache, ctx.deps.connection_manager)
-        ibis_table = mc.compute(
-            metrics=metrics,
-            slices=slices,
-            segments=segment,
-            time_window=(time_window[0], time_window[1]) if time_window else None,
-            period_type=period_type,
-            by_entity=by_entity,
+    # Pop on consume: single-use by design. With Anthropic parallel tool calls the LLM
+    # can emit two compute_metrics(spec_token=X) in the same message; popping here
+    # prevents double warehouse execution and duplicate result_ids from one query.
+    resolved = ctx.deps.spec_registry.pop(spec_token, None)
+    if resolved is None:
+        return ComputeMetricsResult(
+            spec_token=spec_token,
+            result_id="", row_count=0, sample=[], columns=[],
+            format_hints={},
+            error="spec_token already consumed. A parallel compute_metrics call with this token may have succeeded — use that result_id. Do not call resolve_intent again.",
         )
-        arrow_table = ibis_table.to_pyarrow()
+
+    try:
+        lock = _COMPUTE_LOCK if ctx.deps.connection_manager.requires_compute_lock else nullcontext()
+        with lock:
+            mc = MetricCompute(ctx.deps.spec_cache, ctx.deps.connection_manager)
+            ibis_table = mc.compute(
+                metrics=[resolved.metric_name],
+                slices=resolved.slice_specs or None,
+                segments=resolved.segment_spec,
+                time_window=resolved.time_window,
+                period_type=cast(PeriodType, resolved.period_type),
+                by_entity=resolved.by_entity,
+            )
+            arrow_table = ibis_table.to_pyarrow()
+
         result_id = ctx.deps.store.store(arrow_table, ibis_table)
 
         format_hints: dict[str, str] = {}
-        for m in metrics:
-            spec = ctx.deps.spec_cache.metrics.get(m)
-            if spec and spec.format:
-                format_hints[m] = spec.format
+        spec = ctx.deps.spec_cache.metrics.get(resolved.metric_name)
+        if spec and spec.format:
+            format_hints[resolved.metric_name] = spec.format
 
+        sample = _sample_arrow(arrow_table)
         return ComputeMetricsResult(
+            spec_token=spec_token,
             result_id=result_id,
-            metrics=metrics,
-            slices=slices,
-            segment=segment,
             row_count=len(arrow_table),
-            sample=_sample_arrow(arrow_table),
+            sample=sample,
             columns=arrow_table.schema.names,
-            period_type=period_type,
-            time_window=(time_window[0], time_window[1]) if time_window else None,
-            by_entity=by_entity,
             format_hints=format_hints,
             payload_summary={
                 "result_id": result_id,
-                "metrics_used": metrics,
-                "slices_used": slices or [],
-                "segment_used": segment,
-                "period_type": period_type,
-                "time_window": list(time_window) if time_window else None,
-                "by_entity": by_entity,
+                "metrics_used": [resolved.metric_name],
+                "slices_used": resolved.slice_specs or [],
+                "segment_used": resolved.segment_spec,
+                "period_type": resolved.period_type,
+                "time_window": list(resolved.time_window) if resolved.time_window else None,
+                "by_entity": resolved.by_entity,
                 "format_hints": format_hints,
-                "sample": _sample_arrow(arrow_table),
+                "sample": sample,
             },
         )
-
-    except (SpecNotFoundError, QueryBuildError, QueryExecutionError, AitaemConnectionError) as exc:
+    except Exception as exc:
         return ComputeMetricsResult(
-            result_id="",
-            metrics=metrics,
-            slices=slices,
-            segment=segment,
-            row_count=0,
-            sample=[],
-            columns=[],
-            period_type=period_type,
-            time_window=(time_window[0], time_window[1]) if time_window else None,
-            by_entity=by_entity,
+            spec_token=spec_token,
+            result_id="", row_count=0, sample=[], columns=[],
             format_hints={},
             error=f"{type(exc).__name__}: {exc}",
         )
 
+
+# ── Analysis tools (unchanged) ───────────────────────────────────────────────
 
 def rank_by_value(
     ctx: RunContext[QueryDeps],

@@ -557,3 +557,30 @@ class TestCrossBackendConn:
         user_conn = cm.get_connection("duckdb")
         assert user_conn.connection is not cross_conn
         cm.close_all()
+
+    def test_requires_compute_lock_no_connections(self):
+        """Empty manager → no DuckDB risk → lock not required."""
+        cm = ConnectionManager()
+        assert cm.requires_compute_lock is False
+
+    def test_requires_compute_lock_duckdb_only(self):
+        """DuckDB backend registered → lock required."""
+        cm = ConnectionManager()
+        cm.add_connection("duckdb", path=":memory:")
+        assert cm.requires_compute_lock is True
+        cm.close_all()
+
+    def test_requires_compute_lock_multiple_backends(self, mocker):
+        """Multiple backends → cross-backend queries use internal DuckDB → lock required."""
+        cm = ConnectionManager()
+        cm.add_connection("duckdb", path=":memory:")
+        cm.add_connection("bigquery", connector=mocker.MagicMock(spec=IbisConnector))
+        assert cm.requires_compute_lock is True
+        cm.close_all()
+
+    def test_requires_compute_lock_single_remote_backend(self, mocker):
+        """Single BigQuery backend → no DuckDB involved → lock not required."""
+        cm = ConnectionManager()
+        cm.add_connection("bigquery", connector=mocker.MagicMock(spec=IbisConnector))
+        assert cm.requires_compute_lock is False
+        cm.close_all()

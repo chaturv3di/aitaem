@@ -3,7 +3,17 @@ from aitaem.agent.store import ResultEntry, ResultStore
 from aitaem.agent.trace import RunTrace, ToolCall, Usage
 from aitaem.agent.base import Bot
 from aitaem.agent.query_bot import QueryBot, QueryResponse
-from aitaem.agent.query_types import QueryPayload
+from aitaem.agent.query_types import (
+    QueryPayload,
+    MetricIntent,
+    ResolvedSpec,
+    ExactMatch,
+    NearMiss,
+    SpecMatchResult,
+    RecordIntentResult,
+    ResolveIntentResult,
+)
+from aitaem.agent.resolver import SpecResolver
 
 __all__ = [
     # Phase 1 primitives
@@ -19,4 +29,13 @@ __all__ = [
     "QueryBot",
     "QueryResponse",
     "QueryPayload",
+    # v0.2 — intent-gated resolution
+    "MetricIntent",
+    "ResolvedSpec",
+    "ExactMatch",
+    "NearMiss",
+    "SpecMatchResult",
+    "RecordIntentResult",
+    "ResolveIntentResult",
+    "SpecResolver",
 ]

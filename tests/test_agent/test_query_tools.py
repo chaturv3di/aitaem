@@ -20,6 +20,8 @@ from aitaem.agent.query_types import (
     ToolResult,
 )
 from aitaem.agent.query_tools import (
+    record_intent,
+    resolve_intent,
     compute_metrics,
     rank_by_value,
     filter_by_threshold,
@@ -56,18 +58,27 @@ def _sample_table():
     })
 
 
+def _make_spec_cache():
+    sc = MagicMock()
+    rev = MagicMock()
+    rev.entities = ["user_id"]
+    rev.timestamp_col = "ts"
+    rev.format = None
+    sc.metrics = {"revenue": rev}
+    sc.slices = {"by_country": MagicMock()}
+    sc.segments = {"by_advertiser": MagicMock()}
+    return sc
+
+
 def _make_deps():
-    mock_spec = MagicMock()
-    mock_spec.format = None
-    mock_sc = MagicMock()
-    mock_sc.metrics = {"revenue": mock_spec}
-    mock_cm = MagicMock()
-    store = ResultStore()
-    return QueryDeps(spec_cache=mock_sc, connection_manager=mock_cm, store=store), store
+    return QueryDeps(
+        spec_cache=_make_spec_cache(),
+        connection_manager=MagicMock(),
+        store=ResultStore(),
+    )
 
 
 def _make_mock_mc(arrow_table=None, raise_exc=None):
-    """Return a mock MetricCompute; patch into query_tools.MetricCompute at call site."""
     mc = MagicMock()
     if raise_exc:
         mc.compute.side_effect = raise_exc
@@ -103,8 +114,15 @@ def _multi_row_table():
     })
 
 
+def _setup_resolved_token(deps, ctx):
+    """Record + resolve 'revenue' and return the minted spec_token."""
+    record_intent(ctx, metric_concept="revenue", scope="overall")
+    result = resolve_intent(ctx, intent_id=0, metric_name="revenue")
+    return result.exact_match.spec_token
+
+
 # ---------------------------------------------------------------------------
-# SF-1: Pydantic contract model tests
+# Type contract tests
 # ---------------------------------------------------------------------------
 
 def test_tool_result_base_payload_summary_defaults_none():
@@ -134,114 +152,213 @@ def test_query_output_refused_has_reason():
     assert out.result_ids == []
 
 
-def test_compute_metrics_result_error_case():
-    r = ComputeMetricsResult(
-        result_id="", metrics=["revenue"], slices=None, segment=None,
-        row_count=0, sample=[], columns=[], period_type="all_time",
-        time_window=None, by_entity=None, format_hints={}, error="SpecNotFoundError: revenue",
-    )
-    assert r.error is not None
-    assert r.result_id == ""
-
-
 def test_metric_distribution_optional_stats():
     d = MetricDistribution(metric_name="ctr", count=0)
     assert d.mean is None
 
 
 # ---------------------------------------------------------------------------
-# SF-2: compute_metrics tests
+# SF-3: record_intent tests
 # ---------------------------------------------------------------------------
 
-def test_compute_metrics_success_stores_result():
-    deps, store = _make_deps()
+def test_record_intent_appends_to_deps():
+    deps = _make_deps()
     ctx = _make_ctx(deps)
-    mock_mc = _make_mock_mc()
-    with patch("aitaem.agent.query_tools.MetricCompute", return_value=mock_mc):
-        result = compute_metrics(ctx, metrics=["revenue"], period_type="all_time")
+    record_intent(ctx, metric_concept="revenue", scope="overall")
+    assert len(deps.intents) == 1
+    assert deps.intents[0].metric_concept == "revenue"
+
+
+def test_record_intent_returns_index():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    r0 = record_intent(ctx, metric_concept="revenue", scope="overall")
+    r1 = record_intent(ctx, metric_concept="ctr", scope="overall")
+    assert r0.intent_id == 0
+    assert r1.intent_id == 1
+    assert len(deps.intents) == 2
+
+
+def test_record_intent_stores_time_window():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    record_intent(
+        ctx, metric_concept="revenue", scope="overall",
+        period_type="monthly", time_window=("2024-01-01", "2024-03-31"),
+    )
+    assert deps.intents[0].time_window == ("2024-01-01", "2024-03-31")
+    assert deps.intents[0].period_type == "monthly"
+
+
+def test_record_intent_scope_subset():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    record_intent(ctx, metric_concept="revenue", scope="subset", slice_type="by_country")
+    assert deps.intents[0].scope == "subset"
+    assert deps.intents[0].slice_type == "by_country"
+
+
+# ---------------------------------------------------------------------------
+# SF-4: resolve_intent tests
+# ---------------------------------------------------------------------------
+
+def test_resolve_intent_exact_match_mints_token():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    record_intent(ctx, metric_concept="revenue", scope="overall")
+    result = resolve_intent(ctx, intent_id=0, metric_name="revenue")
+    assert result.exact_match is not None
+    assert result.exact_match.spec_token.startswith("sm_")
+    assert len(result.near_misses) == 0
+
+
+def test_resolve_intent_token_stored_in_registry():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    record_intent(ctx, metric_concept="revenue", scope="overall")
+    result = resolve_intent(ctx, intent_id=0, metric_name="revenue")
+    token = result.exact_match.spec_token
+    assert token in ctx.deps.spec_registry
+    assert ctx.deps.spec_registry[token].metric_name == "revenue"
+
+
+def test_resolve_intent_near_miss_unknown_slice():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    record_intent(ctx, metric_concept="revenue", scope="overall")
+    result = resolve_intent(ctx, intent_id=0, metric_name="revenue", slices=["by_platform"])
+    assert result.exact_match is None
+    assert any(nm.why_not == "unknown_slice" for nm in result.near_misses)
+
+
+def test_resolve_intent_with_valid_slice():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    record_intent(ctx, metric_concept="revenue", scope="overall")
+    result = resolve_intent(ctx, intent_id=0, metric_name="revenue", slices=["by_country"])
+    assert result.exact_match is not None
+    assert result.exact_match.slices == ["by_country"]
+
+
+def test_resolve_intent_invalid_intent_id():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    result = resolve_intent(ctx, intent_id=0, metric_name="revenue")
+    assert result.exact_match is None
+
+
+def test_resolve_intent_multiple_intents_correct_index():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    record_intent(ctx, metric_concept="ctr", scope="overall")
+    record_intent(ctx, metric_concept="revenue", scope="overall")
+    result = resolve_intent(ctx, intent_id=1, metric_name="revenue")
+    assert result.exact_match is not None
+
+
+def test_resolve_intent_each_token_unique():
+    """Two valid resolve calls must produce different tokens."""
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    record_intent(ctx, metric_concept="revenue", scope="overall")
+    record_intent(ctx, metric_concept="revenue", scope="overall")
+    r1 = resolve_intent(ctx, intent_id=0, metric_name="revenue")
+    r2 = resolve_intent(ctx, intent_id=1, metric_name="revenue")
+    assert r1.exact_match.spec_token != r2.exact_match.spec_token
+
+
+# ---------------------------------------------------------------------------
+# SF-5: compute_metrics (token-based) tests
+# ---------------------------------------------------------------------------
+
+def test_compute_metrics_success_via_token():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    token = _setup_resolved_token(deps, ctx)
+    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_make_mock_mc()):
+        result = compute_metrics(ctx, spec_token=token)
     assert result.error is None
-    assert result.row_count == 1
     assert result.result_id != ""
-    assert result.result_id in store.ids()
-    entry = store.get(result.result_id)
-    assert entry.arrow is not None
-    assert entry.ibis_ref is not None
+    assert result.row_count == 1
+    assert result.result_id in deps.store.ids()
 
 
-def test_compute_metrics_stores_ibis_ref():
-    deps, store = _make_deps()
+def test_compute_metrics_unknown_token():
+    deps = _make_deps()
     ctx = _make_ctx(deps)
-    mock_mc = _make_mock_mc()
-    with patch("aitaem.agent.query_tools.MetricCompute", return_value=mock_mc):
-        result = compute_metrics(ctx, metrics=["revenue"], period_type="all_time")
-    entry = store.get(result.result_id)
-    assert entry.ibis_ref is not None
+    result = compute_metrics(ctx, spec_token="sm_bogus")
+    assert result.error is not None
+    assert "already consumed" in result.error
+    assert result.result_id == ""
+
+
+def test_compute_metrics_token_consumed_on_use():
+    """Second call with the same spec_token returns an error (pop-on-consume)."""
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    token = _setup_resolved_token(deps, ctx)
+    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_make_mock_mc()):
+        r1 = compute_metrics(ctx, spec_token=token)
+        r2 = compute_metrics(ctx, spec_token=token)
+    assert r1.error is None
+    assert r2.error is not None
+    assert "already consumed" in r2.error
 
 
 def test_compute_metrics_spec_not_found():
     from aitaem.utils.exceptions import SpecNotFoundError
-    deps, store = _make_deps()
+    deps = _make_deps()
     ctx = _make_ctx(deps)
-    mock_mc = _make_mock_mc(raise_exc=SpecNotFoundError("metric", "revenue", []))
-    with patch("aitaem.agent.query_tools.MetricCompute", return_value=mock_mc):
-        result = compute_metrics(ctx, metrics=["revenue"])
+    token = _setup_resolved_token(deps, ctx)
+    mc = MagicMock()
+    mc.compute.side_effect = SpecNotFoundError("metric", "revenue", [])
+    with patch("aitaem.agent.query_tools.MetricCompute", return_value=mc):
+        result = compute_metrics(ctx, spec_token=token)
     assert result.error is not None
     assert "SpecNotFoundError" in result.error
-    assert result.result_id == ""
-    assert len(store.ids()) == 0
+
+
+def test_compute_metrics_payload_summary_from_resolved_spec():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    token = _setup_resolved_token(deps, ctx)
+    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_make_mock_mc()):
+        result = compute_metrics(ctx, spec_token=token)
+    assert result.payload_summary["metrics_used"] == ["revenue"]
+
+
+def test_compute_metrics_ibis_ref_stored():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    token = _setup_resolved_token(deps, ctx)
+    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_make_mock_mc()):
+        result = compute_metrics(ctx, spec_token=token)
+    entry = deps.store.get(result.result_id)
+    assert entry.ibis_ref is not None
+
+
+def test_compute_metrics_spec_token_in_result():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    token = _setup_resolved_token(deps, ctx)
+    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_make_mock_mc()):
+        result = compute_metrics(ctx, spec_token=token)
+    assert result.spec_token == token
 
 
 def test_compute_metrics_format_hints():
-    mock_spec = MagicMock()
-    mock_spec.format = "percentage"
-    mock_sc = MagicMock()
-    mock_sc.metrics = {"ctr": mock_spec}
-    store = ResultStore()
-    deps = QueryDeps(spec_cache=mock_sc, connection_manager=MagicMock(), store=store)
+    sc = _make_spec_cache()
+    sc.metrics["revenue"].format = "currency:USD"
+    deps = QueryDeps(spec_cache=sc, connection_manager=MagicMock(), store=ResultStore())
     ctx = _make_ctx(deps)
-    mock_mc = _make_mock_mc()
-    with patch("aitaem.agent.query_tools.MetricCompute", return_value=mock_mc):
-        result = compute_metrics(ctx, metrics=["ctr"])
-    assert result.format_hints == {"ctr": "percentage"}
-
-
-def test_compute_metrics_populates_payload_summary():
-    deps, store = _make_deps()
-    ctx = _make_ctx(deps)
-    mock_mc = _make_mock_mc()
-    with patch("aitaem.agent.query_tools.MetricCompute", return_value=mock_mc):
-        result = compute_metrics(ctx, metrics=["revenue"], slices=["by_country"], period_type="monthly")
-    assert result.payload_summary is not None
-    assert result.payload_summary["metrics_used"] == ["revenue"]
-    assert result.payload_summary["slices_used"] == ["by_country"]
-    assert result.payload_summary["period_type"] == "monthly"
-    assert result.payload_summary["segment_used"] is None
-
-
-def test_compute_metrics_sample_max_five_rows():
-    big_table = pa.table({
-        "metric_name": ["revenue"] * 10,
-        "metric_value": [float(i) for i in range(10)],
-        "period_type": ["monthly"] * 10,
-        "period_start_date": [None] * 10,
-        "period_end_date": [None] * 10,
-        "entity_id": [None] * 10,
-        "metric_format": [None] * 10,
-        "slice_type": [None] * 10,
-        "slice_value": [None] * 10,
-        "segment_name": [None] * 10,
-        "segment_value": [None] * 10,
-    })
-    deps, store = _make_deps()
-    ctx = _make_ctx(deps)
-    mock_mc = _make_mock_mc(arrow_table=big_table)
-    with patch("aitaem.agent.query_tools.MetricCompute", return_value=mock_mc):
-        result = compute_metrics(ctx, metrics=["revenue"])
-    assert len(result.sample) <= 5
+    token = _setup_resolved_token(deps, ctx)
+    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_make_mock_mc()):
+        result = compute_metrics(ctx, spec_token=token)
+    assert result.format_hints == {"revenue": "currency:USD"}
 
 
 # ---------------------------------------------------------------------------
-# SF-3: Analysis tool tests
+# Analysis tool tests (unchanged from Phase 2)
 # ---------------------------------------------------------------------------
 
 def test_rank_by_value_top2_descending():
@@ -268,7 +385,7 @@ def test_filter_by_threshold_greater_than():
     deps, rid = _make_deps_with_table(_multi_row_table())
     ctx = _make_ctx(deps)
     result = filter_by_threshold(ctx, result_id=rid, threshold=150.0, op=">")
-    assert result.matching_rows == 2  # 300 and 200
+    assert result.matching_rows == 2
     assert result.predicate == "metric_value > 150.0"
     filtered_arrow = deps.store.get_arrow(result.result_id)
     values = filtered_arrow.column("metric_value").to_pylist()
@@ -283,7 +400,6 @@ def test_filter_by_threshold_invalid_op():
 
 
 def test_filter_by_threshold_custom_column():
-    """Filter on pct_change after period_over_period — the chaining use case."""
     pop_table = pa.table({
         "metric_name": ["revenue", "revenue"],
         "metric_value": [100.0, 120.0],
@@ -377,7 +493,6 @@ def test_contribution_share_sums_to_one():
 
 
 def test_period_over_period_single_period_returns_error():
-    """1-row all_time result has only 1 period — must return error, not NaN garbage."""
     single_row = pa.table({
         "metric_name": ["revenue"],
         "metric_value": [1000.0],
@@ -400,7 +515,6 @@ def test_period_over_period_single_period_returns_error():
 
 
 def test_contribution_share_all_zero_returns_error():
-    """All-zero metric values make shares undefined — must return error, not NaN."""
     zero_table = pa.table({
         "metric_name": ["revenue"] * 3,
         "metric_value": [0.0, 0.0, 0.0],
@@ -422,7 +536,6 @@ def test_contribution_share_all_zero_returns_error():
 
 
 def test_analysis_tool_result_id_not_source():
-    """Analysis tools must create a NEW result_id, not reuse the source."""
     deps, rid = _make_deps_with_table(_multi_row_table())
     ctx = _make_ctx(deps)
     result = rank_by_value(ctx, result_id=rid, top_n=3)

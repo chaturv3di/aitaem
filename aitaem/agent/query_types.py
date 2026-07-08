@@ -1,11 +1,51 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from aitaem.agent.trace import Status
+
+
+# ── Intent types (LLM-produced) ─────────────────────────────────────────────
+
+@dataclass
+class MetricIntent:
+    """Structured interpretation of one metric the user is asking about.
+
+    Produced by record_intent and stored in QueryDeps.intents.
+    One intent per metric; multi-metric questions produce multiple intents.
+    """
+    metric_concept: str                          # free-text LLM interpretation
+    scope: Literal["overall", "subset"]
+    subset_description: str | None = None        # prose description of the subset
+    slice_type: str | None = None                # proposed slice spec name (breakdown)
+    slice_value: str | None = None               # specific filter value, e.g. "US"
+    segment_name: str | None = None              # proposed segment spec name
+    segment_value: str | None = None             # specific segment filter value
+    period_type: str = "all_time"
+    time_window: tuple[str, str] | None = None   # (start_iso, end_iso)
+    by_entity: str | None = None
+
+
+# ── Server-side resolution types (LLM never sees these) ─────────────────────
+
+@dataclass
+class ResolvedSpec:
+    """Validated compute parameters keyed by spec_token in QueryDeps.spec_registry.
+
+    Constructed by resolve_intent when SpecResolver confirms an exact match.
+    Consumed by compute_metrics(spec_token) to reconstruct MetricCompute arguments.
+    """
+    metric_name: str
+    slice_specs: list[str]           # validated slice spec names
+    segment_spec: str | None         # validated segment spec name
+    period_type: str
+    time_window: tuple[str, str] | None
+    by_entity: str | None
+    intent_slice_value: str | None   # from MetricIntent; for trace only
+    intent_segment_value: str | None
 
 
 # ── Deps (passed to every tool via RunContext) ──────────────────────────────
@@ -16,6 +56,53 @@ class QueryDeps:
     spec_cache: Any           # aitaem.SpecCache; for spec lookups and format hints
     connection_manager: Any   # aitaem.ConnectionManager; for backend access
     store: Any                # aitaem.agent.store.ResultStore
+    intents: list[MetricIntent] = field(default_factory=list)
+    spec_registry: dict[str, ResolvedSpec] = field(default_factory=dict)
+
+
+# ── Resolution result types (LLM-facing tool returns) ───────────────────────
+
+class ExactMatch(BaseModel):
+    """Minted only when SpecResolver confirms a valid proposal."""
+    spec_token: str
+    metric_name: str
+    slices: list[str]
+    segment: str | None
+
+
+class NearMiss(BaseModel):
+    name: str
+    why_not: Literal[
+        "unknown_metric",
+        "scope_mismatch", "wrong_dimension_kind",
+        "unknown_slice", "unknown_segment",
+        "unsupported_by_entity", "unsupported_period_type",
+    ]
+    suggestions: list[str] = []
+    """Catalog names close to `name`. Non-empty only when why_not='unknown_metric'.
+    Populated via difflib.get_close_matches (cutoff=0.75) for typo correction.
+    Empty for all other why_not reasons."""
+
+
+class SpecMatchResult(BaseModel):
+    """Returned to the LLM by resolve_intent.
+
+    If exact_match is not None: the LLM proceeds to compute_metrics(spec_token).
+    If exact_match is None: the LLM must produce status=refused and cite near_misses.
+    """
+    exact_match: ExactMatch | None
+    near_misses: list[NearMiss]
+
+
+class RecordIntentResult(BaseModel):
+    """Returned by record_intent. The intent_id is used in the resolve_intent call."""
+    intent_id: int
+
+
+class ResolveIntentResult(BaseModel):
+    """Returned by resolve_intent. Wraps SpecMatchResult for the LLM."""
+    exact_match: ExactMatch | None
+    near_misses: list[NearMiss]
 
 
 # ── Final agent output (output_type — LLM fills this last) ──────────────────
@@ -109,18 +196,18 @@ class ToolResult(BaseModel):
 
 
 class ComputeMetricsResult(ToolResult):
-    """Summary returned by compute_metrics. Full data is in ResultStore."""
+    """Summary returned by compute_metrics(spec_token). Full data is in ResultStore."""
+    spec_token: str = Field(
+        description=(
+            "The spec_token consumed to produce this result. "
+            "For diagnostics and logging only — do not reuse across turns."
+        )
+    )
     result_id: str
-    metrics: list[str]
-    slices: list[str] | None
-    segment: str | None
     row_count: int
-    sample: list[dict[str, Any]]    # up to 5 rows, metric_value included
+    sample: list[dict[str, Any]]
     columns: list[str]
-    period_type: str
-    time_window: tuple[str, str] | None
-    by_entity: str | None
-    format_hints: dict[str, str]    # metric_name → format string (e.g. "percentage")
+    format_hints: dict[str, str]
 
 
 class RankByValueResult(ToolResult):

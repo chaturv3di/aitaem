@@ -308,6 +308,7 @@ flowchart LR
 - **P0** — AITAEM Ibis-return migration + `tmp_dir` cross-backend support. **Shipped in AITAEM v0.4.0.** Phase 2 unblocked.
 - **Phase 1 — Foundations.** Package structure, optional install, primitives skeleton, trace assembly. Can run in parallel with Phase 2 prep.
 - **Phase 2 — QueryBot.** `compute_metrics` against bot-held `MetricCompute` (AD-16), five analysis tools (lazy-mode-aware), default prompt with Metric Precision Rule, integration, end-to-end multi-turn tests. **Largest phase; bulk of architectural risk lives here.**
+  > **v0.2 update (Plan 26):** QueryBot resolution flow is superseded by a two-tool intent gate (`record_intent` → `resolve_intent` → `compute_metrics(spec_token)`), code-enforcing the Metric Precision Rule. Analysis tools unchanged. See [`09-querybot-v0.2-design.md`](09-querybot-v0.2-design.md) for design; [`../26-querybot-v0.2.md`](../26-querybot-v0.2.md) for the implementation plan.
 - **Phase 3 — DefinitionBot.** Schema introspection tools, spec validation tool, integration.
 - **Phase 4 — SetupBot.** Connection-validation tool, integration.
 - **Phase 5 — Composition.** `bot.as_tool()`, `add_tool()` / `add_bot()` / per-call `extra_tools`, cross-bot composition tests.
