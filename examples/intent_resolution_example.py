@@ -47,6 +47,8 @@ from aitaem.agent import (
     MetricIntent,
     NearMiss,
     QueryBot,
+    QueryResponse,
+    RunTrace,
     SpecMatchResult,
     SpecResolver,
     Status,
@@ -84,7 +86,7 @@ def _print_resolution(label: str, result: SpecMatchResult) -> None:
             print(line)
 
 
-def _print_response(turn: int, question: str, response: Any) -> None:
+def _print_response(turn: int, question: str, response: QueryResponse) -> None:
     print(f"\n{'─' * 70}")
     print(f"Turn {turn}: {question}")
     print(f"{'─' * 70}")
@@ -115,7 +117,7 @@ def _print_response(turn: int, question: str, response: Any) -> None:
     print(f"Results  : {len(p.result_ids)} result(s)  primary={p.primary_result_id}")
 
 
-def _print_sample(response: Any) -> None:
+def _print_sample(response: QueryResponse) -> None:
     p = response.payload
     if p is None or not p.sample:
         return
@@ -124,18 +126,17 @@ def _print_sample(response: Any) -> None:
     print(df.to_string(index=False))
 
 
-def _print_trace(response: Any) -> None:
-    t = response.trace
+def _print_trace(trace: RunTrace) -> None:
     print(
-        f"\nTrace    : run={t.run_id[:8]}  conv={t.conversation_id[:8]}"
-        f"  {t.duration_ms:.0f}ms"
+        f"\nTrace    : run={trace.run_id[:8]}  conv={trace.conversation_id[:8]}"
+        f"  {trace.duration_ms:.0f}ms"
     )
-    for tc in t.tool_calls:
+    for tc in trace.tool_calls:
         non_null = {k: v for k, v in tc.args.items() if v is not None}
         args_str = ", ".join(f"{k}={_fmt_arg(v)}" for k, v in non_null.items())
         icon = "✓" if tc.success else "✗"
         print(f"  {icon} {tc.name}({args_str})")
-    u = t.usage
+    u = trace.usage
     cache_info = ""
     if u.cache_read_tokens:
         cache_info = f"  cache_read={u.cache_read_tokens}"
@@ -295,7 +296,7 @@ async def run_parts2_and_3(spec_cache: SpecCache, db_path: str) -> None:
         response = await bot.chat(question)
         _print_response(i, question, response)
         _print_sample(response)
-        _print_trace(response)
+        _print_trace(response.trace)
         total_tokens += response.trace.usage.total_tokens
         conversation_id = response.trace.conversation_id
 
