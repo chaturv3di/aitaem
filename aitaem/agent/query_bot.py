@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from typing import Any, cast
 
@@ -7,6 +8,8 @@ from aitaem.agent.base import Bot
 from aitaem.agent.response import BotResponse
 from aitaem.agent.query_types import QueryDeps, QueryOutput, QueryPayload
 from aitaem.agent.query_tools import (
+    record_intent,
+    resolve_intent,
     compute_metrics,
     rank_by_value,
     filter_by_threshold,
@@ -21,84 +24,213 @@ class QueryResponse(BotResponse[QueryPayload]):
     """Concrete response type for QueryBot — narrows BotResponse's generic payload."""
 
 
-def _build_system_prompt(spec_cache: Any) -> str:
-    """Build the QueryBot system prompt from a SpecCache instance.
+# ── System prompt builders ───────────────────────────────────────────────────
 
-    Includes: role, spec catalog, period types, Metric Precision Rule,
-    format narration guidance, and QueryOutput filling instructions.
-    Called once at _build_agent() time; result is a static string.
+def _build_layer_a() -> str:
+    """Layer A: stable workflow and rules (identical for all tenants)."""
+    return """\
+# ─── Layer A: workflow & rules ───────────────────────────────────────────────
+
+You are a data analysis assistant for an AITAEM metrics platform. You answer
+questions by resolving them against a defined catalog and calling tools. Never
+invent values; every number must come from a tool call.
+
+## Workflow — three required steps, in order
+
+### Step 1 — record_intent
+Call `record_intent` once per metric the user is asking about. Fields:
+- metric_concept: free-text name (e.g. "click-through rate")
+- scope: "overall" (unfiltered) or "subset" (filter specified)
+- slice_type / slice_value: for breakdowns or a specific slice member
+- segment_name / segment_value: for entity-level filters
+- period_type: "all_time" | "hourly" | "daily" | "weekly" | "monthly" | "yearly"
+  (default: all_time). Non-"all_time" requires time_window.
+- time_window: [start, end] ISO dates. Hourly uses YYYY-MM-DDTHH:MM:SS,
+  floored to the hour.
+- by_entity: only for entity-level questions ("which user", "top 10 advertisers").
+
+Returns: intent_id (integer).
+
+### Step 2 — resolve_intent
+Call `resolve_intent` with the intent_id and your proposed canonical names
+(metric_name, slices, segment) drawn from the catalog.
+
+Returns:
+- exact_match: {spec_token, metric_name, slices, segment} if the proposal is
+  valid — proceed to Step 3.
+- near_misses: [{name, why_not}] — specs that came close but did not match.
+
+If exact_match is null: STOP. Do not call compute_metrics. Set status="refused"
+and cite near_misses in the reason. See Metric Precision Rule below.
+
+### Step 3 — compute_metrics
+Call `compute_metrics(spec_token=...)`. All compute parameters are encoded in
+the token; pass nothing else. Returns result_id and optional warnings.
+
+Each spec_token is single-use. If you receive an "already-consumed" error,
+check for a concurrent compute_metrics result carrying the same token and use
+its result_id — do not call resolve_intent again.
+
+## Analysis tools
+
+Use these on a result_id from compute_metrics (or from a prior analysis call).
+Each produces a new result_id.
+
+| If the question asks for…                                  | Tool                        |
+|------------------------------------------------------------|-----------------------------|
+| Top / bottom N entities, slice members, or periods         | rank_by_value               |
+| Rows above / below a value; who exceeds a target           | filter_by_threshold         |
+| Distribution, percentile rank, count above/below median    | distribution_summary        |
+| Ranking all members of one dimension                       | rank_by_value (n=None)      |
+| Growth or decline across periods; period deltas            | period_over_period          |
+| Share of total; concentration in top X% or top N           | contribution_share          |
+
+Rules:
+- Complete Steps 1–3 first. Pass the result_id to analysis tools.
+- With ≤ 20 rows and no analytical intent, skip analysis tools; narrate directly.
+- Time-series questions (period_type ≠ all_time) always narrate from compute_metrics.
+- For "which entities are above/below the median": call distribution_summary
+  to get p50, then call filter_by_threshold with that value.
+
+## Metric Precision Rule (CRITICAL)
+
+- Never substitute an approximate metric. CTR ≠ conversion rate.
+  Revenue ≠ profit. Sessions ≠ unique users.
+- If resolve_intent returns exact_match=null: set status="refused",
+  cite near_misses[].name + why_not in the reason, and prompt the user to
+  refine or define a new spec.
+
+## Final Response
+
+After tool calls, produce a QueryOutput:
+- status: "ok" if data was returned; "empty" if zero rows; "refused" if
+  resolution failed or out of scope; "error" if a tool returned an error.
+- narrative: plain-language explanation referencing tool-returned values.
+- result_ids: list of result_ids, primary/most relevant first. Empty unless
+  status="ok".
+- reason: brief note when status is "refused" or "error". Null otherwise.
+
+## Value Formatting
+
+Read format_hints from the compute_metrics result and apply them yourself
+when writing the narrative. Common values: "percent" → format as a percentage
+(e.g. 4.2%); "currency" → add currency symbol (e.g. $1,234); "integer" →
+round to whole number. If format_hints is empty, use plain numeric values.
+
+## Multi-Metric Questions
+
+If the user asks about multiple metrics, run Steps 1–3 independently for each."""
+
+
+_LARGE_CATALOG_THRESHOLD = 32
+
+
+def _build_layer_b(spec_cache: Any) -> str:
+    """Layer B: per-tenant spec catalog (session-stable).
+
+    Above 32 metrics, the catalog is replaced with a one-liner directing the
+    LLM to rely on resolve_intent for catalog search (v1 RAG path).
     """
+    n_metrics = len(spec_cache.metrics)
+    if n_metrics > _LARGE_CATALOG_THRESHOLD:
+        return (
+            "# ─── Layer B: catalog ──────────────────────────────────────────────────────\n\n"
+            "## SPEC CATALOG\n"
+            "Call resolve_intent to search the catalog. Do not enumerate metrics from memory."
+        )
+
     metric_lines = []
     for name, spec in spec_cache.metrics.items():
-        parts = [f"- {name}: {spec.description or '(no description)'}"]
+        parts = [f"- **{name}**: {spec.description or '(no description)'}"]
         if spec.entities:
             parts.append(f"  Entities: {', '.join(spec.entities)}")
-        if spec.format:
-            parts.append(f"  Format: {spec.format}")
         metric_lines.append("\n".join(parts))
+    # Note: spec.format intentionally omitted — format_hints are returned by
+    # compute_metrics at narrative time; they are not needed for metric selection.
 
     slice_lines = [
-        f"- {name}: {spec.description or '(no description)'}"
+        f"- **{name}**: {spec.description or '(no description)'}"
         for name, spec in spec_cache.slices.items()
     ]
-
     segment_lines = [
-        f"- {name}: {spec.description or '(no description)'}"
+        f"- **{name}**: {spec.description or '(no description)'}"
         for name, spec in spec_cache.segments.items()
     ]
 
-    catalog_section = "\n".join([
-        "## Available Metrics",
+    catalog = "\n".join([
+        "## Metrics",
         "\n".join(metric_lines) or "(none)",
         "",
-        "## Available Slices",
+        "## Slices",
         "\n".join(slice_lines) or "(none)",
         "",
-        "## Available Segments",
+        "## Segments",
         "\n".join(segment_lines) or "(none)",
     ])
 
-    return f"""You are a data analysis assistant for an AITAEM metrics platform.
-You answer user questions by querying a defined metric catalog using the tools provided.
+    return (
+        "# ─── Layer B: catalog (per-tenant, session-stable) ─────────────────────────\n\n"
+        "## SPEC CATALOG\n"
+        + catalog
+    )
 
-{catalog_section}
 
-## Period Types
-Valid values for period_type: "all_time", "hourly", "daily", "weekly", "monthly", "yearly".
-Non-"all_time" values require time_window to be specified.
+def _permission_fingerprint(spec_cache: Any) -> str:
+    """8-char hex fingerprint of the visible catalog (metrics + slices + segments).
 
-## Metric Precision Rule (CRITICAL)
-Only call compute_metrics with metric names that EXACTLY match names in the Available Metrics \
-catalog above. If the user asks for a metric that is not in the catalog, or if there is no metric \
-that precisely answers the question:
-- Set status to "refused"
-- Explain clearly which metric is missing
-- Do NOT substitute an approximate metric
+    Two spec_caches with the same visible keys produce the same fingerprint and
+    share an OpenAI routing lane. Different keys (e.g. post-RBAC) produce
+    different fingerprints and get separate lanes with no cross-eviction.
 
-Example: if "active_revenue" is not in the catalog but "revenue" is, refuse — do not compute \
-"revenue" as a substitute. The user must rely on exact definitions.
+    "|" separates categories; "," separates names within a category.
+    Both characters are illegal in YAML keys, so no collision is possible.
+    """
+    parts = (
+        sorted(spec_cache.metrics.keys()),
+        sorted(spec_cache.slices.keys()),
+        sorted(spec_cache.segments.keys()),
+    )
+    payload = "|".join(",".join(p) for p in parts)
+    return hashlib.md5(payload.encode()).hexdigest()[:8]
 
-## Format Narration
-When a metric has a format hint (e.g. "percentage", "currency:USD"):
-- Narrate values in that format (e.g. "42.5%" not "0.425"; "$1,234" not "1234")
-- The format hint appears in the compute_metrics result under format_hints
 
-## Tool Usage
-1. Call compute_metrics to get metric data. Note the result_id in the response.
-2. Optionally call analysis tools (rank_by_value, filter_by_threshold, etc.) passing the result_id.
-3. Each analysis tool produces a new result_id — chain them if needed.
-4. Collect the result_ids you want the user to receive.
+def _provider_cache_config(model_str: str, tenant_id: str | None) -> dict:
+    """Return model_settings for prompt caching, keyed by provider prefix.
 
-## Filling Your Final Response
-After tool calls, produce a QueryOutput:
-- status: "ok" if data was returned, "empty" if zero rows, "refused" if out of scope, \
-"error" if a tool returned an error field.
-- narrative: plain-language explanation referencing the numbers from tool summaries.
-- result_ids: list of result_id strings from the tools, primary/most relevant first. \
-Empty if status is not "ok".
-- reason: brief note when status is "refused" or "error". Null otherwise.
-"""
+    Anthropic: cache_control breakpoints are explicit — requires
+    anthropic_cache_instructions to mark where the static prefix ends.
+    Verified against pydantic-ai 2.2.0 (_agent_graph.py:908 + anthropic adapter).
 
+    OpenAI: prompt_cache_key is a routing hint — the server routes requests
+    sharing the same key to the same backend pool for prefix-cache hits. A
+    shared key across tenants concentrates routing to a smaller pool and causes
+    cross-tenant eviction contention. Key on tenant instead.
+
+    tenant_id is used directly when provided. When None (single-tenant /
+    self-hosted), a short hash of the sorted metric/slice/segment names serves
+    as a stable per-permission-set key. Two users with the same catalog see the
+    same routing lane, which is correct — their Layer B is identical.
+
+    prompt_cache_retention="24h" keeps the cached prefix warm across sessions.
+    Verified against pydantic-ai 2.2.0 (models/openai.py:558-568).
+
+    Other providers: return {} (no-op; stable-content-first ordering still
+    helps server-side caching where it exists).
+    """
+    if not isinstance(model_str, str):
+        return {}
+    provider = model_str.split(":")[0] if ":" in model_str else ""
+    if provider == "anthropic":
+        return {"anthropic_cache_instructions": "5m"}
+    if provider == "openai":
+        return {
+            "openai_prompt_cache_key": f"aitaem-{tenant_id}",
+            "openai_prompt_cache_retention": "24h",
+        }
+    return {}
+
+
+# ── QueryBot ─────────────────────────────────────────────────────────────────
 
 class QueryBot(Bot):
     """Convenience bot for answering natural-language questions against a metric catalog.
@@ -118,6 +250,11 @@ class QueryBot(Bot):
     Multi-provider:
         Use model strings supported by pydantic-ai, e.g. "openai:gpt-4o".
         For testing, pass a FunctionModel or TestModel instance directly.
+
+    tenant_id:
+        Optional per-tenant identifier for OpenAI prompt-cache routing.
+        When omitted, a fingerprint of the spec_cache's visible catalog is used,
+        which naturally separates RBAC-differentiated permission sets.
     """
 
     def __init__(
@@ -126,14 +263,15 @@ class QueryBot(Bot):
         model: Any,
         spec_cache: Any,
         connection_manager: Any,
+        tenant_id: str | None = None,
         tools: list[Any] | None = None,
     ) -> None:
         # Set bot-specific resources BEFORE super().__init__() — _build_agent()
         # is called inside super().__init__() and needs these attributes.
         self._spec_cache = spec_cache
         self._connection_manager = connection_manager
+        self._tenant_id = tenant_id
         super().__init__(model=model, tools=tools)
-        # Retained across turns for trace correlation; None until the first run completes.
         self._conversation_id: str | None = None
 
     def _build_agent(self) -> Any:
@@ -142,23 +280,54 @@ class QueryBot(Bot):
         from pydantic_ai.capabilities import ReinjectSystemPrompt
 
         toolset = FunctionToolset()
-        toolset.add_function(compute_metrics)
+        toolset.add_function(record_intent)        # Step 1
+        toolset.add_function(resolve_intent)       # Step 2
+        toolset.add_function(compute_metrics)      # Step 3
         toolset.add_function(rank_by_value)
         toolset.add_function(filter_by_threshold)
         toolset.add_function(distribution_summary)
         toolset.add_function(period_over_period)
         toolset.add_function(contribution_share)
 
-        system_prompt = _build_system_prompt(self._spec_cache)
+        # Static instructions: Layers A + B combined.
+        # These become InstructionPart(dynamic=False) and are cached at the
+        # provider-appropriate breakpoint (see _provider_cache_config above).
+        static_instructions = _build_layer_a() + "\n\n" + _build_layer_b(self._spec_cache)
 
-        return Agent(
+        # Derive a stable routing key for OpenAI. Explicit tenant_id wins; fall back
+        # to _permission_fingerprint so single-tenant installs require zero config and
+        # RBAC-differentiated users naturally land in separate routing lanes.
+        tenant_id = self._tenant_id or _permission_fingerprint(self._spec_cache)
+
+        agent = Agent(
             model=self._model,
             deps_type=QueryDeps,
             output_type=QueryOutput,
             toolsets=[toolset],
-            instructions=system_prompt,
+            instructions=static_instructions,
+            # anthropic_cache_instructions: verified against pydantic-ai 2.2.0 source.
+            # _agent_graph.py:908 calls InstructionPart.sorted(), which sorts static
+            # (dynamic=False) before dynamic parts. The Anthropic adapter then sets
+            # cache_block_idx = num_prefix_blocks + num_static - 1, placing the
+            # cache_control breakpoint after the last static block (Layer B). Layer C
+            # follows as a dynamic block and is NOT cached. Other providers ignore this.
+            model_settings=_provider_cache_config(self._model, tenant_id),
             capabilities=[ReinjectSystemPrompt(replace_existing=True)],
         )
+
+        # Layer C: per-turn date context (dynamic=True → NOT cached).
+        # Registered here, after the agent is built, so it captures today's date on each run.
+        @agent.instructions
+        def _layer_c() -> str:
+            from datetime import date
+            return (
+                f"# ─── Layer C: per-turn context ─────────────────────────────────────────────\n\n"
+                f"Today is {date.today().isoformat()}. Use it to resolve relative time references "
+                f'("last month", "recently", "May") into concrete time_window values before '
+                f"calling record_intent."
+            )
+
+        return agent
 
     async def chat(
         self,
@@ -241,12 +410,7 @@ class QueryBot(Bot):
     def _error_response(
         exc: Exception, run_start: Any, conversation_id: str | None
     ) -> QueryResponse:
-        """Build a status=error QueryResponse when _agent.run() raises.
-
-        conversation_id is the bot's retained ID from prior successful turns, so
-        error traces correlate with the rest of the conversation. On the very first
-        turn (no prior success), it is None and a fresh UUID is used.
-        """
+        """Build a status=error QueryResponse when _agent.run() raises."""
         import uuid
         from aitaem.agent.trace import RunTrace, Usage
 
@@ -303,7 +467,6 @@ class QueryBot(Bot):
             ps = summary.get("payload_summary")
             if not ps:
                 continue
-            # list fields: union with deduplication, order-preserving
             for m in ps.get("metrics_used") or []:
                 if m not in seen_metrics:
                     seen_metrics.add(m)
@@ -312,7 +475,6 @@ class QueryBot(Bot):
                 if s not in seen_slices:
                     seen_slices.add(s)
                     slices_used.append(s)
-            # scalar fields: first-write wins
             if segment_used is None and ps.get("segment_used"):
                 segment_used = ps["segment_used"]
             if time_window is None and ps.get("time_window"):
@@ -322,11 +484,9 @@ class QueryBot(Bot):
                 period_type = ps["period_type"]
             if by_entity is None and ps.get("by_entity"):
                 by_entity = ps["by_entity"]
-            # dict field: union, first-write wins per metric name
             for metric, fmt in (ps.get("format_hints") or {}).items():
                 if metric not in format_hints:
                     format_hints[metric] = fmt
-            # sample: pull from the tool call that produced the primary result
             if sample is None and primary_result_id and ps.get("result_id") == primary_result_id:
                 raw = ps.get("sample")
                 sample = raw if isinstance(raw, list) else None
