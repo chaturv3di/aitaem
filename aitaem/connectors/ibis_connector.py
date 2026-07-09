@@ -152,6 +152,22 @@ class IbisConnector:
         except Exception as e:
             raise AitaemConnectionError(f"PostgreSQL connection failed: {str(e)}") from e
 
+    def list_tables(self) -> list[str]:
+        """List all tables available in the connected backend.
+
+        Returns:
+            List of table names available in the backend.
+
+        Raises:
+            AitaemConnectionError: If not connected.
+        """
+        if not self.is_connected:
+            raise AitaemConnectionError(
+                f"Not connected to {self.backend_type}. Call connect() first."
+            )
+        assert self.connection is not None
+        return self.connection.list_tables()
+
     def get_table(self, table_name: str) -> ibis.expr.types.Table:
         """Get a table reference from the backend.
 
@@ -270,11 +286,17 @@ class IbisConnector:
             ) from e
 
     def close(self) -> None:
-        """Close the connection and cleanup resources."""
-        if self.connection is not None:
-            # Ibis connections don't have an explicit close method in all backends
-            # Setting to None will allow garbage collection
+        """Close the connection and release the backend file lock."""
+        conn = getattr(self, "connection", None)
+        if conn is not None:
+            try:
+                conn.disconnect()
+            except Exception:
+                pass
             self.connection = None
+
+    def __del__(self) -> None:
+        self.close()
 
     @property
     def is_connected(self) -> bool:

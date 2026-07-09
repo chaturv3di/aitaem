@@ -114,6 +114,37 @@ Each non-decision is paired with an "escape valve" — the path forward we are l
 
 ---
 
+## ND-10: Multi-turn interactive refinement for DefinitionBot
+
+**What's deferred.** `DefinitionBot.chat()` is implemented and accumulates message
+history, but dedicated multi-turn UX for iterative spec refinement — where each
+user turn adds a new constraint or correction and the bot revises the previous draft
+across turns — is not the primary interaction model in Phase 3.
+
+**Why single-turn for Phase 3.** Phase 3 DefinitionBot is a single-turn bot:
+one `ask()` call, all schema exploration / drafting / validation loop within one
+`agent.run()`, one `DefinitionResponse` returned. The user may pass existing/partial
+YAML in the message text; the LLM picks it up and includes it in
+`record_definition_intent(existing_yaml=...)`. This covers the most common case
+without multi-turn complexity.
+
+**User decision (verbatim).** "We will implement multi-turn support for both query
+and definition bots at a later time." — confirmed in Phase 3 planning session.
+
+**Scope of deferral.** Both `QueryBot` and `DefinitionBot` multi-turn refinement
+flows are deferred to v1.x once the single-turn implementations are battle-tested
+and usage patterns are understood.
+
+**Escape valve.** `chat()` is already provided; enabling multi-turn refinement
+is an additive prompt and workflow-instruction change — no API surface change required.
+The natural v1.1 addition is a `get_prior_spec(spec_draft_token: str)` LLM-facing tool
+that calls `store.get_text(token).text` to recover the full validated YAML from a prior
+turn, making cross-turn revision lossless regardless of spec size. This also unblocks
+multi-turn refinement for QueryBot (e.g. re-running a prior query with adjusted parameters)
+via an analogous `get_prior_result(result_id)` tool.
+
+---
+
 ## What's NOT a non-decision
 
 For clarity: these are decisions the architecture *has* taken, not punts:

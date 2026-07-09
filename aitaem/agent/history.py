@@ -24,30 +24,53 @@ def _b64_to_arrow(b64: str) -> pa.Table:
 
 
 def dump_store(store: Any) -> dict[str, Any]:
+    from aitaem.agent.store import TabularEntry
+
     artifacts: dict[str, Any] = {}
     for result_id in store.ids():
         entry = store.get(result_id)
-        artifacts[result_id] = {
-            "id": result_id,
-            "arrow_b64": _arrow_to_b64(entry.arrow) if entry.arrow is not None else None,
-            "created_at": entry.created_at.isoformat(),
-            "metadata": entry.metadata,
-        }
+        if isinstance(entry, TabularEntry):
+            artifacts[result_id] = {
+                "kind": "tabular",
+                "result_id": result_id,
+                "arrow_b64": _arrow_to_b64(entry.arrow) if entry.arrow is not None else None,
+                "created_at": entry.created_at.isoformat(),
+                "metadata": entry.metadata,
+            }
+        else:  # TextEntry
+            artifacts[result_id] = {
+                "kind": "text",
+                "result_id": result_id,
+                "text": entry.text,
+                "content_type": entry.content_type,
+                "created_at": entry.created_at.isoformat(),
+                "metadata": entry.metadata,
+            }
     return artifacts
 
 
 def load_store(store: Any, artifacts: dict[str, Any]) -> None:
-    from aitaem.agent.store import ResultEntry
+    from aitaem.agent.store import TabularEntry, TextEntry
 
     for result_id, data in artifacts.items():
-        arrow = _b64_to_arrow(data["arrow_b64"]) if data.get("arrow_b64") else None
-        entry = ResultEntry(
-            id=result_id,
-            arrow=arrow,
-            ibis_ref=None,
-            created_at=datetime.fromisoformat(data["created_at"]),
-            metadata=data.get("metadata", {}),
-        )
+        kind = data.get("kind", "tabular")  # backward compat: old bundles lack "kind"
+        if kind == "text":
+            entry: TabularEntry | TextEntry = TextEntry(
+                result_id=result_id,
+                text=data["text"],
+                content_type=data["content_type"],
+                created_at=datetime.fromisoformat(data["created_at"]),
+                metadata=data.get("metadata", {}),
+            )
+        else:
+            arrow = _b64_to_arrow(data["arrow_b64"]) if data.get("arrow_b64") else None
+            entry = TabularEntry(
+                result_id=result_id,
+                arrow=arrow,
+                ibis_ref=None,
+                created_at=datetime.fromisoformat(data["created_at"]),
+                metadata=data.get("metadata", {}),
+            )
         store._entries[result_id] = entry
 
 

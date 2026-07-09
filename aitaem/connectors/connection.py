@@ -472,6 +472,16 @@ class ConnectionManager:
             self._cross_backend_db_path = None
 
     @property
+    def backend_types(self) -> list[str]:
+        """List of registered backend type names (e.g. ['duckdb', 'bigquery']).
+
+        Use this to iterate over available connectors without accessing internal
+        state directly. Aggregating table lists across backends is the caller's
+        responsibility — see DefinitionBot's list_tables tool.
+        """
+        return list(self._connections.keys())
+
+    @property
     def requires_compute_lock(self) -> bool:
         """True when DuckDB is or may be involved in query execution.
 

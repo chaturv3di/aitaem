@@ -275,6 +275,7 @@ Nine things deliberately deferred, each with an "escape valve" describing the pa
 | ND-07 | Hot-reload of `SpecCache` | `bot.reset(spec_cache=...)` later |
 | ND-08 | Concurrent calls on same bot | Document as unsupported; lock if needed |
 | ND-09 | Reference eval harness in repo | **Open question for user decision** |
+| ND-10 | Multi-turn interactive refinement for DefinitionBot | `chat()` is provided; dedicated multi-turn spec-refinement UX is v1.x once usage patterns are established. Same deferral applies to QueryBot. See `plans/agent_module/07-non-decisions.md`. |
 
 Each non-decision identifies the trigger that would cause us to revisit it.
 
