@@ -286,11 +286,17 @@ class IbisConnector:
             ) from e
 
     def close(self) -> None:
-        """Close the connection and cleanup resources."""
-        if self.connection is not None:
-            # Ibis connections don't have an explicit close method in all backends
-            # Setting to None will allow garbage collection
+        """Close the connection and release the backend file lock."""
+        conn = getattr(self, "connection", None)
+        if conn is not None:
+            try:
+                conn.disconnect()
+            except Exception:
+                pass
             self.connection = None
+
+    def __del__(self) -> None:
+        self.close()
 
     @property
     def is_connected(self) -> bool:
