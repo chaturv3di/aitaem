@@ -117,6 +117,35 @@ response = await bot.chat("What was total revenue and ROAS across all campaigns?
 print(response.narrative)
 ```
 
+### DefinitionBot quick start
+
+```python
+from aitaem.connectors import ConnectionManager
+from aitaem.specs import SpecCache
+from aitaem.agent import DefinitionBot
+
+spec_cache = SpecCache.from_yaml(
+    metric_paths="examples/metrics/",
+    slice_paths="examples/slices/",
+)
+
+conn_mgr = ConnectionManager()
+conn_mgr.add_connection("duckdb", path="examples/data/ad_campaigns.duckdb")
+
+bot = DefinitionBot(
+    model="anthropic:claude-haiku-4-5-20251001",
+    spec_cache=spec_cache,
+    connection_manager=conn_mgr,
+)
+
+response = await bot.ask(
+    "Define a metric called avg_cpc for average cost per click — "
+    "total ad spend divided by total clicks."
+)
+print(response.narrative)
+print(response.payload.yaml_string)
+```
+
 ### MetricCompute (programmatic)
 
 ```python
