@@ -8,15 +8,12 @@ import pytest
 from pydantic import ValidationError
 
 from aitaem.agent.definition_types import (
-    ColumnInfo,
     DefinitionDeps,
     DefinitionIntent,
     DefinitionOutput,
     DefinitionPayload,
-    DescribeTableResult,
     DraftSpecResult,
     ListTablesResult,
-    RecordDefinitionIntentResult,
     SpecDraft,
     ValidateSpecResult,
     ValidationIssue,

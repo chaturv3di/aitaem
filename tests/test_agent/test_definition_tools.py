@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from aitaem.agent.definition_types import (
     DefinitionDeps,
@@ -113,7 +111,7 @@ def test_record_intent_stores_intent_on_deps():
     deps = _make_deps()
     ctx = _make_ctx(deps)
 
-    result = record_definition_intent(ctx, spec_type="metric", description="Total revenue")
+    record_definition_intent(ctx, spec_type="metric", description="Total revenue")
 
     assert deps.definition_intent is not None
     assert deps.definition_intent.spec_type == "metric"
@@ -279,8 +277,6 @@ def test_list_tables_single_backend_specified_fails():
 
 def _make_ibis_table_mock(columns):
     """columns: list of (name, dtype_str)."""
-    import ibis
-
     ibis_table = MagicMock()
     schema = MagicMock()
     schema.names = [c[0] for c in columns]

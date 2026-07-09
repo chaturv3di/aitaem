@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import FunctionModel, AgentInfo
 from pydantic_ai.models.test import TestModel
@@ -17,10 +15,8 @@ from aitaem.agent.definition_bot import (
     _build_layer_a_definition,
     _build_layer_b_definition,
     _LARGE_CATALOG_THRESHOLD,
-    _definition_permission_fingerprint,
-    _provider_cache_config_definition,
 )
-from aitaem.agent.definition_types import DefinitionOutput, DefinitionPayload
+from aitaem.agent.definition_types import DefinitionOutput
 from aitaem.agent.response import BotResponse
 from aitaem.agent.store import ResultStore, TextEntry
 from aitaem.agent.trace import Status

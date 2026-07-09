@@ -12,7 +12,14 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, Union, cast
+
+if TYPE_CHECKING:
+    from aitaem.specs.metric import MetricSpec
+    from aitaem.specs.segment import SegmentSpec
+    from aitaem.specs.slice import SliceSpec
+
+    AnySpec = Union[MetricSpec, SliceSpec, SegmentSpec]
 
 from pydantic_ai import RunContext
 
@@ -300,10 +307,13 @@ def validate_spec(
             )
 
     # Check 4: composite cross-reference (slice only)
-    if draft.spec_type == "slice" and spec.is_composite:
+    if draft.spec_type == "slice":
+        from aitaem.specs.slice import SliceSpec as _SliceSpec
+        slice_spec = cast(_SliceSpec, spec)
+    if draft.spec_type == "slice" and slice_spec.is_composite:
         spec_cache = ctx.deps.spec_cache
         missing = [
-            name for name in spec.cross_product if name not in spec_cache.slices
+            name for name in slice_spec.cross_product if name not in spec_cache.slices
         ]
         if missing:
             return ValidateSpecResult(
@@ -401,7 +411,7 @@ def validate_spec(
 
 def _parse_yaml_to_spec(
     spec_type: Literal["metric", "slice", "segment"], yaml_string: str
-) -> object:
+) -> AnySpec:
     """Parse YAML string into the appropriate spec object. Raises on failure."""
     from aitaem.specs.metric import MetricSpec
     from aitaem.specs.slice import SliceSpec
