@@ -266,7 +266,7 @@ def _provider_cache_config_definition(model_str: str, tenant_id: str | None) -> 
         return {}
     provider = model_str.split(":")[0] if ":" in model_str else ""
     if provider == "anthropic":
-        return {"anthropic_cache_instructions": "5m"}
+        return {"anthropic_cache": "5m"}
     if provider == "openai":
         return {
             "openai_prompt_cache_key": f"aitaem-def-{tenant_id}",
