@@ -90,6 +90,7 @@ duckdb:
 |---------------------------------------|----------------------------------------------------------------|
 | `query_bot_example.py` / `.ipynb`     | Multi-turn QueryBot conversation over the ad campaign dataset  |
 | `intent_resolution_example.py` / `.ipynb` | Deep-dive into the three-step intent → resolve → compute flow and prompt-cache efficiency |
+| `definition_bot_example.py` / `.ipynb` | DefinitionBot four-step workflow: direct spec parsing (Part 1) and LLM-assisted spec definition (Part 2) |
 
 ### QueryBot quick start
 
