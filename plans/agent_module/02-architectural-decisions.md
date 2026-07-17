@@ -170,15 +170,20 @@ The bot's response to the caller composes both: narrative from the LLM, full art
 | Pattern | API | Use |
 |---|---|---|
 | Construction-time, permanent | `Bot(tools=[...])` | Bot's baseline identity |
-| Persistent runtime addition | `bot.add_tool(...)`, `bot.add_bot(other_bot)` | Plugin-style attachment |
+| Persistent runtime addition | `bot.add_tool(...)` | Plugin-style attachment |
 | Per-call ephemeral | `bot.chat(..., extra_tools=[...])`, `bot.ask(..., extra_tools=[...])` | Scoped capabilities for one turn |
 
-`bot.as_tool()` enables bot-as-tool composition; an orchestrator is just a bot whose tools include other bots' `as_tool()` outputs.
+A fourth pattern — a generic `bot.as_tool()` / `bot.add_bot(other_bot)` that
+auto-converts any bot into a callable tool, so an orchestrator is just a bot
+whose tools include other bots' `as_tool()` outputs — is deferred. See
+Section 7, ND-11. In v1, cross-bot composition is achieved by wrapping the
+target bot's `ask()` in a plain function and registering it via `add_tool()`,
+which the three patterns above already support.
 
 **Consequences.**
 - No `remove_tool()` API — per-call injection already covers the scoped case.
 - Pydantic-ai's `@toolset(per_run_step=True)` decorator is not exposed at v1 (power-user territory; users can subclass to access it).
-- Cross-bot composition is essentially free.
+- Cross-bot composition in v1 is a hand-written wrapper function per pairing, not a zero-code `as_tool()` call — see ND-11 for when that's revisited.
 
 ---
 

@@ -119,7 +119,7 @@ aitaem/agent/
 ├── base.py              # Bot abstract base class
 └── history.py           # dump_history / load_history helpers, HistoryBundle
 
-tools/
+scripts/
 └── check_import_graph.py  # CI script
 
 tests/test_agent/
@@ -256,9 +256,9 @@ uv pip install -e ".[agent-anthropic,agent-evals]" --dry-run
 
 ### SF-3: Import-graph CI check
 
-**Files:** `tools/check_import_graph.py`, `.github/workflows/ci.yml`
+**Files:** `scripts/check_import_graph.py`, `.github/workflows/ci.yml`
 
-**`tools/check_import_graph.py`:**
+**`scripts/check_import_graph.py`:**
 
 ```python
 #!/usr/bin/env python3
@@ -320,12 +320,12 @@ import-graph:
         with:
           python-version: "3.12"
       - name: Check import graph
-        run: python tools/check_import_graph.py
+        run: python scripts/check_import_graph.py
 ```
 
 **Validation:**
 ```bash
-python tools/check_import_graph.py  # should print "Import graph check passed."
+python scripts/check_import_graph.py  # should print "Import graph check passed."
 ```
 
 Also add a test that the script detects a violation when given a fake import:
@@ -336,7 +336,7 @@ def test_import_graph_check_passes():
     """The script must exit 0 on the current codebase."""
     import subprocess, sys
     result = subprocess.run(
-        [sys.executable, "tools/check_import_graph.py"],
+        [sys.executable, "scripts/check_import_graph.py"],
         capture_output=True, text=True
     )
     assert result.returncode == 0, result.stdout + result.stderr
@@ -1388,7 +1388,7 @@ extra, confirming the one-way dependency at the CI level.
 | `aitaem/agent/trace.py` | New — `RunTrace`, `ToolCall`, `Usage`, `assemble_trace()` |
 | `aitaem/agent/base.py` | New — `Bot` abstract base class |
 | `aitaem/agent/history.py` | New — `make_bundle()`, `load_bundle()`, serialization helpers |
-| `tools/check_import_graph.py` | New — CI import-graph enforcement script |
+| `scripts/check_import_graph.py` | New — CI import-graph enforcement script |
 | `tests/test_agent/__init__.py` | New — empty |
 | `tests/test_agent/test_primitives.py` | New — SF-1 through SF-7 tests |
 | `tests/test_agent/test_trace.py` | New — SF-9 tests |
@@ -1411,7 +1411,7 @@ maintained from the start.
    confirms the package is importable.
 
 3. **After SF-3 (import-graph check):** Run
-   `python tools/check_import_graph.py` — must exit 0.
+   `python scripts/check_import_graph.py` — must exit 0.
 
 4. **After SF-4 (trace types):** Run
    `python -m pytest tests/test_agent/test_primitives.py -k "status or usage or tool_call or run_trace"` —
@@ -1441,7 +1441,7 @@ maintained from the start.
     ```bash
     uv pip install -e ".[agent-anthropic,dev]"
     python -m pytest tests/test_agent/ --cov=aitaem/agent --cov-report=term-missing
-    python tools/check_import_graph.py
+    python scripts/check_import_graph.py
     python -m pytest tests/ --ignore=tests/test_agent/ --cov=aitaem
     ```
     The final command confirms the existing core suite is unaffected.
@@ -1458,7 +1458,7 @@ Phase 1 is complete when:
 - [ ] `from aitaem.agent import Bot, BotResponse, Status, RunTrace, ToolCall, Usage, ResultEntry, ResultStore` works
 - [ ] All models are JSON-serializable and round-trip through `dump_history` / `load_history`
 - [ ] `assemble_trace()` correctly extracts tool calls, maps usage, and computes duration from a pydantic-ai result
-- [ ] `python tools/check_import_graph.py` exits 0 on the codebase
+- [ ] `python scripts/check_import_graph.py` exits 0 on the codebase
 - [ ] `tests/test_agent/` passes fully under `python -m pytest`
 - [ ] Existing `tests/` (core) suite remains green with no changes to core files
 - [ ] CI `import-graph` job and `test-agent` job both defined in `ci.yml`

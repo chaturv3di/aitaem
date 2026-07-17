@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
@@ -8,6 +9,16 @@ from aitaem.agent.store import ResultEntry, ResultStore
 
 if TYPE_CHECKING:
     from pydantic_ai import Agent
+
+
+def _register_tool(toolset: Any, tool: Any) -> None:
+    """Add one tool (plain callable or pydantic-ai Tool instance) to a FunctionToolset."""
+    from pydantic_ai import Tool
+
+    if isinstance(tool, Tool):
+        toolset.add_tool(tool)
+    else:
+        toolset.add_function(tool)
 
 
 class Bot(ABC):
@@ -25,7 +36,22 @@ class Bot(ABC):
 
             def _build_agent(self):
                 # self._my_resource is already available here
-                return pydantic_ai.Agent(...)
+                from pydantic_ai.toolsets import FunctionToolset
+
+                toolset = FunctionToolset()
+                toolset.add_function(my_default_tool)
+                for tool in self._tools:
+                    _register_tool(toolset, tool)
+                self._toolset = toolset  # REQUIRED — see contract below
+
+                return pydantic_ai.Agent(..., toolsets=[self._toolset])
+
+    Tool composition contract: _build_agent() MUST build a FunctionToolset,
+    register self._tools onto it (via the module-level _register_tool()
+    helper), and assign it to self._toolset before returning the Agent.
+    add_tool() mutates self._toolset in place, so it has nothing to mutate
+    otherwise. Bot.__init__ raises TypeError immediately after _build_agent()
+    returns if self._toolset is still None, naming the offending subclass.
 
     Context-window management: for long-running sessions where history may
     exceed the model's context limit, pass a history processor via the
@@ -57,9 +83,22 @@ class Bot(ABC):
         tools: list[Any] | None = None,
     ) -> None:
         self._model = model
+        self._tools: list[Any] = list(tools or [])
         self._store = ResultStore()
         self._message_history: list[Any] = []
+        self._runtime_added_tool_names: list[str] = []
+        # Contract: subclass _build_agent() MUST assign a FunctionToolset here before
+        # returning — enforced by the check below. If you're reading this in a
+        # debugger because self._toolset is None, your _build_agent() didn't set it.
+        self._toolset: Any = None
         self._agent = self._build_agent()
+        if self._toolset is None:
+            raise TypeError(
+                f"{type(self).__name__}._build_agent() did not set self._toolset. "
+                "Concrete Bot subclasses must build a FunctionToolset, register "
+                "self._tools onto it, and assign it to self._toolset before "
+                "returning the Agent."
+            )
 
     @abstractmethod
     def _build_agent(self) -> Agent:
@@ -88,8 +127,14 @@ class Bot(ABC):
         )
 
     def add_tool(self, tool: Any) -> None:
-        """Add a tool to this bot's default tool set at runtime."""
-        raise NotImplementedError("add_tool() implemented in Phase 5.")
+        """Add a tool to this bot's persistent tool set at runtime.
+
+        Takes effect on the next chat()/ask() call. Mutations during an
+        in-progress run() are undefined.
+        """
+        before = set(self._toolset.tools)
+        _register_tool(self._toolset, tool)
+        self._runtime_added_tool_names.extend(sorted(set(self._toolset.tools) - before))
 
     def add_bot(self, bot: Bot) -> None:
         """Register another bot as a tool (sugar for add_tool(other.as_tool()))."""
@@ -110,10 +155,18 @@ class Bot(ABC):
         are not serialized; only Arrow artifacts are preserved. Reload with
         load_history() to restore history with Arrow artifacts available via
         get_result(), but get_ibis() will return None on restored entries.
+
+        Tools added at runtime via add_tool() are NOT restored by load_history()
+        — their names are recorded in the bundle so load_history() can warn if
+        they're missing after reload, but the callables themselves aren't
+        portably serializable. Pass them again via tools=[...] or call
+        add_tool() on the reloaded bot to restore them.
         """
         from aitaem.agent.history import make_bundle
 
-        return make_bundle(self._message_history, self._store)
+        return make_bundle(
+            self._message_history, self._store, self._runtime_added_tool_names
+        )
 
     @classmethod
     def load_history(cls, data: dict[str, Any], **kwargs: Any) -> Bot:
@@ -126,11 +179,24 @@ class Bot(ABC):
         Returns:
             A new bot instance with _message_history and store populated from
             data. The bot's _agent is rebuilt fresh from **kwargs.
+
+        Warns (UserWarning) if the bundle references tools added via
+        add_tool() on the original bot that are not present on the reloaded
+        bot — pass them again via tools=[...] in **kwargs, or call add_tool()
+        after reload, to silence the warning.
         """
         from aitaem.agent.history import load_bundle
 
         bot = cls(**kwargs)
         bot._message_history = load_bundle(data, bot._store)
+        missing = set(data.get("runtime_added_tool_names", [])) - set(bot._toolset.tools)
+        if missing:
+            warnings.warn(
+                f"load_history() bundle references runtime-added tool(s) not "
+                f"present after reload: {sorted(missing)}. Pass them again via "
+                f"tools=[...] or call add_tool() to restore them.",
+                stacklevel=2,
+            )
         return bot
 
     @property

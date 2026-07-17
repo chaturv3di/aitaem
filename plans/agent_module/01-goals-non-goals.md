@@ -50,10 +50,12 @@ The agent module uses pydantic-ai under the hood. pydantic-ai supports OpenAI, A
 
 Three layered patterns for tool attachment:
 - Constructor `tools=[...]` for baseline identity
-- `bot.add_tool()` and `bot.add_bot()` for persistent runtime addition
+- `bot.add_tool()` for persistent runtime addition
 - `bot.chat(..., extra_tools=[...])` for per-call ephemeral injection
 
-`bot.as_tool()` enables bot-as-tool composition. An orchestrator is built — not shipped — as a bot whose tool set includes other bots' `as_tool()` outputs.
+A generic `bot.as_tool()` / `bot.add_bot()` for zero-code bot-as-tool composition is deferred
+(see Section 7, ND-11). In v1, an orchestrator is built as a bot whose tool set includes other
+bots' `ask()` wrapped in plain functions and attached via `add_tool()`.
 
 ---
 

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+import pytest
+from pydantic_ai.exceptions import UserError
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import FunctionModel, AgentInfo
 from pydantic_ai.models.test import TestModel
@@ -206,8 +208,7 @@ def test_definition_response_is_subtype_of_bot_response():
 
 def test_definition_bot_agent_has_five_tools():
     bot = _make_bot()
-    # User toolsets are stored in _user_toolsets; first entry is our FunctionToolset
-    tool_names = set(bot._agent._user_toolsets[0].tools.keys())
+    tool_names = set(bot._toolset.tools.keys())
     expected = {
         "record_definition_intent",
         "list_tables",
@@ -219,13 +220,105 @@ def test_definition_bot_agent_has_five_tools():
 
 
 # ---------------------------------------------------------------------------
+# Plan 28 / SF-4: constructor tools= composition
+# ---------------------------------------------------------------------------
+
+
+def def_custom_tool_sync() -> str:
+    return "sync-value"
+
+
+async def def_custom_tool_async() -> str:
+    return "async-value"
+
+
+def _make_def_custom_tool_model(tool_name: str):
+    """FunctionModel: calls `tool_name` once, then reports its return value in narrative."""
+
+    def fn(messages: list, info: AgentInfo) -> ModelResponse:
+        for m in messages:
+            if isinstance(m, ModelRequest):
+                for p in m.parts:
+                    if isinstance(p, ToolReturnPart) and p.tool_name == tool_name:
+                        output = DefinitionOutput(
+                            status=Status.ok,
+                            narrative=f"got:{p.content}",
+                        )
+                        return ModelResponse(parts=[TextPart(content=output.model_dump_json())])
+        return ModelResponse(
+            parts=[ToolCallPart(tool_name=tool_name, args={}, tool_call_id="tc-1")]
+        )
+
+    return FunctionModel(fn)
+
+
+def test_definition_constructor_tools_registered_alongside_defaults():
+    bot = DefinitionBot(
+        model=TestModel(),
+        spec_cache=_make_spec_cache(),
+        connection_manager=MagicMock(),
+        tools=[def_custom_tool_sync],
+    )
+    expected_defaults = {
+        "record_definition_intent", "list_tables", "describe_table",
+        "draft_spec", "validate_spec",
+    }
+    assert "def_custom_tool_sync" in bot._toolset.tools
+    assert expected_defaults.issubset(bot._toolset.tools.keys())
+
+
+@pytest.mark.parametrize(
+    "tool_fn,expected",
+    [(def_custom_tool_sync, "sync-value"), (def_custom_tool_async, "async-value")],
+    ids=["sync", "async"],
+)
+def test_definition_constructor_tools_invoked(tool_fn, expected):
+    bot = DefinitionBot(
+        model=_make_def_custom_tool_model(tool_fn.__name__),
+        spec_cache=_make_spec_cache(),
+        connection_manager=MagicMock(),
+        tools=[tool_fn],
+    )
+    response = asyncio.run(
+        bot.ask("use the custom tool")
+    )
+    assert expected in response.narrative
+
+
+def test_definition_constructor_tools_collision_with_default_raises_at_construction():
+    def validate_spec() -> str:  # name collides with a default tool
+        return "x"
+
+    with pytest.raises(UserError, match="conflicts with existing tool"):
+        DefinitionBot(
+            model=TestModel(),
+            spec_cache=_make_spec_cache(),
+            connection_manager=MagicMock(),
+            tools=[validate_spec],
+        )
+
+
+def test_definition_constructor_tools_two_entries_collide_with_each_other():
+    def custom_dup() -> str:
+        return "a"
+
+    with pytest.raises(UserError, match="conflicts with existing tool"):
+        DefinitionBot(
+            model=TestModel(),
+            spec_cache=_make_spec_cache(),
+            connection_manager=MagicMock(),
+            tools=[custom_dup, custom_dup],
+        )
+
+
+# ---------------------------------------------------------------------------
 # SF-9: ask() / chat() / _assemble_payload
 # ---------------------------------------------------------------------------
 
 
 def test_ask_returns_definition_response():
     bot = _make_bot()
-    response = asyncio.get_event_loop().run_until_complete(
+    response = asyncio.run(
         bot.ask("Define a metric for revenue")
     )
     assert isinstance(response, DefinitionResponse)
@@ -233,17 +326,17 @@ def test_ask_returns_definition_response():
 
 def test_ask_does_not_accumulate_history():
     bot = _make_bot()
-    asyncio.get_event_loop().run_until_complete(bot.ask("Define a metric for ctr"))
+    asyncio.run(bot.ask("Define a metric for ctr"))
     assert bot._message_history == []
 
 
 def test_chat_accumulates_history():
     bot = _make_bot()
-    asyncio.get_event_loop().run_until_complete(bot.chat("Define a metric for ctr"))
+    asyncio.run(bot.chat("Define a metric for ctr"))
     assert len(bot._message_history) > 0
 
     prev_len = len(bot._message_history)
-    asyncio.get_event_loop().run_until_complete(bot.chat("Also define one for revenue"))
+    asyncio.run(bot.chat("Also define one for revenue"))
     assert len(bot._message_history) > prev_len
 
 
@@ -609,7 +702,7 @@ def test_full_flow_returns_status_ok():
         connection_manager=mock_cm,
     )
 
-    response = asyncio.get_event_loop().run_until_complete(
+    response = asyncio.run(
         bot.ask("Define a revenue metric on the transactions table")
     )
 
@@ -634,7 +727,7 @@ def test_full_flow_payload_metric_spec_populated():
         connection_manager=mock_cm,
     )
 
-    response = asyncio.get_event_loop().run_until_complete(
+    response = asyncio.run(
         bot.ask("Define a revenue metric")
     )
 
@@ -659,7 +752,7 @@ def test_full_flow_get_result_returns_text_entry():
         connection_manager=mock_cm,
     )
 
-    response = asyncio.get_event_loop().run_until_complete(
+    response = asyncio.run(
         bot.ask("Define a revenue metric")
     )
 
@@ -685,9 +778,9 @@ def test_ask_does_not_accumulate_history_on_full_flow():
         connection_manager=mock_cm,
     )
 
-    asyncio.get_event_loop().run_until_complete(bot.ask("First ask"))
+    asyncio.run(bot.ask("First ask"))
     assert bot._message_history == []
-    asyncio.get_event_loop().run_until_complete(bot.ask("Second ask"))
+    asyncio.run(bot.ask("Second ask"))
     assert bot._message_history == []
 
 
@@ -708,7 +801,7 @@ def test_trace_contains_all_five_tool_names():
         connection_manager=mock_cm,
     )
 
-    response = asyncio.get_event_loop().run_until_complete(
+    response = asyncio.run(
         bot.ask("Define a revenue metric")
     )
 
@@ -742,7 +835,7 @@ def test_correction_loop_final_status_ok():
         connection_manager=mock_cm,
     )
 
-    response = asyncio.get_event_loop().run_until_complete(
+    response = asyncio.run(
         bot.ask("Define a revenue metric")
     )
 
@@ -769,7 +862,7 @@ def test_is_update_rename_conflict_name_lock_fires():
         connection_manager=mock_cm,
     )
 
-    response = asyncio.get_event_loop().run_until_complete(
+    response = asyncio.run(
         bot.ask("Update the revenue metric")
     )
 
@@ -801,9 +894,69 @@ def test_chat_accumulates_history_on_full_flow():
         connection_manager=mock_cm,
     )
 
-    asyncio.get_event_loop().run_until_complete(bot.chat("First message"))
+    asyncio.run(bot.chat("First message"))
     assert len(bot._message_history) > 0
 
     history_len_after_first = len(bot._message_history)
-    asyncio.get_event_loop().run_until_complete(bot.chat("Second message"))
+    asyncio.run(bot.chat("Second message"))
     assert len(bot._message_history) > history_len_after_first
+
+
+# ---------------------------------------------------------------------------
+# Plan 28 / SF-6: per-call extra_tools= on chat() / ask()
+# ---------------------------------------------------------------------------
+
+
+def _def_visibility_recording_model(recorder: list) -> FunctionModel:
+    """FunctionModel that records visible tool names on each call, then ends the turn."""
+
+    def fn(messages: list, info: AgentInfo) -> ModelResponse:
+        recorder.append(sorted(t.name for t in info.function_tools))
+        output = DefinitionOutput(status=Status.ok, narrative="ok")
+        return ModelResponse(parts=[TextPart(content=output.model_dump_json())])
+
+    return FunctionModel(fn)
+
+
+@pytest.mark.parametrize(
+    "tool_fn,expected",
+    [(def_custom_tool_sync, "sync-value"), (def_custom_tool_async, "async-value")],
+    ids=["sync", "async"],
+)
+def test_definition_ask_extra_tools_invoked(tool_fn, expected):
+    bot = _make_bot(model=_make_def_custom_tool_model(tool_fn.__name__))
+    response = asyncio.run(
+        bot.ask("use the extra tool", extra_tools=[tool_fn])
+    )
+    assert expected in response.narrative
+
+
+def test_definition_chat_extra_tools_ephemeral_not_visible_next_turn():
+    seen: list = []
+    bot = _make_bot(model=_def_visibility_recording_model(seen))
+    asyncio.run(
+        bot.chat("first", extra_tools=[def_custom_tool_sync])
+    )
+    asyncio.run(bot.chat("second"))
+    assert "def_custom_tool_sync" in seen[0]
+    assert "def_custom_tool_sync" not in seen[1]
+
+
+def test_definition_ask_extra_tools_none_omits_toolsets_kwarg():
+    bot = _make_bot()
+    with patch.object(bot._agent, "run", wraps=bot._agent.run) as mock_run:
+        asyncio.run(bot.ask("hello"))
+    _, kwargs = mock_run.call_args
+    assert "toolsets" not in kwargs
+
+
+def test_definition_extra_tools_collision_surfaces_as_error_status():
+    def validate_spec() -> str:  # collides with the default validate_spec tool
+        return "x"
+
+    bot = _make_bot()
+    response = asyncio.run(
+        bot.ask("hello", extra_tools=[validate_spec])
+    )
+    assert response.status == Status.error
+    assert "conflicts with existing tool" in (response.reason or "")

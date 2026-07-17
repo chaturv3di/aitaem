@@ -75,7 +75,7 @@ The base class behind `QueryBot`, `DefinitionBot`, `SetupBot`. Owns:
 - Trace assembly per turn
 - For bots that compute metrics: a single `MetricCompute` instance held for the bot's lifetime (AD-16)
 
-Exposes `ask()` (single-turn, stateless w.r.t. history), `chat()` (multi-turn), `dump_history()` / `load_history()`, `get_result()`, `add_tool()`, `add_bot()`, `as_tool()`, `reset()`.
+Exposes `ask()` (single-turn, stateless w.r.t. history), `chat()` (multi-turn), `dump_history()` / `load_history()`, `get_result()`, `add_tool()`, `reset()`. Generic `add_bot()` / `as_tool()` bot-as-tool composition is deferred — see Section 7, ND-11.
 
 Subclasses (the convenience bots) configure the base with their default tool set, default prompts, and bot-specific response type.
 

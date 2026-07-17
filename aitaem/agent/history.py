@@ -74,7 +74,11 @@ def load_store(store: Any, artifacts: dict[str, Any]) -> None:
         store._entries[result_id] = entry
 
 
-def make_bundle(messages: list[Any], store: Any) -> dict[str, Any]:
+def make_bundle(
+    messages: list[Any],
+    store: Any,
+    runtime_added_tool_names: list[str] | None = None,
+) -> dict[str, Any]:
     from pydantic_ai.messages import ModelMessagesTypeAdapter
 
     return {
@@ -85,6 +89,9 @@ def make_bundle(messages: list[Any], store: Any) -> dict[str, Any]:
         # message content (images, audio). validate_python loses that guarantee.
         "messages": ModelMessagesTypeAdapter.dump_json(messages).decode(),
         "artifacts": dump_store(store),
+        # Names only — callables aren't portably serializable. Bot.load_history()
+        # compares this against the reloaded bot's toolset and warns on gaps.
+        "runtime_added_tool_names": list(runtime_added_tool_names or []),
     }
 
 
