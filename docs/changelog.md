@@ -25,6 +25,26 @@
 - **`ConnectionManager.close_all()` now also tears down the cross-backend DuckDB**
   connection and deletes its temporary file. Any `ibis.Table` objects returned by
   `compute()` that are backed by this database become invalid after `close_all()`.
+- **`aitaem.agent`: tool composition primitives for `QueryBot` and `DefinitionBot`
+  (Phase 5.2).** The constructor `tools=[...]` parameter, `Bot.add_tool()`, and
+  the per-call `extra_tools=[...]` parameter on `chat()`/`ask()` are now
+  functional — previously all three were accepted but silently inert, and
+  `add_tool()` raised `NotImplementedError`. `tools=`/`add_tool()` register
+  persistently for the bot's lifetime; `extra_tools=` is scoped to a single
+  call. Tool-name collisions raise `pydantic_ai.exceptions.UserError` rather
+  than being silently resolved. `load_history()` now warns (`UserWarning`) if
+  a reloaded bundle references `add_tool()`-added tools that aren't present
+  after reload — the callables themselves aren't portably serializable, so
+  pass them again via `tools=[...]` or re-add them to restore. Generic
+  `Bot.as_tool()` / `add_bot()` composition remains deferred (see
+  `plans/agent_module/07-non-decisions.md`, ND-11).
+
+  This work is intentionally sequenced ahead of Phase 4 (`SetupBot`) and
+  Phase 5.1. Comprehensive user testing of these composition primitives
+  hasn't happened yet — this release is what establishes whether bot
+  composition is shippable at all, even as an MVP. `SetupBot` isn't being
+  skipped outright; its need simply isn't assumed by default, and it's
+  picked back up on an explicit ask. See `plans/28-agent-phase5.2-composition.md`.
 
 ## v0.4.0 — 2026-06-26
 

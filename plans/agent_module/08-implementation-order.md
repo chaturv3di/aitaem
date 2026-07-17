@@ -203,7 +203,9 @@ Runtime tool-composition primitives. Lightweight in code, important for the blue
 
 **What:** Was scoped to return a pydantic-ai-compatible Tool whose JSON schema is derived from the wrapped bot's `ask()` signature, invoking the wrapped bot's `ask()` and returning a structured result the outer agent can consume. Deferred pending a third convenience bot to design against; see ND-11 in [`07-non-decisions.md`](./07-non-decisions.md). Escape valve in the interim: wrap `ask()` as a plain function and register via `add_tool()` (P5.2).
 
-### P5.2 — `Bot(tools=[...])` / `add_tool()` / per-call `extra_tools`
+### P5.2 — `Bot(tools=[...])` / `add_tool()` / per-call `extra_tools` — ✅ Shipped
+
+**Status:** Done. Implemented per `plans/28-agent-phase5.2-composition.md`, ahead of Phase 4 and Phase 5.1 per the reordering note above. `Bot.__init__` now enforces a `self._toolset` contract (raises `TypeError` at construction if a subclass's `_build_agent()` doesn't set it); tool-name collisions raise `pydantic_ai.exceptions.UserError` (fail loud, no auto-namespacing); `load_history()` warns if a reloaded bundle references `add_tool()`-added tools not present after reload. Test coverage: `tests/test_agent/test_primitives.py`, `tests/test_agent/test_history.py`, `tests/test_agent/test_query_bot.py`, `tests/test_agent/test_definition_bot.py`, and the cross-bot parametrized suite in `tests/test_agent/test_composition.py`.
 
 **What:** The runtime tool addition surface (AD-11), minus `add_bot()` (sugar over the deferred `as_tool()` — see ND-11). Three surfaces, all against `QueryBot` and `DefinitionBot` (the only convenience bots that exist today):
 - `Bot(tools=[...])` — construction-time tools, folded into the bot's default `FunctionToolset` alongside its built-in tools.
@@ -285,7 +287,7 @@ Architectural estimates, not commitments. For Claude Code's downstream planning:
 | Phase 2 — QueryBot | Largest | Medium (real architectural validation happens here) |
 | Phase 3 — DefinitionBot | Medium | Low |
 | Phase 4 — SetupBot | Small | Low |
-| Phase 5 — Composition | Small | Low |
+| Phase 5.2 — Composition | ✅ Done | — |
 | Phase 6 — Eval validation | Medium | Medium (substrate decisions get pressure-tested) |
 | Phase 7 — Docs + ship | Medium | Low |
 

@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 import json
+import warnings
 
 import pyarrow as pa
 import pytest
+from pydantic_ai.toolsets import FunctionToolset
 
-from aitaem.agent.base import Bot
+from aitaem.agent.base import Bot, _register_tool
 
 
 class _StubBot(Bot):
     def _build_agent(self):
+        toolset = FunctionToolset()
+        for tool in self._tools:
+            _register_tool(toolset, tool)
+        self._toolset = toolset
         return None
 
 
@@ -65,3 +71,71 @@ def test_bundle_is_json_serializable():
     bot.store.store_tabular(table, None)
     bundle = bot.dump_history()
     _ = json.dumps(bundle)
+
+
+# ---------------------------------------------------------------------------
+# Plan 28 / SF-7: runtime_added_tool_names tracking + load_history() warning
+# ---------------------------------------------------------------------------
+
+
+def _probe_tool() -> str:
+    return "probe"
+
+
+def test_dump_history_records_runtime_added_tool_names():
+    bot = _StubBot(model="claude-sonnet-4-6")
+    bot.add_tool(_probe_tool)
+    bundle = bot.dump_history()
+    assert bundle["runtime_added_tool_names"] == ["_probe_tool"]
+
+
+def test_dump_history_runtime_added_tool_names_empty_by_default():
+    bot = _StubBot(model="claude-sonnet-4-6")
+    bundle = bot.dump_history()
+    assert bundle["runtime_added_tool_names"] == []
+
+
+def test_load_history_warns_when_runtime_added_tool_missing():
+    bot = _StubBot(model="claude-sonnet-4-6")
+    bot.add_tool(_probe_tool)
+    bundle = bot.dump_history()
+
+    with pytest.warns(UserWarning, match="_probe_tool"):
+        _StubBot.load_history(bundle, model="claude-sonnet-4-6")
+
+
+def test_load_history_no_warning_when_tool_repassed():
+    bot = _StubBot(model="claude-sonnet-4-6")
+    bot.add_tool(_probe_tool)
+    bundle = bot.dump_history()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        restored = _StubBot.load_history(
+            bundle, model="claude-sonnet-4-6", tools=[_probe_tool]
+        )
+    assert "_probe_tool" in restored._toolset.tools
+
+
+def test_load_history_backward_compat_missing_field_no_warning():
+    bundle = {"schema_version": "1.0", "messages": "[]", "artifacts": {}}
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _StubBot.load_history(bundle, model="claude-sonnet-4-6")
+
+
+def test_make_bundle_default_runtime_added_tool_names_is_empty_list():
+    from aitaem.agent.history import make_bundle
+    from aitaem.agent.store import ResultStore
+
+    bundle = make_bundle([], ResultStore())
+    assert bundle["runtime_added_tool_names"] == []
+
+
+def test_make_bundle_runtime_added_tool_names_round_trips_through_json():
+    from aitaem.agent.history import make_bundle
+    from aitaem.agent.store import ResultStore
+
+    bundle = make_bundle([], ResultStore(), ["tool_a", "tool_b"])
+    reloaded = json.loads(json.dumps(bundle))
+    assert reloaded["runtime_added_tool_names"] == ["tool_a", "tool_b"]

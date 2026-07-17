@@ -4,7 +4,7 @@ import hashlib
 import json
 from typing import Any, cast
 
-from aitaem.agent.base import Bot
+from aitaem.agent.base import Bot, _register_tool
 from aitaem.agent.response import BotResponse
 from aitaem.agent.query_types import QueryDeps, QueryOutput, QueryPayload
 from aitaem.agent.query_tools import (
@@ -18,6 +18,22 @@ from aitaem.agent.query_tools import (
     contribution_share,
 )
 from aitaem.agent.trace import Status
+
+
+def _build_extra_toolset(extra_tools: list[Any] | None) -> Any | None:
+    """Build an ephemeral FunctionToolset from extra_tools, or None if empty.
+
+    Passed to agent.run(toolsets=[...]), which is additive to the bot's
+    persistent toolset — never touches self._toolset.
+    """
+    if not extra_tools:
+        return None
+    from pydantic_ai.toolsets import FunctionToolset
+
+    toolset = FunctionToolset()
+    for tool in extra_tools:
+        _register_tool(toolset, tool)
+    return toolset
 
 
 class QueryResponse(BotResponse[QueryPayload]):
@@ -289,6 +305,10 @@ class QueryBot(Bot):
         toolset.add_function(period_over_period)
         toolset.add_function(contribution_share)
 
+        for tool in self._tools:
+            _register_tool(toolset, tool)
+        self._toolset = toolset
+
         # Static instructions: Layers A + B combined.
         # These become InstructionPart(dynamic=False) and are cached at the
         # provider-appropriate breakpoint (see _provider_cache_config above).
@@ -350,11 +370,14 @@ class QueryBot(Bot):
             store=self._store,
         )
         try:
-            result = await self._agent.run(
-                message,
-                message_history=self._message_history,
-                deps=deps,
-            )
+            run_kwargs: dict[str, Any] = {
+                "message_history": self._message_history,
+                "deps": deps,
+            }
+            extra_toolset = _build_extra_toolset(extra_tools)
+            if extra_toolset is not None:
+                run_kwargs["toolsets"] = [extra_toolset]
+            result = await self._agent.run(message, **run_kwargs)
             self._message_history = result.all_messages()
             output = cast(QueryOutput, result.output)
             trace = assemble_trace(result, run_start)
@@ -391,7 +414,11 @@ class QueryBot(Bot):
             store=self._store,
         )
         try:
-            result = await self._agent.run(message, deps=deps)
+            run_kwargs: dict[str, Any] = {"deps": deps}
+            extra_toolset = _build_extra_toolset(extra_tools)
+            if extra_toolset is not None:
+                run_kwargs["toolsets"] = [extra_toolset]
+            result = await self._agent.run(message, **run_kwargs)
             output = cast(QueryOutput, result.output)
             trace = assemble_trace(result, run_start)
             self._conversation_id = trace.conversation_id

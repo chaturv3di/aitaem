@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pyarrow as pa
 import pytest
 
+from pydantic_ai.exceptions import UserError
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import FunctionModel, AgentInfo
 from pydantic_ai.models.test import TestModel
@@ -262,6 +263,97 @@ def test_build_agent_has_record_resolve_compute():
     assert "record_intent" in all_tool_names
     assert "resolve_intent" in all_tool_names
     assert "compute_metrics" in all_tool_names
+
+
+# ---------------------------------------------------------------------------
+# Plan 28 / SF-3: constructor tools= composition
+# ---------------------------------------------------------------------------
+
+def custom_tool_sync() -> str:
+    return "sync-value"
+
+
+async def custom_tool_async() -> str:
+    return "async-value"
+
+
+def _make_custom_tool_model(tool_name: str):
+    """FunctionModel: calls `tool_name` once, then reports its return value in narrative."""
+
+    def fn(messages: list, info: AgentInfo) -> ModelResponse:
+        for m in messages:
+            if isinstance(m, ModelRequest):
+                for p in m.parts:
+                    if isinstance(p, ToolReturnPart) and p.tool_name == tool_name:
+                        output = QueryOutput(
+                            status=Status.ok,
+                            narrative=f"got:{p.content}",
+                            result_ids=[],
+                        )
+                        return ModelResponse(parts=[TextPart(content=output.model_dump_json())])
+        return ModelResponse(
+            parts=[ToolCallPart(tool_name=tool_name, args={}, tool_call_id="tc-1")]
+        )
+
+    return FunctionModel(fn)
+
+
+def test_constructor_tools_registered_alongside_defaults():
+    bot = QueryBot(
+        model=TestModel(),
+        spec_cache=_make_spec_cache(),
+        connection_manager=MagicMock(),
+        tools=[custom_tool_sync],
+    )
+    expected_defaults = {
+        "record_intent", "resolve_intent", "compute_metrics",
+        "rank_by_value", "filter_by_threshold", "distribution_summary",
+        "period_over_period", "contribution_share",
+    }
+    assert "custom_tool_sync" in bot._toolset.tools
+    assert expected_defaults.issubset(bot._toolset.tools.keys())
+
+
+@pytest.mark.parametrize(
+    "tool_fn,expected",
+    [(custom_tool_sync, "sync-value"), (custom_tool_async, "async-value")],
+    ids=["sync", "async"],
+)
+def test_constructor_tools_invoked(tool_fn, expected):
+    bot = QueryBot(
+        model=_make_custom_tool_model(tool_fn.__name__),
+        spec_cache=_make_spec_cache(),
+        connection_manager=MagicMock(),
+        tools=[tool_fn],
+    )
+    response = asyncio.run(bot.ask("use the custom tool"))
+    assert expected in response.narrative
+
+
+def test_constructor_tools_collision_with_default_raises_at_construction():
+    def compute_metrics() -> str:  # name collides with a default tool
+        return "x"
+
+    with pytest.raises(UserError, match="conflicts with existing tool"):
+        QueryBot(
+            model=TestModel(),
+            spec_cache=_make_spec_cache(),
+            connection_manager=MagicMock(),
+            tools=[compute_metrics],
+        )
+
+
+def test_constructor_tools_two_entries_collide_with_each_other():
+    def custom_dup() -> str:
+        return "a"
+
+    with pytest.raises(UserError, match="conflicts with existing tool"):
+        QueryBot(
+            model=TestModel(),
+            spec_cache=_make_spec_cache(),
+            connection_manager=MagicMock(),
+            tools=[custom_dup, custom_dup],
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -544,6 +636,78 @@ def test_three_step_flow_result_retrievable():
     rid = response.payload.primary_result_id
     entry = bot.get_result(rid)
     assert entry.arrow is not None
+
+
+# ---------------------------------------------------------------------------
+# Plan 28 / SF-5: per-call extra_tools= on chat() / ask()
+# ---------------------------------------------------------------------------
+
+
+def _visibility_recording_model(recorder: list) -> FunctionModel:
+    """FunctionModel that records visible tool names on each call, then ends the turn."""
+
+    def fn(messages: list, info: AgentInfo) -> ModelResponse:
+        recorder.append(sorted(t.name for t in info.function_tools))
+        output = QueryOutput(status=Status.ok, narrative="ok", result_ids=[])
+        return ModelResponse(parts=[TextPart(content=output.model_dump_json())])
+
+    return FunctionModel(fn)
+
+
+@pytest.mark.parametrize(
+    "tool_fn,expected",
+    [(custom_tool_sync, "sync-value"), (custom_tool_async, "async-value")],
+    ids=["sync", "async"],
+)
+def test_ask_extra_tools_invoked(tool_fn, expected):
+    bot = _make_bot_with_model(_make_custom_tool_model(tool_fn.__name__))
+    response = asyncio.run(bot.ask("use the extra tool", extra_tools=[tool_fn]))
+    assert expected in response.narrative
+
+
+def test_chat_extra_tools_ephemeral_not_visible_next_turn():
+    seen: list = []
+    bot = _make_bot_with_model(_visibility_recording_model(seen))
+    asyncio.run(bot.chat("first", extra_tools=[custom_tool_sync]))
+    asyncio.run(bot.chat("second"))
+    assert "custom_tool_sync" in seen[0]
+    assert "custom_tool_sync" not in seen[1]
+
+
+def test_ask_extra_tools_none_omits_toolsets_kwarg():
+    bot = _make_bot_with_model(TestModel())
+    with patch.object(bot._agent, "run", wraps=bot._agent.run) as mock_run:
+        asyncio.run(bot.ask("hello"))
+    _, kwargs = mock_run.call_args
+    assert "toolsets" not in kwargs
+
+
+def test_chat_extra_tools_none_omits_toolsets_kwarg():
+    bot = _make_bot_with_model(TestModel())
+    with patch.object(bot._agent, "run", wraps=bot._agent.run) as mock_run:
+        asyncio.run(bot.chat("hello"))
+    _, kwargs = mock_run.call_args
+    assert "toolsets" not in kwargs
+
+
+def test_ask_extra_tools_collision_surfaces_as_error_status():
+    def compute_metrics() -> str:  # collides with the default compute_metrics tool
+        return "x"
+
+    bot = _make_bot_with_model(TestModel())
+    response = asyncio.run(bot.ask("hello", extra_tools=[compute_metrics]))
+    assert response.status == Status.error
+    assert "conflicts with existing tool" in (response.reason or "")
+
+
+def test_chat_extra_tools_collision_surfaces_as_error_status():
+    def compute_metrics() -> str:  # collides with the default compute_metrics tool
+        return "x"
+
+    bot = _make_bot_with_model(TestModel())
+    response = asyncio.run(bot.chat("hello", extra_tools=[compute_metrics]))
+    assert response.status == Status.error
+    assert "conflicts with existing tool" in (response.reason or "")
 
 
 # ---------------------------------------------------------------------------

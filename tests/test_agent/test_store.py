@@ -6,6 +6,7 @@ import json
 
 import pyarrow as pa
 import pytest
+from pydantic_ai.toolsets import FunctionToolset
 
 from aitaem.agent.store import (
     ResultStore,
@@ -23,6 +24,7 @@ from aitaem.agent.base import Bot
 
 class _StubBot(Bot):
     def _build_agent(self):
+        self._toolset = FunctionToolset()
         return None
 
 
