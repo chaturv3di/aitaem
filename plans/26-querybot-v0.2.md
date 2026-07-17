@@ -1549,7 +1549,7 @@ Run after each SF:
    ```bash
    python -m pytest tests/test_agent/ --cov=aitaem/agent --cov-report=term-missing
    python -m pytest tests/ --ignore=tests/test_agent/   # core must stay green
-   python tools/check_import_graph.py
+   python scripts/check_import_graph.py
    ruff check aitaem/agent/
    ```
 10. **Smoke test (requires ANTHROPIC_API_KEY):**
@@ -1572,5 +1572,5 @@ Run after each SF:
 - [ ] All analysis tool tests still pass (unchanged)
 - [ ] System prompt contains Layer A + B content; Layer C (today's date) is injected dynamically
 - [ ] `python -m pytest tests/test_agent/ --cov=aitaem/agent` passes with ≥ 90% coverage
-- [ ] `python tools/check_import_graph.py` exits 0
+- [ ] `python scripts/check_import_graph.py` exits 0
 - [ ] Smoke test: `status=ok`, all three tool names in trace, primary_result_id set, cache read tokens > 0 on turn 2

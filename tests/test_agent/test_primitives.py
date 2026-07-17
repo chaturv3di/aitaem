@@ -39,7 +39,7 @@ def test_public_exports_present():
 
 def test_import_graph_check_passes():
     result = subprocess.run(
-        [sys.executable, "tools/check_import_graph.py"],
+        [sys.executable, "scripts/check_import_graph.py"],
         capture_output=True,
         text=True,
     )

@@ -2236,7 +2236,7 @@ No changes to any existing Phase 1 agent files (beyond `__init__.py`, `trace.py`
     ```bash
     uv pip install -e ".[agent-anthropic,dev]"
     python -m pytest tests/test_agent/ --cov=aitaem/agent --cov-report=term-missing
-    python tools/check_import_graph.py
+    python scripts/check_import_graph.py
     python -m pytest tests/ --ignore=tests/test_agent/ --cov=aitaem   # core must stay green
     ruff check aitaem/agent/
     mypy aitaem/agent/
@@ -2269,7 +2269,7 @@ Phase 2 is complete when:
 - [ ] `_build_system_prompt()` includes every metric/slice/segment name from the SpecCache
 - [ ] `python -m pytest tests/test_agent/ --cov=aitaem/agent` passes with ≥ 90% coverage
 - [ ] `python -m pytest tests/ --ignore=tests/test_agent/` still passes (no core regressions)
-- [ ] `python tools/check_import_graph.py` exits 0
+- [ ] `python scripts/check_import_graph.py` exits 0
 - [ ] `ruff check aitaem/agent/` and `mypy aitaem/agent/` pass clean
 - [ ] Smoke test passes against a real LLM: `ANTHROPIC_API_KEY=... pytest tests/test_agent/test_query_bot_smoke.py -v` — `status=ok`, `primary_result_id` set, Arrow table retrievable, `format_hints` populated
 

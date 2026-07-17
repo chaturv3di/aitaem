@@ -87,7 +87,7 @@ jobs:
           python-version: "3.12"
 
       - name: Check import graph
-        run: python tools/check_import_graph.py
+        run: python scripts/check_import_graph.py
 
   test-agent:
     name: test-agent (${{ matrix.python-version }})

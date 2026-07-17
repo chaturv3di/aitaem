@@ -660,7 +660,7 @@ Run after each SF:
 ```bash
 python -m pytest tests/test_agent/ --cov=aitaem/agent --cov-report=term-missing
 python -m pytest tests/ --ignore=tests/test_agent/    # core suite must stay green
-python tools/check_import_graph.py
+python scripts/check_import_graph.py
 ruff check aitaem/agent/
 ```
 
@@ -685,7 +685,7 @@ ruff check aitaem/agent/
 - [ ] `TabularEntry` and `TextEntry` round-trip correctly through `dump_history()` / `load_history()`
 - [ ] All Phase 1 and Phase 2 tests remain green
 - [ ] `python -m pytest tests/test_agent/ --cov=aitaem/agent` passes with ≥ 85% coverage
-- [ ] `python tools/check_import_graph.py` exits 0
+- [ ] `python scripts/check_import_graph.py` exits 0
 
 ---
 
