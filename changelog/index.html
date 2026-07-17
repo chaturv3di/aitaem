@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -31,7 +31,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1764,7 +1764,26 @@
 <li><strong><code>ConnectionManager.close_all()</code> now also tears down the cross-backend DuckDB</strong>
   connection and deletes its temporary file. Any <code>ibis.Table</code> objects returned by
   <code>compute()</code> that are backed by this database become invalid after <code>close_all()</code>.</li>
+<li><strong><code>aitaem.agent</code>: tool composition primitives for <code>QueryBot</code> and <code>DefinitionBot</code>
+  (Phase 5.2).</strong> The constructor <code>tools=[...]</code> parameter, <code>Bot.add_tool()</code>, and
+  the per-call <code>extra_tools=[...]</code> parameter on <code>chat()</code>/<code>ask()</code> are now
+  functional — previously all three were accepted but silently inert, and
+  <code>add_tool()</code> raised <code>NotImplementedError</code>. <code>tools=</code>/<code>add_tool()</code> register
+  persistently for the bot's lifetime; <code>extra_tools=</code> is scoped to a single
+  call. Tool-name collisions raise <code>pydantic_ai.exceptions.UserError</code> rather
+  than being silently resolved. <code>load_history()</code> now warns (<code>UserWarning</code>) if
+  a reloaded bundle references <code>add_tool()</code>-added tools that aren't present
+  after reload — the callables themselves aren't portably serializable, so
+  pass them again via <code>tools=[...]</code> or re-add them to restore. Generic
+  <code>Bot.as_tool()</code> / <code>add_bot()</code> composition remains deferred (see
+  <code>plans/agent_module/07-non-decisions.md</code>, ND-11).</li>
 </ul>
+<p>This work is intentionally sequenced ahead of Phase 4 (<code>SetupBot</code>) and
+  Phase 5.1. Comprehensive user testing of these composition primitives
+  hasn't happened yet — this release is what establishes whether bot
+  composition is shippable at all, even as an MVP. <code>SetupBot</code> isn't being
+  skipped outright; its need simply isn't assumed by default, and it's
+  picked back up on an explicit ask. See <code>plans/28-agent-phase5.2-composition.md</code>.</p>
 <h2 id="v040-2026-06-26">v0.4.0 — 2026-06-26</h2>
 <h3 id="breaking-changes_1">Breaking changes</h3>
 <ul>
@@ -2089,7 +2108,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
