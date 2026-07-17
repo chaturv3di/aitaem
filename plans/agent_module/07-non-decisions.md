@@ -145,6 +145,50 @@ via an analogous `get_prior_result(result_id)` tool.
 
 ---
 
+## ND-11: `Bot.as_tool()` and `Bot.add_bot(other_bot)` — generic bot-as-tool composition
+
+**What's deferred.** A generic `bot.as_tool()` that introspects a bot's `ask()`
+signature/output type and produces a pydantic-ai `Tool` automatically, plus
+`bot.add_bot(other_bot)` (sugar for `bot.add_tool(other_bot.as_tool())`). Both
+exist today as `NotImplementedError` stubs on `Bot`, added during Phase 1
+foundations. Phase 5.2 implements `Bot(tools=[...])`, `add_tool()`, and
+per-call `extra_tools=[...]` (AD-11's other two patterns) but not these two.
+
+**Why safe.** Only two convenience bots exist today (`QueryBot`,
+`DefinitionBot`); `SetupBot` (Phase 4) hasn't been built yet. A generic
+`as_tool()` has to make cross-cutting design decisions — how the wrapped
+bot's `RunTrace` and result store nest into the parent bot's, how a
+non-`str` payload collapses into a single tool-call result, how errors and
+`refused` status propagate up through the wrapping tool call — and there
+are only two bots' shapes to design against right now. Building the generic
+version before a third, structurally different bot exists risks guessing
+the wrong shape and having to break it later. `add_tool()` (shipping in
+Phase 5.2) is the one primitive any bot-as-tool wrapper would be built on
+regardless, so nothing about the generic version is blocked by deferring it.
+
+**Escape valve.** Wrap `ask()` as a plain function and register it via
+`add_tool()`:
+
+```python
+async def ask_definition_bot(question: str) -> str:
+    response = await definition_bot.ask(question)
+    return response.narrative
+
+query_bot.add_tool(ask_definition_bot)
+```
+
+This covers today's cross-bot delegation need with the library-level idiom
+already shipping in Phase 5.2 — no new API surface required. A generic
+`as_tool()` / `add_bot()` can be layered on top later, purely additively,
+since it would itself reduce to `add_tool()` under the hood.
+
+**Trigger to revisit.** Once `SetupBot` exists and there's a concrete
+three-bot orchestration scenario to design against, or once hand-writing the
+wrapper function per bot pairing becomes repetitive enough (three or more
+pairings) that the boilerplate itself becomes the complaint.
+
+---
+
 ## What's NOT a non-decision
 
 For clarity: these are decisions the architecture *has* taken, not punts:

@@ -243,7 +243,7 @@ Five extension points:
 | ID | Surface | Use case |
 |---|---|---|
 | EP1 | Custom tools (constructor / add / per-call) | Add domain logic; e.g. logging or auditing tools |
-| EP2 | Bot composition via `as_tool()` | Cross-bot delegation; orchestration without an orchestrator class |
+| EP2 | Cross-bot delegation via plain-function wrapping | Wrap a bot's `ask()` in a function, attach with `add_tool()`; generic `as_tool()`/`add_bot()` deferred (ND-11) |
 | EP3 | Custom bots from primitives | Downstream apps building their own bots on the primitives layer |
 | EP4 | Prompt overrides (subclass-first; richer API later) | Customize default prompts per deployment |
 | EP5 | Response payload extension | App-specific UX fields (e.g. visualization hints) in a payload subclass |
@@ -276,6 +276,7 @@ Nine things deliberately deferred, each with an "escape valve" describing the pa
 | ND-08 | Concurrent calls on same bot | Document as unsupported; lock if needed |
 | ND-09 | Reference eval harness in repo | **Open question for user decision** |
 | ND-10 | Multi-turn interactive refinement for DefinitionBot | `chat()` is provided; dedicated multi-turn spec-refinement UX is v1.x once usage patterns are established. Same deferral applies to QueryBot. See `plans/agent_module/07-non-decisions.md`. |
+| ND-11 | `Bot.as_tool()` / `Bot.add_bot(other_bot)` — generic bot-as-tool composition | Wrap `ask()` as a plain function and register it via `add_tool()`; a generic `as_tool()`/`add_bot()` can be layered on top later, purely additively |
 
 Each non-decision identifies the trigger that would cause us to revisit it.
 
@@ -293,9 +294,8 @@ flowchart LR
     P1 --> P4
     P2[Phase 2: QueryBot] --> P3[Phase 3: DefinitionBot]
     P2 --> P4[Phase 4: SetupBot]
-    P2 --> P5[Phase 5: Composition]
+    P2 --> P5[Phase 5.2: Composition]
     P3 --> P5
-    P4 --> P5
     P2 --> P6[Phase 6: Eval validation]
     P3 --> P6
     P4 --> P6
@@ -312,7 +312,7 @@ flowchart LR
   > **v0.2 update (Plan 26):** QueryBot resolution flow is superseded by a two-tool intent gate (`record_intent` → `resolve_intent` → `compute_metrics(spec_token)`), code-enforcing the Metric Precision Rule. Analysis tools unchanged. See [`09-querybot-v0.2-design.md`](09-querybot-v0.2-design.md) for design; [`../26-querybot-v0.2.md`](../26-querybot-v0.2.md) for the implementation plan.
 - **Phase 3 — DefinitionBot.** Schema introspection tools, spec validation tool, integration.
 - **Phase 4 — SetupBot.** Connection-validation tool, integration.
-- **Phase 5 — Composition.** `bot.as_tool()`, `add_tool()` / `add_bot()` / per-call `extra_tools`, cross-bot composition tests.
+- **Phase 5 — Composition.** `Bot(tools=[...])`, `add_tool()`, per-call `extra_tools`. Generic `bot.as_tool()` / `add_bot()` deferred — see ND-11.
 - **Phase 6 — Eval substrate validation.** Reference eval harness (if user opts in), OTel span emission verification.
 - **Phase 7 — Docs + v1.0 release.** Public API docs, getting-started examples, shipped to PyPI.
 

@@ -191,17 +191,26 @@ The third convenience bot. Lightest of the three.
 
 ## Phase 5 — Composition primitives
 
-These are the bot-as-tool and orchestration primitives. Lightweight in code, important for the blueprint promise (G2).
+Runtime tool-composition primitives. Lightweight in code, important for the blueprint promise (G2).
 
-### P5.1 — `Bot.as_tool()`
+> **Reordering note:** Phase 5.2 is intentionally prioritized ahead of Phase 4
+> (SetupBot) and Phase 5.1. It depends only on Phase 1 (foundations) and
+> Phase 2/3 (QueryBot, DefinitionBot) — not on Phase 4 — so it can proceed
+> before SetupBot exists. Detailed implementation plan:
+> `plans/28-agent-phase5.2-composition.md`.
 
-**What:** Returns a pydantic-ai-compatible Tool whose JSON schema is derived from the wrapped bot's `ask()` signature. When invoked, calls the wrapped bot's `ask()` and returns a structured result the outer agent can consume.
+### P5.1 — `Bot.as_tool()` — **Status: Deferred, see ND-11**
 
-### P5.2 — `add_tool()` / `add_bot()` / per-call `extra_tools`
+**What:** Was scoped to return a pydantic-ai-compatible Tool whose JSON schema is derived from the wrapped bot's `ask()` signature, invoking the wrapped bot's `ask()` and returning a structured result the outer agent can consume. Deferred pending a third convenience bot to design against; see ND-11 in [`07-non-decisions.md`](./07-non-decisions.md). Escape valve in the interim: wrap `ask()` as a plain function and register via `add_tool()` (P5.2).
 
-**What:** The runtime tool addition surface (AD-11). `add_tool` mutates an underlying `FunctionToolset`; `add_bot` is sugar for `add_tool(other_bot.as_tool())`; `extra_tools` parameter on `chat()` / `ask()` passes through to pydantic-ai's per-run `toolsets=...`.
+### P5.2 — `Bot(tools=[...])` / `add_tool()` / per-call `extra_tools`
 
-**Why this phase:** Once all three convenience bots exist, composition becomes interesting (and testable). Earlier ordering means tests like "QueryBot with DefinitionBot.as_tool() can delegate" are deferred to here.
+**What:** The runtime tool addition surface (AD-11), minus `add_bot()` (sugar over the deferred `as_tool()` — see ND-11). Three surfaces, all against `QueryBot` and `DefinitionBot` (the only convenience bots that exist today):
+- `Bot(tools=[...])` — construction-time tools, folded into the bot's default `FunctionToolset` alongside its built-in tools.
+- `add_tool()` — persistent runtime addition; mutates the bot's held `FunctionToolset`.
+- `extra_tools` on `chat()` / `ask()` — per-call ephemeral tools, passed through to pydantic-ai's per-run `toolsets=...` (additive to construction-time toolsets, not a replacement).
+
+**Why this phase:** These three surfaces are declared in both bots' constructor/method signatures already (Phase 2/3) but are inert — `tools=` and `extra_tools=` are accepted and silently dropped, and `add_tool()` raises `NotImplementedError`. Closing this gap doesn't require SetupBot to exist, so it's pulled ahead of Phase 4.
 
 ---
 
@@ -251,9 +260,8 @@ flowchart LR
     P1 --> P4
     P2[Phase 2: QueryBot] --> P3[Phase 3: DefinitionBot]
     P2 --> P4[Phase 4: SetupBot]
-    P2 --> P5[Phase 5: Composition]
+    P2 --> P5[Phase 5.2: Composition]
     P3 --> P5
-    P4 --> P5
     P2 --> P6[Phase 6: Eval validation]
     P3 --> P6
     P4 --> P6
@@ -262,7 +270,7 @@ flowchart LR
     classDef done fill:#dfd,stroke:#393
 ```
 
-Phase 1 is independent of P0 and can start immediately. Phase 2 can start as soon as Phase 1's primitives skeleton is in place. Phases 3 and 4 can parallelize after Phase 2. Phase 5 depends on all three convenience bots. Phase 6 validates everything before ship.
+Phase 1 is independent of P0 and can start immediately. Phase 2 can start as soon as Phase 1's primitives skeleton is in place. Phase 5.2 depends only on Phase 2 and Phase 3 (QueryBot, DefinitionBot) — not Phase 4 — and is reordered ahead of it; Phase 5.1 (`Bot.as_tool()`) is deferred (ND-11) and dropped from this graph. Phase 6 validates everything before ship.
 
 ---
 
@@ -297,6 +305,7 @@ Each of these has been worked through against concrete scenarios in the design p
 - Error taxonomy refinement (ND-03).
 - Prompt-fragment-override API (ND-04).
 - Hot-reload of SpecCache (ND-07).
+- Generic `Bot.as_tool()` / `add_bot()` bot-as-tool composition (ND-11).
 
 These are tracked in Section 7 with escape valves. They're v1.x or v2.0 candidates, not v1.0 implementation work.
 

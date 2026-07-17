@@ -22,17 +22,23 @@ Tools follow the pydantic-ai tool contract. The architecture imposes one additio
 
 **Example use case:** an audit-logging tool that records every agent run to the caller's database. Adding it via `add_tool()` keeps logging a tool-level concern rather than wrapping the bot at the application boundary.
 
-### EP2 — Bot composition (bot-as-tool)
+### EP2 — Cross-bot delegation (plain-function wrapping)
 
-`bot.as_tool()` converts any bot into a callable the agent can invoke. This enables:
+A generic `bot.as_tool()` / `bot.add_bot(other_bot)` that automatically converts any bot into a callable tool is **deferred** — see ND-11 in [`07-non-decisions.md`](./07-non-decisions.md). Only two convenience bots exist today (`QueryBot`, `DefinitionBot`); a generic version built against two data points risks the wrong shape for questions a third, structurally different bot (`SetupBot`) would raise — how a wrapped bot's trace and result store nest into the parent's, how a non-`str` payload collapses into one tool result, how `refused`/`error` status propagates through the wrapping call.
 
-- **Cross-bot delegation:** `QueryBot` configured with `DefinitionBot.as_tool()` lets the query agent ask "is there a spec for this?" and, if not, hand off to the definition bot.
-- **Orchestration without an orchestrator class:** a higher-level bot has multiple sub-bots as tools and routes between them.
-- **Domain-specific sub-bots:** a user-built `CustomerLookupBot` attached as a tool to QueryBot, letting query flows enrich answers with customer context.
+Today's escape valve — already sufficient for cross-bot delegation — is wrapping the target bot's `ask()` in a plain function and attaching it via EP1's `add_tool()`:
 
-`as_tool()` returns a regular pydantic-ai tool whose schema is derived from the wrapped bot's `ask()` signature. Attaches via any of EP1's three patterns.
+```python
+async def ask_definition_bot(question: str) -> str:
+    response = await definition_bot.ask(question)
+    return response.narrative
 
-**Example use case:** a unified "analyst" bot that fronts QueryBot, DefinitionBot, and SetupBot — letting one conversation handle question-answering, spec authoring, and connection setup without the user choosing a sub-bot upfront.
+query_bot.add_tool(ask_definition_bot)
+```
+
+This covers the same use cases a generic `as_tool()` would (cross-bot delegation, orchestration without a dedicated orchestrator class, domain-specific sub-bots) with library-level idioms already shipping in Phase 5.2 — no new API surface. A generic `as_tool()` / `add_bot()` can be layered on top later, purely additively, since it would itself reduce to `add_tool()` under the hood.
+
+**Example use case:** a unified "analyst" bot that fronts QueryBot and DefinitionBot via hand-written wrapper functions — letting one conversation handle question-answering and spec authoring without the user choosing a sub-bot upfront.
 
 ### EP3 — Custom bots from primitives
 
