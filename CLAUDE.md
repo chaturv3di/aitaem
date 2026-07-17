@@ -79,10 +79,11 @@ These instructions apply regardless of the nature of implementation task, whethe
     1. First look for existing test(s) that can be used to validate the implementation
     2. Implement new test case(s) if no existing ones suffice
     3. Execute the test(s) using `pytest` and leverage `pytest-cov` to ensure test coverage
-    4. If all the test cases pass, create a git commit automatically with a brief description of changes
-    5. If any tests fail, think deeply about the root cause and the amount of change needed to fix it
-    6. Automatically debug the code if the debugging is limited to the most recent code changes
-    7. If debugging requires changes to code/files which are outside of the scope of the current task/context, provide a justification for the proposed changes and ask for permission BEFORE making those bugfixes
+    4. Run `ruff check` and `mypy aitaem/` — both are CI gates (see `.github/workflows/ci.yml`), not optional
+    5. If all the test cases pass, create a git commit automatically with a brief description of changes
+    6. If any tests fail, think deeply about the root cause and the amount of change needed to fix it
+    7. Automatically debug the code if the debugging is limited to the most recent code changes
+    8. If debugging requires changes to code/files which are outside of the scope of the current task/context, provide a justification for the proposed changes and ask for permission BEFORE making those bugfixes
 6. If a new Python package is required, then add the dependency in `pyproject.toml` file.
     1. Install any dependencies ONLY USING `uv pip install <package>`
     2. It is safe to assume that `uv` is already available
@@ -129,5 +130,6 @@ When creating a release:
 - Running tests: `python -m pytest`
 - Dependency management: `uv`
 - Linting and formatting: `ruff`
+- Type checking: `mypy aitaem/`
 - Building/packaging: `hatchling`
 - Running development server (if applicable)
