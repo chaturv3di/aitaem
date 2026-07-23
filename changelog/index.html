@@ -916,6 +916,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#added" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1167,7 +1178,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fixed" class="md-nav__link">
+  <a href="#fixed_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Fixed
@@ -1361,6 +1372,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#added" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1612,7 +1634,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fixed" class="md-nav__link">
+  <a href="#fixed_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Fixed
@@ -1755,6 +1777,32 @@
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">(</span><span class="n">tmp_dir</span><span class="o">=</span><span class="s2">&quot;/data/tmp&quot;</span><span class="p">)</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">mc</span> <span class="o">=</span> <span class="n">MetricCompute</span><span class="p">(</span><span class="n">cache</span><span class="p">,</span> <span class="n">conn</span><span class="p">)</span>
 </code></pre></div>
+<ul>
+<li><strong><code>ValidateSpecResult.spec_draft_token</code> is no longer a constructor argument</strong> —
+  it's a read-only property derived from the new <code>result_id</code> field:</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Before</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">ValidateSpecResult</span><span class="p">(</span><span class="n">spec_draft_token</span><span class="o">=</span><span class="s2">&quot;dd_abc123&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># After</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">ValidateSpecResult</span><span class="p">(</span><span class="n">result_id</span><span class="o">=</span><span class="s2">&quot;dd_abc123&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p><code>ValidateSpecResult</code> now also rejects unknown constructor arguments
+  (<code>extra="forbid"</code>), so the old call raises <code>ValidationError</code> rather than
+  silently constructing an object with <code>spec_draft_token=None</code>. Only affects
+  direct construction of <code>ValidateSpecResult</code> (custom tooling, or tests
+  standing in for <code>validate_spec()</code>'s return value) — callers going through
+  <code>DefinitionBot</code>/<code>validate_spec()</code> see no change.</p>
+<h3 id="fixed">Fixed</h3>
+<ul>
+<li><strong><code>RunTrace.tool_calls[i].result_id</code> is now populated</strong> for tool calls that
+  mint a new <code>ResultStore</code> entry (previously always <code>None</code> regardless of what
+  the tool returned).</li>
+<li><strong><code>RunTrace.tool_calls[i].duration_ms</code> is now populated</strong> per tool call
+  (previously always <code>None</code> — only the whole-turn <code>RunTrace.duration_ms</code>
+  aggregate was set). No fields were added or removed on <code>RunTrace</code>/<code>ToolCall</code>
+  — both already existed; only their population was fixed.</li>
+</ul>
 <h3 id="added">Added</h3>
 <ul>
 <li><strong><code>ConnectionManager.__init__</code> accepts <code>tmp_dir: str | None = "/tmp"</code></strong> to
@@ -1783,7 +1831,15 @@
   hasn't happened yet — this release is what establishes whether bot
   composition is shippable at all, even as an MVP. <code>SetupBot</code> isn't being
   skipped outright; its need simply isn't assumed by default, and it's
-  picked back up on an explicit ask. See <code>plans/28-agent-phase5.2-composition.md</code>.</p>
+  picked back up on an explicit ask. See <code>plans/28-agent-phase5.2-composition.md</code>.
+- <strong><code>tests/evals/</code> — a runnable reference harness (<code>pydantic-evals</code>)</strong> demonstrating
+  how to wire tool-selection, refusal, and deterministic-correctness evaluators
+  against <code>QueryBot</code>/<code>DefinitionBot</code>'s <code>RunTrace</code>/<code>ResultStore</code>/<code>BotResponse</code>
+  substrate (resolves <code>plans/agent_module/07-non-decisions.md</code> ND-09). Runs in
+  CI via the new <code>evals</code> job against scripted <code>FunctionModel</code>s — no live LLM
+  calls or API keys required. Validates that the substrate is consumable by
+  <code>pydantic_evals.Evaluator</code>s, not agent behavior; point it at a live model
+  outside CI to evaluate actual quality. See <code>plans/29-agent-phase6-evals.md</code>.</p>
 <h2 id="v040-2026-06-26">v0.4.0 — 2026-06-26</h2>
 <h3 id="breaking-changes_1">Breaking changes</h3>
 <ul>
@@ -1794,12 +1850,12 @@
   are materialised internally and re-exposed as a Table backed by a temporary
   DuckDB database managed by the <code>MetricCompute</code> instance.</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Before (v0.3.x)</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># After (v0.4.0)</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>   <span class="c1"># lazy ibis.Table</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">df</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>      <span class="c1"># materialise when needed</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Before (v0.3.x)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># After (v0.4.0)</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>   <span class="c1"># lazy ibis.Table</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">df</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>      <span class="c1"># materialise when needed</span>
 </code></pre></div>
 <ul>
 <li><strong><code>MetricCompute.compute()</code> <code>output_format</code> parameter removed.</strong> The parameter
@@ -1990,7 +2046,7 @@
   (instead of listing <code>values</code>) to auto-populate slice values from the column's distinct
   values at query time. Supports simple and dot-qualified column names.</li>
 </ul>
-<h3 id="fixed">Fixed</h3>
+<h3 id="fixed_1">Fixed</h3>
 <ul>
 <li><code>MetricSpec.from_yaml()</code>, <code>SliceSpec.from_yaml()</code>, <code>SegmentSpec.from_yaml()</code>: no longer
   raise an unhandled <code>OSError</code> when a YAML string longer than the OS <code>PATH_MAX</code> value is
