@@ -115,6 +115,8 @@ Full compute parameters stashed in a per-run registry, keyed by `spec_token`. In
 
 All parameters flow through the token. The tool body pops the `ResolvedSpec` from the registry, constructs `MetricCompute`, executes, and stores the result.
 
+**Token lifetime (Plan 31):** the pop is single-use only on success. If the call fails (any exception raised by `MetricCompute` construction, `.compute()`, or storing the result), the popped `ResolvedSpec` is restored to the registry before the error is returned — the LLM can retry `compute_metrics(spec_token=...)` with the same token, without a fresh `record_intent`/`resolve_intent` round trip. A successful call still permanently consumes the token; a second call with the same token after success returns "already consumed." This is concurrency-safe under Anthropic's parallel tool calls: the pop is atomic (GIL-level dict operation), restoration only ever happens after a failure (never after success), and there is no suspension point between the pop and either outcome — the whole sequence runs as one uninterrupted unit per call.
+
 ### 4.5 `QueryDeps` (extended)
 
 ```python

@@ -209,6 +209,13 @@ def compute_metrics(
     # Pop on consume: single-use by design. With Anthropic parallel tool calls the LLM
     # can emit two compute_metrics(spec_token=X) in the same message; popping here
     # prevents double warehouse execution and duplicate result_ids from one query.
+    # Safety depends on there being no suspension point (await, or anything else that
+    # could yield to another concurrent caller) between this pop and either a
+    # successful return or the except block's restore below — true today only because
+    # this function is fully synchronous and spec_registry is a plain in-memory dict.
+    # Making this async with a real await in that span, or swapping spec_registry for
+    # something with its own yield point, breaks the "at most one caller ever holds
+    # resolved" guarantee this relies on.
     resolved = ctx.deps.spec_registry.pop(spec_token, None)
     if resolved is None:
         return ComputeMetricsResult(
@@ -260,6 +267,12 @@ def compute_metrics(
             },
         )
     except Exception as exc:
+        # Restore on failure: this attempt produced no result, so the token is still
+        # usable — for the LLM's own retry, or for a genuine duplicate call in the
+        # same batch that arrives after this one fails. Only ever restores after a
+        # failure, never after success, so this can't reopen the double-execution
+        # risk the pop above exists to prevent.
+        ctx.deps.spec_registry[spec_token] = resolved
         return ComputeMetricsResult(
             spec_token=spec_token,
             result_id="", row_count=0, sample=[], columns=[],

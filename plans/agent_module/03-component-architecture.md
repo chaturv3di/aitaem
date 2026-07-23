@@ -193,7 +193,8 @@ The single AITAEM-touching tool.
 - Constructs `MetricCompute(spec_cache, connection_manager)` fresh per call (AD-16, revised) — cheap, since `MetricCompute` no longer owns any on-disk resource (Plan 25 moved `tmp_dir` to `ConnectionManager`).
 - Returns an Ibis table reference (AITAEM v0.4.0+); writes both the materialized Arrow artifact and the Ibis ref to the result store.
 - LLM-facing summary: spec name(s), time window, row count, sample of up to 5 rows, column names, any format metadata.
-- Catches `SpecNotFoundError`, `QueryBuildError`, `QueryExecutionError`, `AitaemConnectionError`; returns error dicts. Never raises.
+- Catches any exception (`except Exception` — broader than just `SpecNotFoundError`/`QueryBuildError`/`QueryExecutionError`/`AitaemConnectionError`); returns an error dict. Never raises.
+- The consumed `spec_token` is restored to `spec_registry` on failure (Plan 31) — a failed call leaves the token usable for a retry with the same token, without a fresh `record_intent`/`resolve_intent` round trip. A successful call still permanently consumes the token.
 
 ### Analysis tools
 
