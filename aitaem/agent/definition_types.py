@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from aitaem.agent.store import ResultStore
 from aitaem.agent.trace import Status
@@ -159,9 +159,12 @@ class ValidationIssue(BaseModel):
 class ValidateSpecResult(BaseModel):
     """Returned by validate_spec — the anti-hallucination gate."""
 
-    # Set only when all five checks pass. The LLM must copy this token verbatim
-    # into DefinitionOutput.spec_draft_token.
-    spec_draft_token: str | None = None
+    model_config = ConfigDict(extra="forbid")
+
+    # Set only when all five checks pass. The canonical ResultStore pointer
+    # (ToolResult protocol, 03-component-architecture.md §2). Excluded from
+    # serialization — the LLM only ever sees spec_draft_token, derived below.
+    result_id: str | None = Field(default=None, exclude=True)
     # Structural / SQL / name-conflict / composite cross-ref failures.
     errors: list[ValidationIssue] = []
     # Live-schema column mismatches (best-effort; never a hard blocker).
@@ -172,3 +175,9 @@ class ValidateSpecResult(BaseModel):
     referenced_columns: dict[str, list[str]] | None = None
     # Tool-level failure (e.g. draft_id not found). Distinct from errors/column_errors.
     error: str | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def spec_draft_token(self) -> str | None:
+        """LLM-facing token. The LLM must copy this verbatim into DefinitionOutput.spec_draft_token."""
+        return self.result_id or None

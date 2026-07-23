@@ -16,6 +16,34 @@
   mc = MetricCompute(cache, conn)
   ```
 
+- **`ValidateSpecResult.spec_draft_token` is no longer a constructor argument** —
+  it's a read-only property derived from the new `result_id` field:
+
+  ```python
+  # Before
+  ValidateSpecResult(spec_draft_token="dd_abc123")
+
+  # After
+  ValidateSpecResult(result_id="dd_abc123")
+  ```
+
+  `ValidateSpecResult` now also rejects unknown constructor arguments
+  (`extra="forbid"`), so the old call raises `ValidationError` rather than
+  silently constructing an object with `spec_draft_token=None`. Only affects
+  direct construction of `ValidateSpecResult` (custom tooling, or tests
+  standing in for `validate_spec()`'s return value) — callers going through
+  `DefinitionBot`/`validate_spec()` see no change.
+
+### Fixed
+
+- **`RunTrace.tool_calls[i].result_id` is now populated** for tool calls that
+  mint a new `ResultStore` entry (previously always `None` regardless of what
+  the tool returned).
+- **`RunTrace.tool_calls[i].duration_ms` is now populated** per tool call
+  (previously always `None` — only the whole-turn `RunTrace.duration_ms`
+  aggregate was set). No fields were added or removed on `RunTrace`/`ToolCall`
+  — both already existed; only their population was fixed.
+
 ### Added
 
 - **`ConnectionManager.__init__` accepts `tmp_dir: str | None = "/tmp"`** to
@@ -45,6 +73,14 @@
   composition is shippable at all, even as an MVP. `SetupBot` isn't being
   skipped outright; its need simply isn't assumed by default, and it's
   picked back up on an explicit ask. See `plans/28-agent-phase5.2-composition.md`.
+- **`tests/evals/` — a runnable reference harness (`pydantic-evals`)** demonstrating
+  how to wire tool-selection, refusal, and deterministic-correctness evaluators
+  against `QueryBot`/`DefinitionBot`'s `RunTrace`/`ResultStore`/`BotResponse`
+  substrate (resolves `plans/agent_module/07-non-decisions.md` ND-09). Runs in
+  CI via the new `evals` job against scripted `FunctionModel`s — no live LLM
+  calls or API keys required. Validates that the substrate is consumable by
+  `pydantic_evals.Evaluator`s, not agent behavior; point it at a live model
+  outside CI to evaluate actual quality. See `plans/29-agent-phase6-evals.md`.
 
 ## v0.4.0 — 2026-06-26
 

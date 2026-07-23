@@ -22,7 +22,7 @@ The aggregated `RunTrace` returned in every bot response (Section 3) is the prim
 - **Replay-sufficient** — given `(initial spec_cache state, model, history-before-turn, user message, RunTrace)`, an eval harness can reconstruct what the LLM saw and what it did. Tool call arguments are captured as structured dicts (not stringified blobs). Tool return values seen by the LLM are captured verbatim.
 - **Self-contained per turn** — no cross-turn references inside a single trace. Multi-turn evaluation aggregates traces externally.
 - **Serializable** — JSON-compatible. The `RunTrace` is a Pydantic model; `model_dump()` is the canonical serialization.
-- **Eval-friendly by structure**, not by adapter. Specifically: `tools_called: list[ToolCall]` where each entry carries `name`, `args: dict`, `result_id: str | None`, `summary_returned_to_llm: dict`, `success: bool`, `duration_ms: int`. This shape is consumable directly by any eval framework's "tool-use" scorer.
+- **Eval-friendly by structure**, not by adapter. Specifically: `RunTrace.tool_calls: list[ToolCall]` where each entry carries `tool_call_id: str`, `name: str`, `args: dict[str, Any]`, `result_id: str | None`, `llm_summary: str | None`, `success: bool`, `duration_ms: float | None`. This shape is consumable directly by any eval framework's "tool-use" scorer.
 
 ### History
 
@@ -164,13 +164,13 @@ This means switching frameworks later — if pydantic-evals stalls, if deepeval 
 
 ---
 
-## 6. Open question for the user
+## 6. Resolved: reference eval harness ships in the repo
 
-The recommendation above assumes the user wants the agent module's authors (us) to ship a small reference eval harness as part of the `aitaem` repository — e.g. `tests/evals/test_query_bot.py` demonstrating how to wire `QueryBot` to pydantic-evals with a few example cases.
+The recommendation above assumed the user wanted the agent module's authors (us) to ship a small reference eval harness as part of the `aitaem` repository — e.g. `tests/evals/test_query_bot_evals.py` demonstrating how to wire `QueryBot` to pydantic-evals with a few example cases.
 
 Two paths:
 
 - **(a) Ship reference evals in the repo.** Makes the substrate self-evidencing — users see how to evaluate their own deployments. Cost: maintaining the eval examples alongside the library.
 - **(b) Document the substrate, don't ship evals.** Lighter library; cleaner separation. Cost: harder for new AITAEM users to know how to evaluate.
 
-I lean (a) for the same reason the agent module exists at all (blueprint pattern from Section 2). Flagging for the user's call.
+Resolved: (a). See `plans/29-agent-phase6-evals.md` and `07-non-decisions.md` ND-09.

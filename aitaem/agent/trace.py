@@ -67,6 +67,20 @@ class RunTrace(BaseModel):
     error: str | None = None
 
 
+def _extract_result_id(content: Any) -> str | None:
+    """Pull a ResultStore pointer off a tool's structured return value, if present.
+
+    Reads the single canonical `result_id` attribute (per the ToolResult
+    protocol, 03-component-architecture.md §2) — every tool result type that
+    mints a ResultStore entry exposes it under this name, including
+    ValidateSpecResult. Returns None if the attribute doesn't exist (tools
+    that mint no store entry, e.g. record_intent/list_tables) or is falsy
+    (covers the `result_id=""` failure sentinel used by query_types.ToolResult
+    subclasses).
+    """
+    return getattr(content, "result_id", None) or None
+
+
 def assemble_trace(result: Any, run_start: datetime) -> RunTrace:
     """Assemble a RunTrace from a completed pydantic-ai AgentRunResult.
 
@@ -96,6 +110,7 @@ def assemble_trace(result: Any, run_start: datetime) -> RunTrace:
                         "tool_call_id": part.tool_call_id,
                         "name": part.tool_name,
                         "args": args,
+                        "start_time": msg.timestamp,
                     }
 
     for msg in result.new_messages():
@@ -105,19 +120,25 @@ def assemble_trace(result: Any, run_start: datetime) -> RunTrace:
                     tc = pending.get(return_part.tool_call_id)
                     if tc is not None:
                         content = return_part.content
-                        tc["llm_summary"] = (
-                            content if isinstance(content, str)
-                            else return_part.model_response_str()
-                        )
+                        if isinstance(content, str):
+                            tc["llm_summary"] = content
+                        else:
+                            tc["llm_summary"] = return_part.model_response_str()
+                            tc["result_id"] = _extract_result_id(content)
                         tc["success"] = return_part.outcome == "success"
+                        tc["duration_ms"] = (
+                            return_part.timestamp - tc["start_time"]
+                        ).total_seconds() * 1000
 
     tool_calls = [
         ToolCall(
             tool_call_id=tc["tool_call_id"],
             name=tc["name"],
             args=tc["args"],
+            result_id=tc.get("result_id"),
             llm_summary=tc.get("llm_summary"),
             success=tc.get("success", True),
+            duration_ms=tc.get("duration_ms"),
         )
         for tc in pending.values()
     ]

@@ -710,6 +710,34 @@ def test_full_flow_returns_status_ok():
     assert response.payload.yaml_string is not None
 
 
+def test_full_flow_validate_spec_trace_result_id_and_duration_populated():
+    mock_cm = MagicMock()
+    mock_cm.backend_types = ["duckdb"]
+    mock_connector = MagicMock()
+    mock_connector.list_tables.return_value = ["transactions"]
+    mock_ibis_table = MagicMock()
+    mock_ibis_table.schema.return_value = MagicMock(names=["amount", "transaction_date"], types=["float64", "date"])
+    mock_ibis_table.columns = ["amount", "transaction_date"]
+    mock_connector.get_table.return_value = mock_ibis_table
+    mock_cm.get_connection.return_value = mock_connector
+
+    bot = DefinitionBot(
+        model=_make_full_flow_model(),
+        spec_cache=_make_spec_cache(),
+        connection_manager=mock_cm,
+    )
+
+    response = asyncio.run(
+        bot.ask("Define a revenue metric on the transactions table")
+    )
+
+    validate_call = next(
+        tc for tc in response.trace.tool_calls if tc.name == "validate_spec"
+    )
+    assert validate_call.result_id == response.payload.spec_draft_token
+    assert validate_call.duration_ms is not None
+
+
 def test_full_flow_payload_metric_spec_populated():
     mock_cm = MagicMock()
     mock_cm.backend_types = ["duckdb"]
