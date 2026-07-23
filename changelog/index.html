@@ -1802,6 +1802,13 @@
   (previously always <code>None</code> — only the whole-turn <code>RunTrace.duration_ms</code>
   aggregate was set). No fields were added or removed on <code>RunTrace</code>/<code>ToolCall</code>
   — both already existed; only their population was fixed.</li>
+<li><strong><code>compute_metrics</code> no longer permanently consumes a <code>spec_token</code> on a failed
+  compute.</strong> Previously any exception during the compute (warehouse error,
+  transient connection failure, etc.) burned the token, forcing a full
+  <code>record_intent</code>/<code>resolve_intent</code> round trip to retry — even though the
+  failure had nothing to do with resolution validity. The token is now
+  restored on failure and can be reused directly; a successful call still
+  permanently consumes it.</li>
 </ul>
 <h3 id="added">Added</h3>
 <ul>
