@@ -309,6 +309,8 @@ flowchart LR
 - **Phase 1 — Foundations.** Package structure, optional install, primitives skeleton, trace assembly. Can run in parallel with Phase 2 prep.
 - **Phase 2 — QueryBot.** `compute_metrics` constructing `MetricCompute` per call (AD-16, revised), five analysis tools (lazy-mode-aware), default prompt with Metric Precision Rule, integration, end-to-end multi-turn tests. **Largest phase; bulk of architectural risk lives here.**
   > **v0.2 update (Plan 26):** QueryBot resolution flow is superseded by a two-tool intent gate (`record_intent` → `resolve_intent` → `compute_metrics(spec_token)`), code-enforcing the Metric Precision Rule. Analysis tools unchanged. See [`09-querybot-v0.2-design.md`](09-querybot-v0.2-design.md) for design; [`../26-querybot-v0.2.md`](../26-querybot-v0.2.md) for the implementation plan.
+  >
+  > **Plan 31:** `spec_token` is single-use on success only — a failed `compute_metrics` restores the token, so a retry needs no fresh `record_intent`/`resolve_intent`. Safe under parallel tool calls because the pop is atomic and restore only follows failure, with no suspension point between them. That last condition is what the guarantee rests on; hosts that wrap these tools in an async execution model must supply their own mutual exclusion.
 - **Phase 3 — DefinitionBot.** Schema introspection tools, spec validation tool, integration.
 - **Phase 4 — SetupBot.** Connection-validation tool, integration.
 - **Phase 5 — Composition.** `Bot(tools=[...])`, `add_tool()`, per-call `extra_tools`. Generic `bot.as_tool()` / `add_bot()` deferred — see ND-11.
