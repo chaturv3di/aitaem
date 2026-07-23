@@ -13,6 +13,11 @@ your agent actually behaves the way you expect — tests/evals/ only proves the
 trace/result-store/evaluator wiring is consumable, not that any given model
 selects the right tool or refuses appropriately.
 
+This module is the single implementation for both the standalone script below
+and 04_evaluating_agents_example.ipynb — the notebook imports from here rather
+than redefining any of this, so the two can't drift apart. If you're reading
+the notebook, everything it calls is defined here.
+
 Prerequisites
 -------------
 1. Create the DuckDB database (one-time setup):
@@ -43,6 +48,7 @@ import os
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from typing import Awaitable, Callable
 
 from pydantic_evals import Case, Dataset
 from pydantic_evals.evaluators import Evaluator, EvaluatorContext
@@ -58,17 +64,56 @@ MODEL = "anthropic:claude-haiku-4-5-20251001"
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _check_api_key() -> str:
+def check_api_key(exit_on_missing: bool = True) -> str:
+    """Read ANTHROPIC_API_KEY. exit_on_missing=True (script default) prints to
+    stderr and calls sys.exit(1); pass False (notebook use) to raise
+    RuntimeError instead, since sys.exit() would kill a Jupyter kernel."""
     key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not key:
-        print(
-            "ERROR: ANTHROPIC_API_KEY is not set.\n"
+        message = (
+            "ANTHROPIC_API_KEY is not set.\n"
             "       Export it before running:\n"
-            "           export ANTHROPIC_API_KEY=sk-ant-...\n",
-            file=sys.stderr,
+            "           export ANTHROPIC_API_KEY=sk-ant-...\n"
         )
-        sys.exit(1)
+        if exit_on_missing:
+            print(f"ERROR: {message}", file=sys.stderr)
+            sys.exit(1)
+        raise RuntimeError(message)
     return key
+
+
+def print_pass_rate(rates: dict[str, dict[str, float]]) -> None:
+    for case_name, breakdown in rates.items():
+        print(f"  {case_name}:")
+        print(f"    overall: {breakdown['overall']:.0%}")
+        for evaluator_name, rate in breakdown.items():
+            if evaluator_name != "overall":
+                print(f"    {evaluator_name}: {rate:.0%}")
+
+
+# ---------------------------------------------------------------------------
+# Setup
+# ---------------------------------------------------------------------------
+
+def setup(base_path: str = ".") -> tuple[SpecCache, ConnectionManager]:
+    """Load the spec catalog and connect to DuckDB, creating it from the
+    bundled CSV if needed. base_path is the aitaem repo root — "." when run
+    as a script from the project root, or an explicit path from a notebook
+    that may be running from a different working directory."""
+    spec_cache = SpecCache.from_yaml(
+        metric_paths=os.path.join(base_path, "examples/metrics/"),
+        slice_paths=os.path.join(base_path, "examples/slices/"),
+    )
+
+    db_path = os.path.join(base_path, "examples/data/ad_campaigns.duckdb")
+    if not os.path.exists(db_path):
+        from aitaem.helpers import load_csvs_to_duckdb
+        csv_path = os.path.join(base_path, "examples/data/ad_campaigns.csv")
+        load_csvs_to_duckdb(csv_path, db_path)
+
+    conn_mgr = ConnectionManager()
+    conn_mgr.add_connection("duckdb", path=db_path)
+    return spec_cache, conn_mgr
 
 
 # ---------------------------------------------------------------------------
@@ -86,17 +131,28 @@ class QOut:
     bot: QueryBot             # kept so evaluators can call get_result()
 
 
-async def query_task(inputs: QIn) -> QOut:
-    # Fresh bot per case — per-run state (intents, spec registry) must not leak
-    # across cases. SPEC_CACHE/CONN_MGR are safe to share: read-only catalog
-    # and connection, set up in main() before the dataset runs.
-    bot = QueryBot(
-        model=MODEL,
-        spec_cache=SPEC_CACHE,
-        connection_manager=CONN_MGR,
-    )
-    response = await bot.ask(inputs.question)  # single-turn, no history
-    return QOut(response=response, bot=bot)
+def make_query_task(
+    spec_cache: SpecCache, connection_manager: ConnectionManager
+) -> Callable[[QIn], Awaitable[QOut]]:
+    """Bind a task function to a specific (spec_cache, connection_manager) pair
+    via closure, rather than reading module-level globals — this is what lets
+    a notebook cell call setup() and pass the result straight through, instead
+    of needing to mutate this module's own namespace to make query_task() see
+    them."""
+
+    async def query_task(inputs: QIn) -> QOut:
+        # Fresh bot per case — per-run state (intents, spec registry) must not
+        # leak across cases. spec_cache/connection_manager are safe to share:
+        # read-only catalog and connection.
+        bot = QueryBot(
+            model=MODEL,
+            spec_cache=spec_cache,
+            connection_manager=connection_manager,
+        )
+        response = await bot.ask(inputs.question)  # single-turn, no history
+        return QOut(response=response, bot=bot)
+
+    return query_task
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +244,9 @@ dataset: Dataset[QIn, QOut, None] = Dataset(
 # ---------------------------------------------------------------------------
 
 async def pass_rate(
-    dataset: Dataset[QIn, QOut, None], task, n: int = 5
+    dataset: Dataset[QIn, QOut, None],
+    task: Callable[[QIn], Awaitable[QOut]],
+    n: int = 5,
 ) -> dict[str, dict[str, float]]:
     """Per-case, per-evaluator pass rates, plus an "overall" (all-assertions-passed)
     rate per case. A collapsed overall number can't tell you whether a low rate
@@ -228,31 +286,14 @@ async def pass_rate(
 # Main
 # ---------------------------------------------------------------------------
 
-SPEC_CACHE: SpecCache
-CONN_MGR: ConnectionManager
-
-
-async def main() -> None:
-    global SPEC_CACHE, CONN_MGR
-    _check_api_key()
+async def main(base_path: str = ".", exit_on_missing_key: bool = True) -> None:
+    check_api_key(exit_on_missing=exit_on_missing_key)
 
     print("Loading specs …")
-    SPEC_CACHE = SpecCache.from_yaml(
-        metric_paths="examples/metrics/",
-        slice_paths="examples/slices/",
-    )
-    print(f"  {len(SPEC_CACHE.metrics)} metrics: {', '.join(SPEC_CACHE.metrics)}")
+    spec_cache, conn_mgr = setup(base_path)
+    print(f"  {len(spec_cache.metrics)} metrics: {', '.join(spec_cache.metrics)}")
 
-    db_path = "examples/data/ad_campaigns.duckdb"
-    if not os.path.exists(db_path):
-        print("\nDuckDB file not found — creating from CSV …")
-        from aitaem.helpers import load_csvs_to_duckdb
-        load_csvs_to_duckdb("examples/data/ad_campaigns.csv", db_path)
-        print(f"  Created {db_path}")
-
-    print("\nConnecting to DuckDB …")
-    CONN_MGR = ConnectionManager()
-    CONN_MGR.add_connection("duckdb", path=db_path)
+    query_task = make_query_task(spec_cache, conn_mgr)
 
     print("\nRunning dataset once …")
     report = await dataset.evaluate(query_task, progress=False)
@@ -260,12 +301,7 @@ async def main() -> None:
 
     print("\nRunning pass_rate(n=5) — 10 bot invocations, budget accordingly …")
     rates = await pass_rate(dataset, query_task, n=5)
-    for case_name, breakdown in rates.items():
-        print(f"  {case_name}:")
-        print(f"    overall: {breakdown['overall']:.0%}")
-        for evaluator_name, rate in breakdown.items():
-            if evaluator_name != "overall":
-                print(f"    {evaluator_name}: {rate:.0%}")
+    print_pass_rate(rates)
 
 
 if __name__ == "__main__":
