@@ -73,7 +73,7 @@ The base class behind `QueryBot`, `DefinitionBot`, `SetupBot`. Owns:
 - Conversation history (when in `chat()` mode)
 - The tool registry
 - Trace assembly per turn
-- For bots that compute metrics: a single `MetricCompute` instance held for the bot's lifetime (AD-16)
+- For bots that compute metrics: `MetricCompute` constructed fresh per compute call (AD-16, revised) — no long-lived instance held
 
 Exposes `ask()` (single-turn, stateless w.r.t. history), `chat()` (multi-turn), `dump_history()` / `load_history()`, `get_result()`, `add_tool()`, `reset()`. Generic `add_bot()` / `as_tool()` bot-as-tool composition is deferred — see Section 7, ND-11.
 
@@ -150,19 +150,16 @@ Bot(
     # ── AITAEM operational inputs ──
     spec_cache: SpecCache,
     connection_manager: ConnectionManager,
-
-    # ── AITAEM passthrough config (bots that construct MetricCompute) ──
-    compute_kwargs: dict[str, Any] | None = None,
 )
 ```
 
-`compute_kwargs` is the opaque pass-through to `MetricCompute(...)` (AD-17). The bot has no opinion on AITAEM operational parameters; whatever the caller provides is forwarded. Bots that don't construct `MetricCompute` (DefinitionBot, SetupBot) don't expose `compute_kwargs`.
+AD-17's opaque `compute_kwargs` pass-through to `MetricCompute(...)` is dormant — no bot currently exposes `compute_kwargs`, since `MetricCompute` takes only `spec_cache`/`connection_manager` today. See AD-17 for the conditions that would reactivate it.
 
 ### QueryBot
 
 Answers natural-language questions against the spec catalog by calling `compute_metrics` and analysis tools.
 
-- **Holds a `MetricCompute` instance** at construction (using `spec_cache`, `connection_manager`, and any `compute_kwargs`), reused across all tool calls in the bot's lifetime (AD-16).
+- **Constructs a fresh `MetricCompute` per `compute_metrics` call** (AD-16, revised), from the held `spec_cache`/`connection_manager`.
 - **Default tool set:** `compute_metrics` + analysis tools (`rank_by_value`, `filter_by_threshold`, `distribution_summary`, `period_over_period`, `contribution_share`).
 - **Payload (`QueryPayload`)** carries the result IDs of artifacts produced this turn, plus metadata: spec(s) used, time window applied, period type, by_entity, format hints, and references into the result store.
 - **Guardrails (default):** the Metric Precision Rule (refuse with status=refused when no spec precisely answers, rather than substituting a "close enough" metric). Validated against real-world usage patterns; shipped as the AITAEM default.
@@ -193,10 +190,11 @@ Helps a user configure a backend connection.
 
 The single AITAEM-touching tool.
 
-- Calls `.compute(...)` on the bot's held `MetricCompute` instance (AD-16); does not instantiate one per call.
+- Constructs `MetricCompute(spec_cache, connection_manager)` fresh per call (AD-16, revised) — cheap, since `MetricCompute` no longer owns any on-disk resource (Plan 25 moved `tmp_dir` to `ConnectionManager`).
 - Returns an Ibis table reference (AITAEM v0.4.0+); writes both the materialized Arrow artifact and the Ibis ref to the result store.
 - LLM-facing summary: spec name(s), time window, row count, sample of up to 5 rows, column names, any format metadata.
-- Catches `SpecNotFoundError`, `QueryBuildError`, `QueryExecutionError`, `AitaemConnectionError`; returns error dicts. Never raises.
+- Catches any exception (`except Exception` — broader than just `SpecNotFoundError`/`QueryBuildError`/`QueryExecutionError`/`AitaemConnectionError`); returns an error dict. Never raises.
+- The consumed `spec_token` is restored to `spec_registry` on failure (Plan 31) — a failed call leaves the token usable for a retry with the same token, without a fresh `record_intent`/`resolve_intent` round trip. A successful call still permanently consumes the token.
 
 ### Analysis tools
 

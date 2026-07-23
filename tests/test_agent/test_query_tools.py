@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import datetime
+import gc
+from pathlib import Path
 
 import pyarrow as pa
 import pytest
 from unittest.mock import MagicMock, patch
 
 from aitaem.agent.store import ResultStore
+from aitaem.specs.loader import SpecCache
 from aitaem.agent.query_types import (
     QueryDeps,
     QueryOutput,
@@ -540,3 +543,57 @@ def test_analysis_tool_result_id_not_source():
     ctx = _make_ctx(deps)
     result = rank_by_value(ctx, result_id=rid, top_n=3)
     assert result.result_id != rid
+
+
+# ---------------------------------------------------------------------------
+# Plan 30, SF-6: live ibis.Table refs survive per-call MetricCompute's GC
+# ---------------------------------------------------------------------------
+
+_EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
+
+
+def test_live_ibis_ref_survives_metric_compute_gc(ad_campaigns_connection_manager):
+    """AD-16 (revised): compute_metrics() constructs MetricCompute fresh per
+    call — no bot-held instance. This proves the live ibis.Table ref stored
+    in ResultStore doesn't depend on that per-call MetricCompute staying
+    alive: it depends on ConnectionManager (bot-held), which is untouched by
+    the per-call instance's garbage collection.
+
+    Uses the real (non-mocked) MetricCompute/aitaem.insights against the
+    session-scoped ad_campaigns DuckDB fixture and a real SpecCache loaded
+    from examples/ — a mocked MetricCompute wouldn't exercise the actual
+    Ibis-ref lifetime this test is verifying. Single-backend, per plan 30's
+    accepted fallback (ad_campaigns lives in one DuckDB; this doesn't
+    exercise the cross-backend scratch-DB path specifically).
+    """
+    spec_cache = SpecCache.from_yaml(
+        metric_paths=str(_EXAMPLES_DIR / "metrics"),
+        slice_paths=str(_EXAMPLES_DIR / "slices"),
+        segment_paths=str(_EXAMPLES_DIR / "segments"),
+    )
+    deps = QueryDeps(
+        spec_cache=spec_cache,
+        connection_manager=ad_campaigns_connection_manager,
+        store=ResultStore(),
+    )
+    ctx = _make_ctx(deps)
+
+    record_intent(ctx, metric_concept="total revenue", scope="overall")
+    resolved = resolve_intent(ctx, intent_id=0, metric_name="total_revenue")
+    assert resolved.exact_match is not None
+    spec_token = resolved.exact_match.spec_token
+
+    result = compute_metrics(ctx, spec_token=spec_token)
+    assert not result.error
+    assert result.result_id
+
+    # The compute_metrics() call above returned; its local `mc` (MetricCompute)
+    # is out of scope. Force collection rather than relying on CPython
+    # refcounting happening to have already reclaimed it.
+    gc.collect()
+
+    entry = deps.store.get_tabular(result.result_id)
+    assert entry.ibis_ref is not None
+    arrow = entry.ibis_ref.to_pyarrow()
+    assert len(arrow) == 1
+    assert arrow.column("metric_value")[0].as_py() > 0

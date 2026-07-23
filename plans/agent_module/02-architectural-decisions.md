@@ -199,7 +199,7 @@ Analysis tools prefer the Ibis ref (predicate pushdown to the warehouse, or push
 
 **Consequences.**
 - Memory bloat from full materialization avoided in lazy mode.
-- Live Ibis refs are valid only while the `MetricCompute` that produced them is alive. AD-16 commits the bot to holding one `MetricCompute` instance for its lifetime, so refs are live for the bot's lifetime by construction.
+- Live Ibis refs are valid only while the `ConnectionManager` that produced them is alive — bot-held for the bot's lifetime regardless of how `MetricCompute` (AD-16, revised) is scoped.
 - Analysis tools can be implemented in either lazy or eager mode per tool; pushdown is the preference but not the requirement.
 
 ---
@@ -241,7 +241,27 @@ Analysis tools prefer the Ibis ref (predicate pushdown to the warehouse, or push
 
 ---
 
-## AD-16: `MetricCompute` lifetime matches bot lifetime
+## AD-16: `MetricCompute` is constructed fresh per `compute_metrics` call — revised (Plan 30)
+
+**Superseded context.** The original decision below (one `MetricCompute` instance held for the bot's lifetime) was made when AITAEM v0.4.0's `tmp_dir` parameter made `MetricCompute` stateful — it owned an on-disk scratch-DuckDB resource, reclaimed on GC. Plan 25 (`tmp-dir-to-connection-manager`) moved `tmp_dir` onto `ConnectionManager` instead, making `MetricCompute` stateless again. This decision is revised accordingly; the original context, decision, rationale, and consequences are kept below as historical record.
+
+**Revised decision.** No bot-held `MetricCompute` instance. `compute_metrics()` (`aitaem/agent/query_tools.py:224`) constructs `MetricCompute(ctx.deps.spec_cache, ctx.deps.connection_manager)` fresh, on every call.
+
+**Revised rationale.**
+- `MetricCompute.__init__(self, spec_cache, connection_manager)` (`aitaem/insights.py:106`) stores only plain references — no owned resource, nothing to reuse across calls for.
+- Addresses both of the original decision's rationales below, not just the tmp_dir one:
+  - tmp_dir/GC: `ConnectionManager` now owns the scratch DuckDB file and its reclaim; `MetricCompute` never did after Plan 25.
+  - Live Ibis refs: refs reference into `ConnectionManager._cross_backend_conn` (`aitaem/connectors/connection.py:441-450`), cached on `ConnectionManager` and torn down only by `close_all()`/`__del__` — not tied to any particular `MetricCompute` instance's lifetime. See AD-12's consequences, corrected above.
+- The "bot-as-session (AD-04) alignment" framing from the original decision is dropped, not carried forward — there's no resource left for the bot to align a lifecycle with.
+
+**Revised consequences.**
+- No `self._metric_compute` on the bot; `bot.reset()` has nothing `MetricCompute`-related to rebuild.
+- Live `ibis.Table` refs remain valid for `ConnectionManager`'s lifetime (bot-held), independent of how often `MetricCompute` itself is constructed and discarded. Verified by a regression test forcing GC between `compute_metrics()`'s return and the ref's use (Plan 30, SF-6).
+- `DefinitionBot` and `SetupBot` still never construct a `MetricCompute` — unaffected by this revision.
+
+---
+
+**Original decision (v0.4.0-era, superseded above).**
 
 **Context.** AITAEM v0.4.0 added a `tmp_dir` parameter to `MetricCompute`, used for a scratch DuckDB file when a compute spans multiple source backends. The file is reclaimed when the `MetricCompute` instance is garbage-collected. This makes `MetricCompute` effectively stateful — it now owns an on-disk resource.
 
@@ -263,7 +283,15 @@ The agent module must take a position on `MetricCompute` lifetime. Three options
 
 ---
 
-## AD-17: AITAEM operational parameters pass through opaquely via `compute_kwargs`
+## AD-17: `compute_kwargs` passthrough — dormant, not currently implemented (Plan 30)
+
+**Revised status.** `MetricCompute` currently takes only `spec_cache`/`connection_manager` (`aitaem/insights.py:106`) — both already top-level bot constructor parameters. No operational parameter exists today for `compute_kwargs` to forward, so `QueryBot` doesn't implement one; `QueryBot.__init__` (`aitaem/agent/query_bot.py:276`) has no `compute_kwargs` parameter.
+
+**Kept as reactivation guidance, not current behavior.** If AITAEM reintroduces an operational `MetricCompute` parameter (e.g. connection pool sizes, query timeouts, retry policies), the original design reasoning below still applies and should be reactivated rather than re-derived: opaque dict pass-through beats a typed wrapper, because the bot has no opinion on AITAEM's parameter surface. The original context/decision/rationale/consequences are kept below, marked as reactivation design rather than current behavior.
+
+---
+
+**Original decision (reactivation design, not current behavior).**
 
 **Context.** AITAEM v0.4.0 added one operational parameter (`tmp_dir`); future minors may add more (connection pool sizes, query timeouts, retry policies, cache TTLs). Each addition could require updating the bot constructor signature, creating version coupling between `aitaem.agent` and `aitaem` core that we want to avoid even though both ship together.
 

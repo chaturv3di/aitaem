@@ -7,7 +7,7 @@ This section defines what the `aitaem.agent` module imports from `aitaem` core. 
 Two contract surfaces are documented:
 
 1. **Current contract (AITAEM v0.4.0):** what the agent module consumes today.
-2. **Cross-backend materialization considerations:** the v0.4.0 `tmp_dir` parameter to `MetricCompute` and its lifetime implications for the agent module.
+2. **Cross-backend materialization considerations:** the v0.4.0 `tmp_dir` parameter, historically added to `MetricCompute` and its lifetime implications for the agent module, subsequently moved to `ConnectionManager` (Plan 25) — see §2 below for the current state.
 
 ---
 
@@ -25,7 +25,7 @@ All imports below are from the top-level `aitaem` package. Submodule imports are
 | `SegmentSpec` | class | Typed spec object via `SpecCache.segments[name]`. |
 | `IbisConnector` | class | Backend-specific connector. Constructed by `ConnectionManager.add_connection()`; agent module does not instantiate directly. |
 | `ConnectionManager` | class | The connection registry passed by the caller. Owns connection lifecycle. |
-| `MetricCompute` | class | The compute engine. The agent module holds one instance per bot (AD-16), constructed with `spec_cache`, `connection_manager`, and optionally `tmp_dir` and other operational kwargs (AD-17). `.compute(...)` returns an `ibis.Table` (lazy). |
+| `MetricCompute` | class | The compute engine. The agent module constructs one fresh per `compute_metrics` call (AD-16, revised), from `spec_cache` and `connection_manager` only — no operational kwargs exist to forward today (AD-17, dormant). `.compute(...)` returns an `ibis.Table` (lazy). |
 | `PeriodType` | `Literal[...]` | Period granularity values. Used in tool input schemas to stay in sync with AITAEM. Currently: `"all_time" \| "hourly" \| "daily" \| "weekly" \| "monthly" \| "yearly"`. |
 | `METRIC_FORMAT_VALUES` | `frozenset[str]` | Valid values for `MetricSpec.format`: `percentage`, `ratio`, `absolute`, `currency`, plus `currency:<ISO>` pattern. Used by tools that produce summaries to surface format metadata to the LLM. |
 | `ValidationResult` | dataclass | Returned by `*Spec.from_string()` and `.validate()`. Carries `.valid`, `.errors`, `.referenced_columns: dict[str, list[str]] \| None`. |
@@ -135,7 +135,9 @@ This aligns AITAEM with how Ibis is generally consumed (see [ibis-project.org](h
 
 ### Cross-backend `tmp_dir`
 
-v0.4.0 adds a `tmp_dir` parameter to `MetricCompute`:
+v0.4.0 added a `tmp_dir` parameter to `MetricCompute`, used for a scratch DuckDB file when a `compute()` call spans multiple source backends. Plan 25 subsequently moved this parameter onto `ConnectionManager` — **`tmp_dir` is a `ConnectionManager` constructor parameter today, not a `MetricCompute` one.** The v0.4.0-era shape is kept below as historical context; the current shape follows.
+
+**v0.4.0-era shape (superseded):**
 
 ```
 MetricCompute(
@@ -145,20 +147,30 @@ MetricCompute(
 )
 ```
 
-When a `compute()` call spans multiple source backends (e.g. a metric whose numerator and segment data live in different connections), AITAEM cannot push the entire computation to one warehouse. It pulls intermediate results into a scratch DuckDB file at `tmp_dir`; the file is reclaimed when the `MetricCompute` instance is garbage-collected, with the OS reclaiming on reboot as a final backstop. `tmp_dir=None` forces in-memory DuckDB — safe only when result sets are known small.
+**Current shape (post-Plan-25):**
+
+```
+ConnectionManager(
+    ...,
+    tmp_dir: str | None = "/tmp",
+)
+MetricCompute(spec_cache: SpecCache, connection_manager: ConnectionManager)
+```
+
+When a `compute()` call spans multiple source backends (e.g. a metric whose numerator and segment data live in different connections), AITAEM cannot push the entire computation to one warehouse. It pulls intermediate results into a scratch DuckDB file at `tmp_dir`; the file is reclaimed when the `ConnectionManager` instance is garbage-collected (or `close_all()` is called), with the OS reclaiming on reboot as a final backstop. `tmp_dir=None` forces in-memory DuckDB — safe only when result sets are known small.
 
 ### What this means for the agent module
 
-Three architectural commitments:
+Two architectural commitments (a third, from the v0.4.0-era shape, no longer applies):
 
-- **One `MetricCompute` per bot, held for the bot's lifetime (AD-16).** This serves two ends. First, live Ibis refs in the result store (AD-12 dual representation) may reference into the scratch DuckDB; tearing down `MetricCompute` invalidates them prematurely. Second, bot-as-session (AD-04) already commits to "bot lifecycle = session lifecycle"; `MetricCompute` lifecycle aligning is natural.
-- **`tmp_dir` and any other AITAEM operational parameters pass through opaquely (AD-17).** Bots that construct `MetricCompute` accept `compute_kwargs: dict[str, Any] | None = None`. The bot's relationship to these parameters is "forward whatever the caller passes; use AITAEM's defaults otherwise." No bot-side opinion to encode.
-- **Filesystem footprint is the caller's responsibility.** Multi-tenant deployments may want per-tenant tmp directories (e.g. `/tmp/aitaem/{workspace_id}/`). Resource-constrained environments (Lambda's 512MB /tmp, container tmpfs limits) may need specific paths or `None` for in-memory. None of this is the agent module's concern; it forwards via `compute_kwargs={"tmp_dir": ...}` and is done.
+- **`MetricCompute` is constructed fresh per `compute_metrics` call (AD-16, revised).** It's a stateless wrapper around `spec_cache`/`connection_manager` — no resource-lifecycle reason to hold one. Live Ibis refs in the result store (AD-12 dual representation) reference into `ConnectionManager`'s scratch DuckDB, not `MetricCompute`'s — tearing down a per-call `MetricCompute` instance doesn't invalidate them, since `ConnectionManager` is bot-held for the bot's lifetime regardless.
+- **Filesystem footprint is the caller's responsibility**, now via `ConnectionManager(tmp_dir=...)` rather than a bot-side passthrough. Multi-tenant deployments may want per-tenant tmp directories (e.g. `/tmp/aitaem/{workspace_id}/`). Resource-constrained environments (Lambda's 512MB /tmp, container tmpfs limits) may need specific paths or `None` for in-memory. None of this is the agent module's concern; the caller constructs `ConnectionManager` directly with the `tmp_dir` it wants.
+- **No AITAEM operational-parameter passthrough exists today (AD-17, dormant).** `MetricCompute` takes only `spec_cache`/`connection_manager` — nothing left for a `compute_kwargs` dict to forward. If AITAEM reintroduces an operational `MetricCompute` parameter, AD-17's opaque-dict design is the reactivation guidance.
 
 ### Tool contract under v0.4.0
 
 `compute_metrics` tool:
-- Calls `bot._metric_compute.compute(...)` (not constructing per call).
+- Constructs `MetricCompute(ctx.deps.spec_cache, ctx.deps.connection_manager)` fresh, then calls `.compute(...)` (AD-16, revised) — not held on the bot.
 - To the LLM: a minimal summary (row count, column names, sample of ≤5 rows materialized via `to_pyarrow().slice(0, 5).to_pylist()` or equivalent, plus format/spec metadata).
 - To the result store: both the Ibis ref and a materialized Arrow artifact.
 
@@ -213,13 +225,13 @@ aitaem.agent imports (top-level only):
     QueryBuildError, QueryExecutionError, AitaemConnectionError
 
 aitaem.agent assumes (AITAEM v0.4.0):
-    MetricCompute(spec_cache, connection_manager, **compute_kwargs)
-        — held one instance per bot, lifetime = bot lifetime (AD-16)
+    MetricCompute(spec_cache, connection_manager)
+        — constructed fresh per compute_metrics call (AD-16, revised)
     MetricCompute.compute(...) -> ibis.Table (lazy)
     ibis.Table.to_pandas() / .to_pyarrow()  (explicit materialization)
     STANDARD_COLUMNS schema, accessed by name
-    tmp_dir and any other operational kwargs forwarded opaquely
-        via the bot's `compute_kwargs` (AD-17)
+    ConnectionManager(tmp_dir=...) for cross-backend scratch DuckDB
+        — no operational-parameter passthrough exists today (AD-17, dormant)
 
 aitaem.agent never:
     imports from aitaem submodules

@@ -43,6 +43,13 @@
   (previously always `None` — only the whole-turn `RunTrace.duration_ms`
   aggregate was set). No fields were added or removed on `RunTrace`/`ToolCall`
   — both already existed; only their population was fixed.
+- **`compute_metrics` no longer permanently consumes a `spec_token` on a failed
+  compute.** Previously any exception during the compute (warehouse error,
+  transient connection failure, etc.) burned the token, forcing a full
+  `record_intent`/`resolve_intent` round trip to retry — even though the
+  failure had nothing to do with resolution validity. The token is now
+  restored on failure and can be reused directly; a successful call still
+  permanently consumes it.
 
 ### Added
 

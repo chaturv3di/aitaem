@@ -86,9 +86,9 @@
 
 ## 4. Success criteria
 
-- [ ] A `compute_metrics(spec_token=X)` call that fails leaves `spec_token` usable for a subsequent retry with the same token.
-- [ ] A `compute_metrics(spec_token=X)` call that succeeds still leaves the token consumed — a second call with the same token still returns "already consumed."
-- [ ] The concurrent-race test's call-boundary spy on `MetricCompute.compute()` never observes concurrent depth greater than 1 for a given token, across real OS threads — the assertion that has to hold, independent of the `threading.Event` timing coordination used to provoke the race.
-- [ ] `aitaem/agent/query_tools.py`'s pop site carries a comment stating the no-suspension-point dependency this fix relies on.
-- [ ] `03-component-architecture.md`'s exception-handling claim matches the actual `except Exception` scope.
-- [ ] The single-use-on-success / retry-safe-on-failure semantics — and why the fix is concurrency-safe (pop's GIL-level atomicity, restore only after failure, no suspension point in between) — are stated explicitly in at least one design doc, not left implicit in code comments only.
+- [x] A `compute_metrics(spec_token=X)` call that fails leaves `spec_token` usable for a subsequent retry with the same token.
+- [x] A `compute_metrics(spec_token=X)` call that succeeds still leaves the token consumed — a second call with the same token still returns "already consumed."
+- [x] The concurrent-race test's call-boundary spy on `MetricCompute.compute()` never observes concurrent depth greater than 1 for a given token, across real OS threads — the assertion that has to hold, independent of the `threading.Event` timing coordination used to provoke the race.
+- [x] `aitaem/agent/query_tools.py`'s pop site carries a comment stating the no-suspension-point dependency this fix relies on.
+- [x] `03-component-architecture.md`'s exception-handling claim matches the actual `except Exception` scope.
+- [x] The single-use-on-success / retry-safe-on-failure semantics — and why the fix is concurrency-safe (pop's GIL-level atomicity, restore only after failure, no suspension point in between) — are stated explicitly in at least one design doc, not left implicit in code comments only.

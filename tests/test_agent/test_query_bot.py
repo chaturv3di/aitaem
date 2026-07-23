@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
+import time
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
@@ -17,8 +19,10 @@ from aitaem.agent.query_bot import (
     QueryBot, QueryResponse, _build_layer_a, _build_layer_b, _LARGE_CATALOG_THRESHOLD,
     _permission_fingerprint, _provider_cache_config,
 )
-from aitaem.agent.query_types import QueryOutput
+from aitaem.agent.query_tools import compute_metrics, record_intent, resolve_intent
+from aitaem.agent.query_types import QueryDeps, QueryOutput
 from aitaem.agent.response import BotResponse
+from aitaem.agent.store import ResultStore
 from aitaem.agent.trace import RunTrace, ToolCall, Usage, Status
 
 
@@ -798,3 +802,160 @@ def test_load_history_restores_message_history():
     )
 
     assert len(restored._message_history) == n_messages
+
+
+# ---------------------------------------------------------------------------
+# Plan 31, SF-2: compute_metrics restores spec_token on failure
+# ---------------------------------------------------------------------------
+
+
+def _make_ctx(deps):
+    ctx = MagicMock()
+    ctx.deps = deps
+    return ctx
+
+
+def _make_query_deps():
+    return QueryDeps(
+        spec_cache=_make_spec_cache(),
+        connection_manager=MagicMock(),
+        store=ResultStore(),
+    )
+
+
+def _mint_token(ctx, metric="revenue"):
+    """record_intent + resolve_intent -> a valid spec_token for `metric`."""
+    record_intent(ctx, metric_concept=metric, scope="overall")
+    resolved = resolve_intent(ctx, intent_id=0, metric_name=metric)
+    assert resolved.exact_match is not None
+    return resolved.exact_match.spec_token
+
+
+def _mock_mc_raising(exc: Exception):
+    mc = MagicMock()
+    mc.compute.side_effect = exc
+    return mc
+
+
+def test_compute_metrics_restores_token_on_failure_for_retry():
+    deps = _make_query_deps()
+    ctx = _make_ctx(deps)
+    token = _mint_token(ctx)
+
+    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_mock_mc_raising(RuntimeError("boom"))):
+        first = compute_metrics(ctx, spec_token=token)
+    assert first.result_id == ""
+    assert first.error is not None
+
+    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_revenue_mock_mc()):
+        second = compute_metrics(ctx, spec_token=token)
+    assert second.error is None
+    assert second.result_id != ""
+
+
+def test_compute_metrics_success_still_consumes_token():
+    """Restore-on-failure must not weaken the pop's protection on the success path."""
+    deps = _make_query_deps()
+    ctx = _make_ctx(deps)
+    token = _mint_token(ctx)
+
+    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_revenue_mock_mc()):
+        first = compute_metrics(ctx, spec_token=token)
+    assert first.error is None
+
+    second = compute_metrics(ctx, spec_token=token)
+    assert second.error is not None
+    assert "already consumed" in second.error
+    assert second.result_id == ""
+
+
+def test_compute_metrics_concurrent_race_never_double_executes():
+    """Adversarial, real-OS-thread race: hammer pop attempts right as a failing
+    call's restore lands, and assert the durable invariant — max concurrent
+    depth inside MetricCompute.compute() for this token never exceeds 1 —
+    rather than a timing-window success/duplicate count, which could pass by
+    luck today and stay green even if the invariant later breaks.
+    """
+    deps = _make_query_deps()
+    ctx = _make_ctx(deps)
+    token = _mint_token(ctx)
+
+    depth_lock = threading.Lock()
+    depth = 0
+    max_depth = 0
+
+    call_count_lock = threading.Lock()
+    call_count = 0
+
+    about_to_restore = threading.Event()
+    stop_polling = threading.Event()
+
+    results: list = []
+    results_lock = threading.Lock()
+
+    def fake_compute(*args, **kwargs):
+        nonlocal depth, max_depth, call_count
+        with depth_lock:
+            depth += 1
+            max_depth = max(max_depth, depth)
+        try:
+            with call_count_lock:
+                call_count += 1
+                is_first_call = call_count == 1
+            if is_first_call:
+                # Widen the window, then signal pollers right before this
+                # thread's except block restores the token — maximizes the
+                # chance of a poller's pop landing concurrently with the
+                # restore, without being the assertion itself.
+                time.sleep(0.02)
+                about_to_restore.set()
+                raise RuntimeError("simulated transient failure")
+            mock_ibis = MagicMock()
+            mock_ibis.to_pyarrow.return_value = _revenue_mock_mc().compute.return_value.to_pyarrow.return_value
+            return mock_ibis
+        finally:
+            with depth_lock:
+                depth -= 1
+
+    def mc_factory(*_args, **_kwargs):
+        mc = MagicMock()
+        mc.compute.side_effect = fake_compute
+        return mc
+
+    def call_once():
+        results_local = compute_metrics(ctx, spec_token=token)
+        with results_lock:
+            results.append(results_local)
+
+    def poller():
+        about_to_restore.wait(timeout=2.0)
+        for _ in range(50):
+            if stop_polling.is_set():
+                break
+            r = compute_metrics(ctx, spec_token=token)
+            with results_lock:
+                results.append(r)
+            if r.error is None:
+                break
+
+    with patch("aitaem.agent.query_tools.MetricCompute", side_effect=mc_factory):
+        t_fail = threading.Thread(target=call_once)
+        t_poll1 = threading.Thread(target=poller)
+        t_poll2 = threading.Thread(target=poller)
+
+        t_fail.start()
+        t_poll1.start()
+        t_poll2.start()
+
+        t_fail.join(timeout=5.0)
+        t_poll1.join(timeout=5.0)
+        stop_polling.set()
+        t_poll2.join(timeout=5.0)
+
+    # Primary, durable assertion: at most one caller was ever inside compute()
+    # for this token at a time, regardless of how the timing landed.
+    assert max_depth <= 1, f"observed concurrent compute() depth {max_depth} for a single token"
+
+    # Secondary: exactly one successful execution resulted from the race.
+    successes = [r for r in results if r.error is None]
+    assert len(successes) == 1
