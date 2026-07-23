@@ -10,9 +10,9 @@ This section sequences the implementation work in dependency order. Each phase i
 
 ### P0 — AITAEM Ibis-return migration ✅ Shipped in AITAEM v0.4.0
 
-**What:** `MetricCompute.compute()` returns `ibis.Table` instead of `pandas.DataFrame`. Materialization is explicit via `.to_pandas()` / `.to_pyarrow()`. Also delivered in v0.4.0: `tmp_dir` parameter for cross-backend scratch DuckDB.
+**What:** `MetricCompute.compute()` returns `ibis.Table` instead of `pandas.DataFrame`. Materialization is explicit via `.to_pandas()` / `.to_pyarrow()`. Also delivered in v0.4.0: `tmp_dir` parameter for cross-backend scratch DuckDB, originally on `MetricCompute` itself, later moved onto `ConnectionManager` by Plan 25.
 
-**Status:** Done. The agent module can now build directly against the Ibis-return shape. AD-12, AD-16, AD-17 in Section 2 reflect the v0.4.0 reality.
+**Status:** Done. The agent module can now build directly against the Ibis-return shape. AD-12, AD-16, AD-17 in Section 2 originally reflected the v0.4.0 reality; AD-16/AD-17 (and AD-12's restatement) were subsequently revised to match Plan 25's `tmp_dir` migration — see Plan 30.
 
 **What this unblocks:** All of Phase 2 onward. Phase 1 (foundations) was already independent of this prerequisite and can start immediately or in parallel with Phase 2 prep.
 
@@ -61,9 +61,9 @@ The first convenience bot, and the most architecturally load-bearing.
 
 ### P2.1 — `compute_metrics` tool against AITAEM v0.4.0
 
-**What:** The tool that calls `.compute(...)` on the bot's held `MetricCompute` instance (AD-16). Writes (Arrow artifact, Ibis ref) to result store. Returns minimal LLM-facing summary. Catches AITAEM exceptions; returns error dicts.
+**What:** The tool that constructs `MetricCompute` fresh per call and calls `.compute(...)` (AD-16, revised). Writes (Arrow artifact, Ibis ref) to result store. Returns minimal LLM-facing summary. Catches AITAEM exceptions; returns error dicts.
 
-**Why first inside Phase 2:** Every QueryBot turn that does anything useful starts with this tool. Analysis tools depend on result store entries it creates. Construction of the `MetricCompute` itself happens in the `QueryBot` constructor (P2.4), using `spec_cache`, `connection_manager`, and `compute_kwargs` (AD-17).
+**Why first inside Phase 2:** Every QueryBot turn that does anything useful starts with this tool. Analysis tools depend on result store entries it creates. `MetricCompute` construction happens inside `compute_metrics` itself, from the `spec_cache`/`connection_manager` the `QueryBot` constructor (P2.4) already holds — no `compute_kwargs` parameter exists (AD-17, dormant).
 
 **Tool summary contract (applies to all Phase 2+ tools):** A tool's return value — the string that becomes `ToolReturnPart.content` and is stored in `ToolCall.llm_summary` — must be a compact, human/LLM-readable snippet. It must never contain raw result data. Metric tables can be thousands of rows; putting that in the summary would overflow context and pollute traces/logs. The full result lives in `ResultStore` only, referenced by `ToolCall.result_id`. A good summary for `compute_metrics` looks like: `"Computed 3 metrics across 2 slices. result_id=abc123"`. Each tool is responsible for producing its own summary string — there is no shared truncation utility.
 

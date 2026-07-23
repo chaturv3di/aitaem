@@ -36,8 +36,8 @@ This is the master document. Each section also exists as a standalone Markdown f
 - **Status is an enum** (`ok | empty | refused | error`), not a bool. The `refused` state is the AITAEM-general version of "no spec precisely answers — don't substitute approximation."
 - **Trace is aggregated and OTel-compatible** on each response. Designed eval-friendly from day one. Event-stream hooks are a future extension point.
 - **Ibis-based result handling** (AITAEM v0.4.0). Result store carries dual representation (Arrow artifact + optional live Ibis ref). Analysis tools prefer lazy mode for warehouse pushdown; fall back to eager when ref is gone.
-- **One `MetricCompute` per bot, lifetime tied to bot lifetime.** Live Ibis refs reference into the `MetricCompute`'s execution context (including the v0.4.0 cross-backend scratch DuckDB); per-call lifetimes would invalidate refs prematurely.
-- **AITAEM operational parameters pass through opaquely** via `compute_kwargs: dict | None`. AITAEM owns its parameter surface; the bot has no opinion to encode.
+- **`MetricCompute` is constructed fresh per `compute_metrics` call** (AD-16, revised — Plan 30) — a stateless wrapper around the bot's held `spec_cache`/`connection_manager`; no bot-held instance. Live Ibis refs instead reference into `ConnectionManager`'s cross-backend scratch DuckDB, valid for the bot-held `ConnectionManager`'s lifetime regardless of how `MetricCompute` is scoped.
+- **No AITAEM operational-parameter passthrough exists today** (AD-17, dormant — Plan 30). `MetricCompute` takes only `spec_cache`/`connection_manager`. If AITAEM reintroduces an operational parameter, opaque `compute_kwargs` pass-through is the reactivation design.
 
 **Evals.** The architecture commits to a substrate (OTel-compatible trace + portable history + result retrieval). Library choice is the user's call; recommended primary is **pydantic-evals**, complemented by **deepeval** when RAG flows arrive. Inspect AI is recommended for future capability/safety benchmarks.
 
@@ -104,8 +104,8 @@ Fifteen committed decisions. Listed compactly here; consult Section 2 for contex
 | AD-13 | STANDARD_COLUMNS accessed by name, never by index |
 | AD-14 | No raw YAML parsing in the agent module; typed attributes only |
 | AD-15 | Multi-turn is architectural default; `ask()` is a subset |
-| AD-16 | One `MetricCompute` per bot, lifetime tied to bot lifetime |
-| AD-17 | AITAEM operational parameters pass through opaquely via `compute_kwargs` |
+| AD-16 | `MetricCompute` constructed fresh per `compute_metrics` call (revised, Plan 30) |
+| AD-17 | `compute_kwargs` passthrough — dormant, not currently implemented (revised, Plan 30) |
 
 ---
 
@@ -176,10 +176,10 @@ A typical multi-tool turn (compute → rank → narrate) is illustrated as a seq
 - Exceptions: `SpecValidationError`, `SpecNotFoundError`, `QueryBuildError`, `QueryExecutionError`, `AitaemConnectionError`.
 
 **Assumed AITAEM v0.4.0 behaviors:**
-- `MetricCompute(spec_cache, connection_manager, **compute_kwargs)` — bot constructs one per its lifetime (AD-16).
+- `MetricCompute(spec_cache, connection_manager)` — constructed fresh per `compute_metrics` call (AD-16, revised).
 - `MetricCompute.compute(...)` returns `ibis.Table` (lazy).
 - `.to_pandas()` / `.to_pyarrow()` for explicit materialization.
-- `tmp_dir` and other operational kwargs forwarded opaquely via the bot's `compute_kwargs` (AD-17).
+- No operational-parameter passthrough exists today; `compute_kwargs` is AD-17's dormant reactivation design, not current behavior.
 - `STANDARD_COLUMNS` schema (11 columns) accessed by name; metadata columns identifiable by name set; `metric_value` is the value column.
 
 **The agent module never:**
@@ -307,7 +307,7 @@ flowchart LR
 
 - **P0** — AITAEM Ibis-return migration + `tmp_dir` cross-backend support. **Shipped in AITAEM v0.4.0.** Phase 2 unblocked.
 - **Phase 1 — Foundations.** Package structure, optional install, primitives skeleton, trace assembly. Can run in parallel with Phase 2 prep.
-- **Phase 2 — QueryBot.** `compute_metrics` against bot-held `MetricCompute` (AD-16), five analysis tools (lazy-mode-aware), default prompt with Metric Precision Rule, integration, end-to-end multi-turn tests. **Largest phase; bulk of architectural risk lives here.**
+- **Phase 2 — QueryBot.** `compute_metrics` constructing `MetricCompute` per call (AD-16, revised), five analysis tools (lazy-mode-aware), default prompt with Metric Precision Rule, integration, end-to-end multi-turn tests. **Largest phase; bulk of architectural risk lives here.**
   > **v0.2 update (Plan 26):** QueryBot resolution flow is superseded by a two-tool intent gate (`record_intent` → `resolve_intent` → `compute_metrics(spec_token)`), code-enforcing the Metric Precision Rule. Analysis tools unchanged. See [`09-querybot-v0.2-design.md`](09-querybot-v0.2-design.md) for design; [`../26-querybot-v0.2.md`](../26-querybot-v0.2.md) for the implementation plan.
 - **Phase 3 — DefinitionBot.** Schema introspection tools, spec validation tool, integration.
 - **Phase 4 — SetupBot.** Connection-validation tool, integration.
@@ -372,7 +372,7 @@ With AITAEM v0.4.0 shipped, P0 is done. Phase 1 (foundations) and Phase 2 prep c
 
 ### OQ-4: AITAEM-side coordination — closed
 
-AITAEM v0.4.0 delivers the Ibis-return `compute()` and adds `tmp_dir` for cross-backend materialization. The dual-representation result store (Section 3, Section 4 §4) is realizable with the v0.4.0 API. AD-16 (one `MetricCompute` per bot) and AD-17 (opaque `compute_kwargs`) address the lifetime and forward-compatibility consequences.
+AITAEM v0.4.0 delivers the Ibis-return `compute()` and adds `tmp_dir` for cross-backend materialization. The dual-representation result store (Section 3, Section 4 §4) is realizable with the v0.4.0 API. AD-16 (one `MetricCompute` per bot) and AD-17 (opaque `compute_kwargs`) addressed the lifetime and forward-compatibility consequences at the time. (AD-16/AD-17 revised since — see Plan 30.)
 
 Any residual coordination — for instance, AITAEM-side feedback on how the bot uses `tmp_dir` in multi-tenant scenarios — is post-v1.0 territory.
 

@@ -172,10 +172,10 @@ Every hit outside `02-architectural-decisions.md`'s revised AD-16/AD-17 text mus
 
 ## 6. Success criteria
 
-- [ ] AD-16 describes the actual shipped `MetricCompute` lifecycle (constructed per call, not bot-held), and its rationale addresses **both** original reasons (tmp_dir/GC, and live-ibis-ref validity) — not just the tmp_dir one.
-- [ ] AD-12's consequences section no longer claims live Ibis refs depend on `MetricCompute`'s lifetime.
-- [ ] AD-17 clearly states `compute_kwargs` is not currently implemented, with reactivation guidance preserved rather than deleted.
-- [ ] `grep -rn "AD-16\|AD-17\|compute_kwargs" plans/` and the `MetricCompute`/`tmp_dir`/"held"/"bot's lifetime" grep from §4 return zero hits that describe current behavior incorrectly, across every file in `plans/` — not just the five files enumerated above.
-- [ ] SF-6's regression test passes: a live `ibis.Table` ref retrieved from `ResultStore` after its producing `MetricCompute` instance has been garbage-collected still executes correctly.
-- [ ] A reader following "AD-16" or "AD-17" by ID through any of the five files sees one consistent story.
-- [ ] Original decision context/rationale is preserved as marked historical record in `02-architectural-decisions.md`, not silently erased.
+- [x] AD-16 describes the actual shipped `MetricCompute` lifecycle (constructed per call, not bot-held), and its rationale addresses **both** original reasons (tmp_dir/GC, and live-ibis-ref validity) — not just the tmp_dir one.
+- [x] AD-12's consequences section no longer claims live Ibis refs depend on `MetricCompute`'s lifetime.
+- [x] AD-17 clearly states `compute_kwargs` is not currently implemented, with reactivation guidance preserved rather than deleted.
+- [x] `grep -rn "AD-16\|AD-17\|compute_kwargs" plans/` and the `MetricCompute`/`tmp_dir`/"held"/"bot's lifetime" grep from §4 return zero hits that describe current behavior incorrectly, across every file in `plans/` — not just the five files enumerated above.
+- [x] SF-6's regression test passes: a live `ibis.Table` ref retrieved from `ResultStore` after its producing `MetricCompute` instance has been garbage-collected still executes correctly.
+- [x] A reader following "AD-16" or "AD-17" by ID through any of the five files sees one consistent story.
+- [x] Original decision context/rationale is preserved as marked historical record in `02-architectural-decisions.md`, not silently erased.
