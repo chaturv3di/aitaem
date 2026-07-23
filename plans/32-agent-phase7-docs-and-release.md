@@ -78,6 +78,28 @@ A Phase 3 defect, not Phase 7 scope, but a one-line fix with a pinning test — 
 here rather than in a separate cycle since it was caught while preparing docs that would
 otherwise ship the wrong claim.
 
+**Also: drop the fragile internal line-number citation in the adjacent QueryBot
+comment.** `aitaem/agent/query_bot.py`'s `Agent(...)` construction has a comment citing
+`_agent_graph.py:908` to justify `anthropic_cache_instructions`. Line numbers in a
+third-party dependency drift with every release and will mislead the next reader long
+before anyone notices. Keep the conceptual explanation (static instructions sort before
+dynamic ones; the adapter places the cache breakpoint after the last static block) but
+drop the `:908` pin:
+```python
+# aitaem/agent/query_bot.py — Agent(...) construction comment
+-           # anthropic_cache_instructions: verified against pydantic-ai 2.2.0 source.
+-           # _agent_graph.py:908 calls InstructionPart.sorted(), which sorts static
+-           # (dynamic=False) before dynamic parts. The Anthropic adapter then sets
++           # anthropic_cache_instructions: verified against pydantic-ai 2.2.0's
++           # anthropic adapter. InstructionPart.sorted() sorts static (dynamic=False)
++           # before dynamic parts; the adapter then sets
+            # cache_block_idx = num_prefix_blocks + num_static - 1, placing the
+            # cache_control breakpoint after the last static block (Layer B). Layer C
+            # follows as a dynamic block and is NOT cached. Other providers ignore this.
+```
+No behavior change, no test impact — comment-only, bundled with P7.0 since it's the same
+file and the same "prompt-cache implementation detail" theme.
+
 ---
 
 ## P7.1 — Public API docs
@@ -91,6 +113,11 @@ provider into the semver-stable install contract, and widening it later would be
 breaking change for every v1.0 install. But two independent dependency lists would drift
 (a dep added to one silently misses the other), so both derive from a shared base:
 ```toml
+# agent-core: pydantic-ai only, no provider SDK. Sufficient to build/test bots
+# against TestModel/FunctionModel, or against a provider SDK installed separately.
+# Public and documented (see docs/agent/building-your-own-bot.md), not internal
+# plumbing — agent-anthropic and agent build on it, but it's also a standalone
+# install target in its own right.
 agent-core = [
     "pydantic-ai-slim>=2.2.0,<3",
 ]
@@ -110,32 +137,58 @@ agent-evals = [
 (the union covers both providers), but a dependency added to `agent-core` or
 `agent-anthropic` is automatically picked up by `agent`. Update the `all` extra to
 depend on `agent` instead of `agent-anthropic` (a strict superset). Cap `dev`'s existing
-`pydantic-ai-slim[evals]>=2.2.0` at `<3` too.
+`pydantic-ai-slim[evals]>=2.2.0` at `<3` too, for the same reason as below.
 
 Nothing in the bot code is Anthropic-specific — `_provider_cache_config`/
 `_provider_cache_config_definition` already branch on `openai:`-prefixed model strings —
 so OpenAI is already a first-class code path, just not an installable extra until now.
 
-**Upper bound, `<3`:** the two `_provider_cache_config*` functions depend on pydantic-ai
-*internals* (the anthropic adapter's static-instruction sort order in `_agent_graph.py`),
-not just its public API. An unbounded `>=2.2.0` risks a future major version silently
-changing that internal behavior with no signal until a cache regression is noticed in
-production.
+**`agent-core` is a real, documented extra, not internal plumbing.** Everything under
+`[project.optional-dependencies]` is installable and therefore public API the moment
+this ships — a TOML comment doesn't make `pip install aitaem[agent-core]` stop working,
+so pretending it's private would just be documentation debt. It's genuinely useful on
+its own (building/testing bots without pulling a provider SDK), so P7.1d's
+`building-your-own-bot.md` mentions it directly as the install path for that audience.
 
-**Docs and examples install `"aitaem[agent-anthropic]"`:** every example hard-codes an
-Anthropic model string and is only tested against Anthropic. `docs/agent/
-getting-started.md` and every example prerequisite block use `agent-anthropic` as the
-concrete, tested path, with one parenthetical mention of `"aitaem[agent]"` as the
-multi-provider superset for readers who plan to swap model providers.
+**Upper bound, `<3`:** the `_provider_cache_config`/`_provider_cache_config_definition`
+functions only set public, documented `AnthropicModelSettings`/`OpenAIModelSettings`
+fields (e.g. `anthropic_cache_instructions`) — they don't reach into pydantic-ai
+internals. The internals-level detail (how the anthropic adapter orders static vs.
+dynamic instruction blocks before applying the cache breakpoint) lives only in an
+explanatory code comment, not in anything these functions' correctness depends on at
+runtime. If a future pydantic-ai major version changed that ordering, the realistic
+blast radius is one extra cache write per lane per TTL window (an occasional cache miss
+where a hit was expected) — a minor cost regression, not a correctness or safety issue.
+`<3` is kept anyway as ordinary dependency hygiene for a v1.0 that's making semver
+promises of its own (P7.1f) — a library shouldn't leave its own dependency floor
+unbounded across an unreleased major version — not because a major bump would be
+dangerous.
 
-**CI must exercise `aitaem[agent]`'s resolution before it's frozen.** No CI job or doc
-currently installs it — everything uses `agent-anthropic` or `agent-evals` — so v1.0
-would otherwise freeze an extra whose dependency resolution has never actually run. Add
-a job to `.github/workflows/ci.yml`:
+**CI must exercise every agent extra's resolution before it's frozen.** No CI job
+currently installs `aitaem[agent]` or `aitaem[agent-core]` — existing jobs use
+`agent-anthropic` or `agent-evals` — so v1.0 would otherwise freeze extras whose
+dependency resolution has never actually run. Matrix the smoke job over all four in
+`.github/workflows/ci.yml`, checking `agent-evals` specifically imports `pydantic_evals`
+(the actual payload a reader following P7.3's prerequisites relies on, and the extra
+least likely to be caught otherwise — `agent`/`agent-core` are new, but at least this
+plan is the reason they exist; `agent-evals` already shipped and has silently never been
+smoke-tested):
 ```yaml
   agent-extra-smoke:
-    name: agent-extra-smoke
+    name: agent-extra-smoke (${{ matrix.extra }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - extra: agent-core
+            import_check: "import aitaem.agent"
+          - extra: agent-anthropic
+            import_check: "import aitaem.agent"
+          - extra: agent
+            import_check: "import aitaem.agent"
+          - extra: agent-evals
+            import_check: "import aitaem.agent; import pydantic_evals"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -143,10 +196,10 @@ a job to `.github/workflows/ci.yml`:
           python-version: "3.12"
       - name: Install uv
         run: pip install uv
-      - name: Install aitaem[agent]
-        run: uv pip install --system -e ".[agent]"
+      - name: Install aitaem[${{ matrix.extra }}]
+        run: uv pip install --system -e ".[${{ matrix.extra }}]"
       - name: Import smoke test
-        run: python -c "import aitaem.agent"
+        run: python -c "${{ matrix.import_check }}"
 ```
 
 **Model-string convention for every new docs page:** use
@@ -161,24 +214,36 @@ docstring verbatim.
 ### P7.1b — `docs/api/agent.md` (new, auto-generated via mkdocstrings)
 
 **What:** One page documenting the full public surface of `aitaem.agent.__all__`
-(33 symbols), grouped into subsections matching the module's own structure:
-- Primitives: `Bot`, `BotResponse`, `Status`, `RunTrace`, `ToolCall`, `Usage`,
-  `ResultStore`, `ResultEntry`, `TabularEntry`, `TextEntry`, `WrongEntryKindError`
-- QueryBot: `QueryBot`, `QueryResponse`, `QueryPayload`, `MetricIntent`, `ResolvedSpec`,
-  `ExactMatch`, `NearMiss`, `SpecMatchResult`, `RecordIntentResult`,
-  `ResolveIntentResult`, `SpecResolver`
-- DefinitionBot: `DefinitionBot`, `DefinitionResponse`, `DefinitionPayload`,
-  `DefinitionIntent`, `SpecDraft`, `ColumnInfo`, `ListTablesResult`,
-  `DescribeTableResult`, `DraftSpecResult`, `ValidateSpecResult`, `ValidationIssue`
+(33 symbols), grouped into subsections matching the module's own structure. Each symbol
+gets its own `##`/`###` heading and its own `::: <defining-module-path>.<Symbol>`
+directive — one directive per symbol, at the symbol's actual defining module, not a
+bare package/module-level directive. This is the same convention `docs/api/specs.md`
+and `docs/api/connectors.md` already use (e.g. `::: aitaem.specs.metric.MetricSpec`,
+`::: aitaem.connectors.backend_specs.DuckDBConfig`) — a module-level directive like
+`::: aitaem.agent.query_bot` would auto-render every public symbol mkdocstrings finds in
+that module, which is both inconsistent with those two existing pages and would make
+P7.1g's sync test moot: a new export landing in an already-documented module would
+appear with no doc edit, so there'd be nothing left to drift.
 
-Each subsection uses `::: aitaem.agent.<module>` mkdocstrings directives, same pattern as
-`docs/api/specs.md` / `docs/api/connectors.md`.
+- Primitives: `Bot` (`aitaem.agent.base`), `BotResponse`, `Status`
+  (`aitaem.agent.response`), `RunTrace`, `ToolCall`, `Usage` (`aitaem.agent.trace`),
+  `ResultStore`, `ResultEntry`, `TabularEntry`, `TextEntry`, `WrongEntryKindError`
+  (`aitaem.agent.store`)
+- QueryBot: `QueryBot`, `QueryResponse` (`aitaem.agent.query_bot`); `QueryPayload`,
+  `MetricIntent`, `ResolvedSpec`, `ExactMatch`, `NearMiss`, `SpecMatchResult`,
+  `RecordIntentResult`, `ResolveIntentResult` (`aitaem.agent.query_types`);
+  `SpecResolver` (`aitaem.agent.resolver`)
+- DefinitionBot: `DefinitionBot`, `DefinitionResponse` (`aitaem.agent.definition_bot`);
+  `DefinitionPayload`, `DefinitionIntent`, `SpecDraft`, `ColumnInfo`, `ListTablesResult`,
+  `DescribeTableResult`, `DraftSpecResult`, `ValidateSpecResult`, `ValidationIssue`
+  (`aitaem.agent.definition_types`)
 
 `mkdocs build --strict` fails on a broken nav link or an unresolvable symbol reference,
-but not on a symbol that resolves and renders with an empty body (a class/field with no
-docstring just emits a bare signature). A green `--strict` build is necessary but not
-sufficient evidence this page is complete — see the Validation section's manual-eyeball
-step, and P7.1g for a test that catches drift going forward.
+but not on a symbol that's simply missing its `:::` block entirely, or one that resolves
+and renders with an empty body (a class/field with no docstring just emits a bare
+signature). A green `--strict` build is necessary but not sufficient evidence this page
+is complete — see the Validation section's manual-eyeball step, and P7.1g for a test
+that catches a missing/extra symbol going forward.
 
 **mkdocs.yml nav change:**
 ```yaml
@@ -235,6 +300,9 @@ keeps helpers to a compact table rather than repeating full docstrings.
 
 **`docs/agent/building-your-own-bot.md`:**
 - When to reach for primitives directly instead of a convenience bot.
+- Install: `pip install "aitaem[agent-core]"` — pydantic-ai without a provider SDK,
+  enough to build/test bots against `TestModel`/`FunctionModel` or a separately-installed
+  provider (see P7.1a).
 - `Bot` subclassing contract: `_build_agent()` must build a `FunctionToolset`, register
   `self._tools` via the module's `_register_tool()` pattern, and set `self._toolset`
   (adapted from `Bot`'s existing docstring in `aitaem/agent/base.py` into prose plus a
@@ -306,9 +374,14 @@ Limitations: agent/stability.md`).
 
 ### P7.1g — Test: pin `__all__` against the documented symbol set
 
-**What:** P7.1b enumerates `aitaem.agent.__all__`'s 33 symbols by hand into
-`docs/api/agent.md`'s three subsections; the Validation section's manual-eyeball check
-only catches drift once, at write time. Add a test that keeps catching it:
+**What:** P7.1b's per-symbol directives mean `docs/api/agent.md` is a hand-maintained
+list of `aitaem.agent.__all__`'s 33 symbols, not an auto-discovered one — a future export
+added to `__all__` has no `:::` block on the page until someone adds it there. The
+Validation section's manual-eyeball check only catches that once, at write time. Add a
+test that keeps catching it. It compares `__all__` against a hardcoded mirror of the
+page's symbol list rather than parsing the `.md` file itself, so it's a proxy, not a
+literal check of the rendered page — but it turns "someone edited `__all__`" into an
+immediate, unmissable CI failure instead of a silent gap:
 ```python
 # tests/test_agent/test_public_api.py
 from aitaem import agent
@@ -432,14 +505,18 @@ case should be read.
 - `report = await dataset.evaluate(query_task)` then `report.print(...)` — single run.
 - `pass_rate(dataset, task, n=5) -> dict[str, float]` — repeats the full dataset `n`
   times against the live model, tallies per-case pass fraction. Runtime/cost caveat noted
-  in both the script's docstring and the notebook's markdown cell (n=5 runs × 2 cases =
-  10 API calls).
+  in both the script's docstring and the notebook's markdown cell: n=5 runs × 2 cases =
+  10 bot runs, and each `bot.ask()` call is a multi-step tool loop (`record_intent` →
+  `resolve_intent` → `compute_metrics`, each a separate model turn), so the actual model
+  call count is meaningfully higher than 10 — stated that way so nobody plans spend off
+  the literal number.
 
 **Prerequisites** (docstring / first notebook cell) mirror `query_bot_example.py`:
 `ANTHROPIC_API_KEY`, `pip install "aitaem[agent-evals]"`.
 
-**Never wired into CI or the docs build.** This notebook makes 10+ live Anthropic API
-calls. `.github/workflows/docs.yml` runs plain `mkdocs gh-deploy`; no `mkdocs-jupyter`
+**Never wired into CI or the docs build.** This notebook runs 10 live bot invocations
+(each a multi-turn tool loop, so meaningfully more than 10 model calls).
+`.github/workflows/docs.yml` runs plain `mkdocs gh-deploy`; no `mkdocs-jupyter`
 plugin is configured and no `nbconvert --execute` step exists anywhere in the repo.
 Never add notebook execution to `docs.yml` or any test workflow — verification is
 manual-only (see Validation).
@@ -477,9 +554,9 @@ Trusted Publishing). Version bump target: `1.0.0` (from current `0.4.0`).
   new example is the live-model companion, not a replacement.
 - Streaming, event hooks, error-taxonomy refinement, prompt-fragment overrides,
   hot-reload — tracked in `07-non-decisions.md`, unaffected by this plan.
-- No `DefinitionBot`/`QueryBot` behavior changes beyond the P7.0 cache-key fix — a
-  narrow, deliberate exception to "Phase 7 is docs-only," not a general invitation to fix
-  other things found along the way.
+- No `DefinitionBot`/`QueryBot` behavior changes beyond the P7.0 cache-key fix and its
+  adjacent comment-only cleanup — a narrow, deliberate exception to "Phase 7 is
+  docs-only," not a general invitation to fix other things found along the way.
 
 ## Validation
 
@@ -495,8 +572,9 @@ Trusted Publishing). Version bump target: `1.0.0` (from current `0.4.0`).
   test passes.
 - `pytest tests/test_agent/test_public_api.py` — confirms the P7.1g `__all__`-vs-docs
   pinning test passes.
-- CI green on the new `agent-extra-smoke` job (P7.1a) — confirms `aitaem[agent]`
-  actually resolves and imports before the extra is frozen at `1.0.0`.
+- CI green on the new `agent-extra-smoke` matrix (P7.1a) — confirms all four agent
+  extras (`agent-core`, `agent-anthropic`, `agent`, `agent-evals`) resolve and import
+  before they're frozen at `1.0.0`.
 - Manually run `python examples/04_evaluating_agents_example.py` against a live key to
   confirm both cases pass and `pass_rate()` executes end-to-end. Deliberately manual,
   never wired into CI (see P7.3).
