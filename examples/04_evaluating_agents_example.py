@@ -136,6 +136,13 @@ class ToolSequenceIs(Evaluator[QIn, QOut, None]):
     same run — defeating the one case that exercises the gate order at all.
     A single failed run on this assertion isn't necessarily a bug; read it
     through pass_rate() below, not a single run's pass/fail.
+
+    Note the trailing "final_result" in the expected list below: pydantic-ai's
+    default structured-output mechanism for a plain `output_type=` (as
+    QueryBot uses) is a synthetic tool call named "final_result"
+    (pydantic_ai._output.DEFAULT_OUTPUT_TOOL_NAME) — every successful run ends
+    with one. Omitting it here would make this assertion fail on every real
+    run, not just occasionally.
     """
 
     expected: list[str]
@@ -158,7 +165,9 @@ dataset: Dataset[QIn, QOut, None] = Dataset(
             inputs=QIn("What was total revenue in Q1 2024?"),
             evaluators=(
                 StatusIs(Status.ok),
-                ToolSequenceIs(["record_intent", "resolve_intent", "compute_metrics"]),
+                ToolSequenceIs(
+                    ["record_intent", "resolve_intent", "compute_metrics", "final_result"]
+                ),
             ),
         ),
         Case(
