@@ -391,14 +391,14 @@ def validate_spec(
         "referenced_columns": json.dumps(referenced_columns) if referenced_columns else None,
         "warnings": json.dumps(warnings) if warnings else None,
     }
-    spec_draft_token = ctx.deps.store.store_text(
+    result_id = ctx.deps.store.store_text(
         text=draft.yaml_string,
         content_type="application/yaml",
         metadata=metadata,
     )
 
     return ValidateSpecResult(
-        spec_draft_token=spec_draft_token,
+        result_id=result_id,
         warnings=warnings,
         referenced_columns=referenced_columns,
     )

@@ -51,6 +51,7 @@ dev = [
     "mypy>=1.8.0",
     "build>=1.0.0",
     "pydantic-ai-slim[evals]>=2.2.0",
+    "opentelemetry-sdk>=1.28.0",
 ]
 docs = [
     "mkdocs>=1.6",

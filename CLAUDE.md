@@ -130,6 +130,6 @@ When creating a release:
 - Running tests: `python -m pytest`
 - Dependency management: `uv`
 - Linting and formatting: `ruff`
-- Type checking: `mypy aitaem/`
+- Type checking: `mypy aitaem/ tests/evals/`
 - Building/packaging: `hatchling`
 - Running development server (if applicable)

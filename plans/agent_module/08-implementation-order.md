@@ -220,16 +220,20 @@ Runtime tool-composition primitives. Lightweight in code, important for the blue
 
 The eval substrate is committed by architecture (Section 5); this phase validates it.
 
-### P6.1 — Reference eval harness (open — see Section 5 open question)
+### P6.1 — Reference eval harness — ✅ Shipped
 
-**What (if user opts in):** A small, opinionated `tests/evals/` directory using pydantic-evals to evaluate `QueryBot` against a fixture spec catalog and a set of canned questions. Covers:
+**Status:** Done. Implemented per `plans/29-agent-phase6-evals.md`. `tests/evals/` (using pydantic-evals) covers both `QueryBot` and `DefinitionBot` — the original scope was `QueryBot`-only; `DefinitionBot` exists now, so the harness covers it too. Runs in CI via the `evals` job against scripted `FunctionModel`s (no live LLM calls or API keys). Demonstrates that the substrate is wired for evaluators to consume — not a behavioral/quality evaluation of either bot; see `07-non-decisions.md` ND-09.
+
+**What:** A small, opinionated `tests/evals/` directory using pydantic-evals to evaluate `QueryBot`/`DefinitionBot` against a fixture spec catalog and a set of canned questions. Covers:
 - Tool-selection correctness (did the agent call `compute_metrics` with the right spec?).
 - Refusal correctness (did the agent refuse out-of-scope questions with `status=refused`?).
 - Deterministic correctness (does the dereferenced result match the known ground truth?).
 
 Doubles as the canonical "how to evaluate your AITAEM agent" example.
 
-### P6.2 — OTel span emission validation
+### P6.2 — OTel span emission validation — ✅ Shipped
+
+**Status:** Done. Implemented per `plans/29-agent-phase6-evals.md`. `tests/test_agent/test_otel_spans.py` instruments a real, `FunctionModel`-driven `agent.run()` with an in-memory OTel span exporter and asserts span count, tool-call IDs, order, and duration all agree with `RunTrace` — real span capture, not mocks, since `assemble_trace()`'s mock-based logic was already covered by `test_trace.py`.
 
 **What:** Tests that `RunTrace` and the underlying spans pydantic-ai emits are consistent — that an eval framework consuming spans sees the same tool calls and arguments as the `RunTrace` does.
 
@@ -262,9 +266,9 @@ flowchart LR
     P1 --> P4
     P2[Phase 2: QueryBot] --> P3[Phase 3: DefinitionBot]
     P2 --> P4[Phase 4: SetupBot]
-    P2 --> P5[Phase 5.2: Composition]
+    P2 --> P5[Phase 5.2: Composition]:::done
     P3 --> P5
-    P2 --> P6[Phase 6: Eval validation]
+    P2 --> P6[Phase 6: Eval validation]:::done
     P3 --> P6
     P4 --> P6
     P5 --> P6
@@ -288,7 +292,7 @@ Architectural estimates, not commitments. For Claude Code's downstream planning:
 | Phase 3 — DefinitionBot | Medium | Low |
 | Phase 4 — SetupBot | Small | Low |
 | Phase 5.2 — Composition | ✅ Done | — |
-| Phase 6 — Eval validation | Medium | Medium (substrate decisions get pressure-tested) |
+| Phase 6 — Eval validation | ✅ Done | — |
 | Phase 7 — Docs + ship | Medium | Low |
 
 The bulk of architectural risk concentrates in Phase 2. Specifically:

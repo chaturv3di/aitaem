@@ -104,13 +104,17 @@ Each non-decision is paired with an "escape valve" — the path forward we are l
 
 ---
 
-## ND-09: A formal `aitaem.agent` test/eval harness shipped in the repo
+## ND-09: A formal `aitaem.agent` test/eval harness shipped in the repo — ✅ Resolved (Plan 29)
 
-**What's deferred (open question to user).** Whether the agent module ships a reference test/eval harness — e.g. `tests/evals/test_query_bot.py` demonstrating pydantic-evals wiring — or whether the eval substrate is documented and users build their own.
+**Resolution.** Resolved in favor of shipping. `tests/evals/` ships in the repo, using `pydantic-evals`, covering both `QueryBot` and `DefinitionBot` (the original open question named `QueryBot` only; `DefinitionBot` exists now, so the harness covers it too). Runs in CI via the dedicated `evals` job against scripted `FunctionModel`s — no live LLM calls or API keys required. Demonstrates that the substrate (`RunTrace`, `ResultStore`, `BotResponse`) is wired correctly for `pydantic_evals.Evaluator`s to consume — not a behavioral/quality evaluation of either bot's actual decisions. See `plans/29-agent-phase6-evals.md`.
 
-**Why this is non-deciding-able by architecture alone.** Either path works at the architecture level; the decision is about library scope and maintenance burden. Flagged in Section 5 as an open question for the user.
+The rest of this entry is kept as historical record of the original open question and its framing.
 
-**Escape valve.** Start without; add later. Or start with, remove if maintenance burden outweighs value.
+**What was deferred (open question to user).** Whether the agent module ships a reference test/eval harness — e.g. `tests/evals/test_query_bot.py` demonstrating pydantic-evals wiring — or whether the eval substrate is documented and users build their own.
+
+**Why this was non-deciding-able by architecture alone.** Either path works at the architecture level; the decision is about library scope and maintenance burden. Flagged in Section 5 as an open question for the user.
+
+**Escape valve (as originally framed).** Start without; add later. Or start with, remove if maintenance burden outweighs value.
 
 ---
 

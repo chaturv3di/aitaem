@@ -155,7 +155,7 @@ def test_validate_spec_result_with_errors_has_no_token():
 
 def test_validate_spec_result_on_success():
     result = ValidateSpecResult(
-        spec_draft_token="tok-abc",
+        result_id="tok-abc",
         errors=[],
         column_errors=[],
         warnings=[],
@@ -163,6 +163,30 @@ def test_validate_spec_result_on_success():
     assert result.spec_draft_token == "tok-abc"
     assert result.errors == []
     assert result.column_errors == []
+
+
+def test_validate_spec_result_token_derived_from_result_id():
+    assert ValidateSpecResult(result_id="abc").spec_draft_token == "abc"
+
+
+def test_validate_spec_result_none_result_id_yields_no_token():
+    assert ValidateSpecResult(result_id=None).spec_draft_token is None
+
+
+def test_validate_spec_result_empty_result_id_yields_no_token():
+    assert ValidateSpecResult(result_id="").spec_draft_token is None
+
+
+def test_validate_spec_result_serialization_exposes_token_only():
+    dumped = ValidateSpecResult(result_id="abc").model_dump()
+    assert dumped["spec_draft_token"] == "abc"
+    assert "result_id" not in dumped
+
+
+def test_validate_spec_result_rejects_legacy_constructor_kwarg():
+    with pytest.raises(ValidationError) as exc_info:
+        ValidateSpecResult(spec_draft_token="x")  # type: ignore[call-arg]
+    assert "spec_draft_token" in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------

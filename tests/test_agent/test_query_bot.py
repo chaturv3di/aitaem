@@ -630,6 +630,17 @@ def test_trace_usage_populated():
     assert response.trace.usage is not None
 
 
+def test_trace_compute_metrics_result_id_and_duration_populated():
+    bot = _make_bot_with_model(_make_three_step_model())
+    response = asyncio.run(bot.chat("What was revenue?"))
+    compute_call = next(
+        tc for tc in response.trace.tool_calls if tc.name == "compute_metrics"
+    )
+    assert compute_call.result_id == response.payload.primary_result_id
+    assert compute_call.duration_ms is not None
+    assert compute_call.duration_ms >= 0
+
+
 def test_three_step_flow_result_retrievable():
     bot = _make_bot_with_model(_make_three_step_model())
     response = asyncio.run(bot.chat("What was revenue?"))

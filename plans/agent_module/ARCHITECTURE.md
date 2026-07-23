@@ -46,8 +46,7 @@ This is the master document. Each section also exists as a standalone Markdown f
 **Open questions for user decision before downstream planning:**
 
 1. Eval library choice — concur with pydantic-evals primary recommendation, or pick differently? (Section 5, §4)
-2. Ship a reference eval harness in the repository, or document the substrate only? (Section 5, §6; Section 7, ND-09)
-3. Concur with the implementation phasing in Section 8?
+2. Concur with the implementation phasing in Section 8?
 
 ---
 
@@ -274,7 +273,7 @@ Nine things deliberately deferred, each with an "escape valve" describing the pa
 | ND-06 | Cost/token-budget controls | Wrap pydantic-ai's `UsageLimits` later |
 | ND-07 | Hot-reload of `SpecCache` | `bot.reset(spec_cache=...)` later |
 | ND-08 | Concurrent calls on same bot | Document as unsupported; lock if needed |
-| ND-09 | Reference eval harness in repo | **Open question for user decision** |
+| ND-09 | Reference eval harness in repo | **✅ Resolved (Plan 29)** — shipped as `tests/evals/`. See `07-non-decisions.md` ND-09. |
 | ND-10 | Multi-turn interactive refinement for DefinitionBot | `chat()` is provided; dedicated multi-turn spec-refinement UX is v1.x once usage patterns are established. Same deferral applies to QueryBot. See `plans/agent_module/07-non-decisions.md`. |
 | ND-11 | `Bot.as_tool()` / `Bot.add_bot(other_bot)` — generic bot-as-tool composition | Wrap `ask()` as a plain function and register it via `add_tool()`; a generic `as_tool()`/`add_bot()` can be layered on top later, purely additively |
 
@@ -294,9 +293,9 @@ flowchart LR
     P1 --> P4
     P2[Phase 2: QueryBot] --> P3[Phase 3: DefinitionBot]
     P2 --> P4[Phase 4: SetupBot]
-    P2 --> P5[Phase 5.2: Composition]
+    P2 --> P5[Phase 5.2: Composition]:::done
     P3 --> P5
-    P2 --> P6[Phase 6: Eval validation]
+    P2 --> P6[Phase 6: Eval validation]:::done
     P3 --> P6
     P4 --> P6
     P5 --> P6
@@ -313,7 +312,7 @@ flowchart LR
 - **Phase 3 — DefinitionBot.** Schema introspection tools, spec validation tool, integration.
 - **Phase 4 — SetupBot.** Connection-validation tool, integration.
 - **Phase 5 — Composition.** `Bot(tools=[...])`, `add_tool()`, per-call `extra_tools`. Generic `bot.as_tool()` / `add_bot()` deferred — see ND-11.
-- **Phase 6 — Eval substrate validation.** Reference eval harness (if user opts in), OTel span emission verification.
+- **Phase 6 — Eval substrate validation. ✅ Shipped (Plan 29).** Reference eval harness (`tests/evals/`, covering both `QueryBot` and `DefinitionBot`), OTel span emission verification (`tests/test_agent/test_otel_spans.py`).
 - **Phase 7 — Docs + v1.0 release.** Public API docs, getting-started examples, shipped to PyPI.
 
 **Risk concentration:** Phase 2. Specific risks: trace assembly faithfulness, tool-summary-vs-store split sufficiency, Metric Precision Rule effectiveness in practice. Each has been worked through against concrete scenarios in the design process, which is why risk is rated medium not high.
@@ -358,12 +357,14 @@ Before downstream implementation planning begins:
 
 Architecture recommends **pydantic-evals primary + deepeval for RAG**. User confirms or selects differently. See Section 5, §4.
 
-### OQ-2: Reference eval harness in the repository?
+### OQ-2: Reference eval harness in the repository? — closed
 
 (a) Ship `tests/evals/` examples demonstrating pydantic-evals wiring — self-evidencing for users.
 (b) Document the substrate only — keeps library leaner.
 
-Architecture leans (a) for consistency with the blueprint philosophy (G2). See Section 5, §6 and Section 7, ND-09.
+Architecture leaned (a) for consistency with the blueprint philosophy (G2). See Section 5, §6 and Section 7, ND-09.
+
+Resolved: (a). `tests/evals/` shipped, covering both `QueryBot` and `DefinitionBot`. See `plans/29-agent-phase6-evals.md` and `07-non-decisions.md` ND-09.
 
 ### OQ-3: Implementation phasing
 
