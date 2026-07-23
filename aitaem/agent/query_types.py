@@ -71,6 +71,8 @@ class ExactMatch(BaseModel):
 
 
 class NearMiss(BaseModel):
+    """A catalog entry that resolve_intent considered but rejected, with the reason why."""
+
     name: str
     why_not: Literal[
         "unknown_metric",

@@ -1,5 +1,5 @@
 """
-intent_resolution_example.py — QueryBot v0.2 intent-gated resolution.
+03_intent_resolution_example.py — QueryBot v0.2 intent-gated resolution.
 
 Demonstrates the three-step flow that QueryBot v0.2 uses internally:
     record_intent → resolve_intent → compute_metrics

@@ -36,11 +36,24 @@ postgres = [
     "ibis-framework[postgres]>=9.0.0",
     "psycopg[binary]>=3.0.0",
 ]
+# agent-core: pydantic-ai only, no provider SDK. Sufficient to build/test bots
+# against TestModel/FunctionModel, or against a provider SDK installed separately.
+# Public and documented (see docs/agent/building-your-own-bot.md), not internal
+# plumbing — agent-anthropic and agent build on it, but it's also a standalone
+# install target in its own right.
+agent-core = [
+    "pydantic-ai-slim>=2.2.0,<3",
+]
 agent-anthropic = [
-    "pydantic-ai-slim[anthropic]>=2.2.0",
+    "aitaem[agent-core]",
+    "pydantic-ai-slim[anthropic]>=2.2.0,<3",
+]
+agent = [
+    "aitaem[agent-anthropic]",
+    "pydantic-ai-slim[openai]>=2.2.0,<3",
 ]
 agent-evals = [
-    "pydantic-ai-slim[evals]>=2.2.0",
+    "pydantic-ai-slim[evals]>=2.2.0,<3",
 ]
 dev = [
     "pytest>=7.4.0",
@@ -50,7 +63,7 @@ dev = [
     "ruff>=0.3.0",
     "mypy>=1.8.0",
     "build>=1.0.0",
-    "pydantic-ai-slim[evals]>=2.2.0",
+    "pydantic-ai-slim[evals]>=2.2.0,<3",
     "opentelemetry-sdk>=1.28.0",
 ]
 docs = [
@@ -59,7 +72,7 @@ docs = [
     "mkdocstrings[python]>=0.27",
     "mkdocs-autorefs>=1.2",
 ]
-all = ["aitaem[bigquery,postgres,agent-anthropic,agent-evals,dev,docs]"]
+all = ["aitaem[bigquery,postgres,agent,agent-evals,dev,docs]"]
 
 [project.urls]
 Homepage = "https://github.com/chaturv3di/aitaem"

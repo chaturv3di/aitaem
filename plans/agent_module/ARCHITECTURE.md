@@ -25,7 +25,7 @@ This is the master document. Each section also exists as a standalone Markdown f
 
 ## Executive Summary
 
-`aitaem.agent` is an **optional install** (`pip install aitaem[agent]`) that ships agent primitives and three opinionated convenience bots — `QueryBot`, `DefinitionBot`, `SetupBot` — on top of AITAEM's deterministic compute layer. The goals: collapse AITAEM onboarding to two lines of code, serve as a blueprint for custom agentic applications, and preserve AITAEM core as a quiet library with no LLM dependencies.
+`aitaem.agent` is an **optional install** (`pip install aitaem[agent]`) that ships agent primitives and three opinionated convenience bots — `QueryBot`, `DefinitionBot`, `SetupBot` (deferred to v1.x — see Phase 4 below) — on top of AITAEM's deterministic compute layer. The goals: collapse AITAEM onboarding to two lines of code, serve as a blueprint for custom agentic applications, and preserve AITAEM core as a quiet library with no LLM dependencies.
 
 **Foundational decisions:**
 
@@ -41,7 +41,7 @@ This is the master document. Each section also exists as a standalone Markdown f
 
 **Evals.** The architecture commits to a substrate (OTel-compatible trace + portable history + result retrieval). Library choice is the user's call; recommended primary is **pydantic-evals**, complemented by **deepeval** when RAG flows arrive. Inspect AI is recommended for future capability/safety benchmarks.
 
-**Implementation order.** AITAEM v0.4.0 (Ibis-return migration + cross-backend `tmp_dir`) is shipped, satisfying the hard prerequisite. The module builds in seven phases: foundations → QueryBot → DefinitionBot → SetupBot → composition primitives → eval validation → docs and v1.0 release.
+**Implementation order.** AITAEM v0.4.0 (Ibis-return migration + cross-backend `tmp_dir`) is shipped, satisfying the hard prerequisite. The module builds in seven phases: foundations → QueryBot → DefinitionBot → SetupBot (deferred to v1.x) → composition primitives → eval validation → docs and v1.0 release. v1.0 ships QueryBot + DefinitionBot; SetupBot ships in a later v1.x release.
 
 **Open questions for user decision before downstream planning:**
 
@@ -312,7 +312,7 @@ flowchart LR
   >
   > **Plan 31:** `spec_token` is single-use on success only — a failed `compute_metrics` restores the token, so a retry needs no fresh `record_intent`/`resolve_intent`. Safe under parallel tool calls because the pop is atomic and restore only follows failure, with no suspension point between them. That last condition is what the guarantee rests on; hosts that wrap these tools in an async execution model must supply their own mutual exclusion.
 - **Phase 3 — DefinitionBot.** Schema introspection tools, spec validation tool, integration.
-- **Phase 4 — SetupBot.** Connection-validation tool, integration.
+- **Phase 4 — SetupBot. Deferred to v1.x — not implemented for v1.0.** Connection-validation tool, integration.
 - **Phase 5 — Composition.** `Bot(tools=[...])`, `add_tool()`, per-call `extra_tools`. Generic `bot.as_tool()` / `add_bot()` deferred — see ND-11.
 - **Phase 6 — Eval substrate validation. ✅ Shipped (Plan 29).** Reference eval harness (`tests/evals/`, covering both `QueryBot` and `DefinitionBot`), OTel span emission verification (`tests/test_agent/test_otel_spans.py`).
 - **Phase 7 — Docs + v1.0 release.** Public API docs, getting-started examples, shipped to PyPI.

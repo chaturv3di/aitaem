@@ -86,11 +86,15 @@ duckdb:
 
 ## Examples
 
-| File                                  | Description                                                    |
-|---------------------------------------|----------------------------------------------------------------|
-| `query_bot_example.py` / `.ipynb`     | Multi-turn QueryBot conversation over the ad campaign dataset  |
-| `intent_resolution_example.py` / `.ipynb` | Deep-dive into the three-step intent → resolve → compute flow and prompt-cache efficiency |
-| `definition_bot_example.py` / `.ipynb` | DefinitionBot four-step workflow: direct spec parsing (Part 1) and LLM-assisted spec definition (Part 2) |
+Numbered in a suggested reading order — defining specs (01) conceptually precedes
+querying them (02), even though the files don't literally chain.
+
+| # | File | Description |
+|---|------|--------------|
+| 01 | `01_definition_bot_example.py` / `.ipynb` | DefinitionBot four-step workflow: direct spec parsing (Part 1) and LLM-assisted spec definition (Part 2) |
+| 02 | `02_query_bot_example.py` / `.ipynb` | Multi-turn QueryBot conversation over the ad campaign dataset |
+| 03 | `03_intent_resolution_example.py` / `.ipynb` | Deep-dive into the three-step intent → resolve → compute flow and prompt-cache efficiency |
+| 04 | `04_evaluating_agents_example.py` / `.ipynb` | Writing `pydantic_evals` evaluations against a live model, with a `pass_rate()` helper for repeated-run confidence |
 
 ### QueryBot quick start
 

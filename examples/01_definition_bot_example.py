@@ -1,5 +1,5 @@
 """
-definition_bot_example.py — DefinitionBot spec-definition workflow.
+01_definition_bot_example.py — DefinitionBot spec-definition workflow.
 
 Demonstrates the four-step flow that DefinitionBot uses internally:
     record_definition_intent → list_tables / describe_table → draft_spec → validate_spec

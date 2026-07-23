@@ -215,7 +215,7 @@ def _provider_cache_config(model_str: str, tenant_id: str | None) -> dict:
 
     Anthropic: cache_control breakpoints are explicit — requires
     anthropic_cache_instructions to mark where the static prefix ends.
-    Verified against pydantic-ai 2.2.0 (_agent_graph.py:908 + anthropic adapter).
+    Verified against pydantic-ai 2.2.0's anthropic adapter.
 
     OpenAI: prompt_cache_key is a routing hint — the server routes requests
     sharing the same key to the same backend pool for prefix-cache hits. A
@@ -228,7 +228,7 @@ def _provider_cache_config(model_str: str, tenant_id: str | None) -> dict:
     same routing lane, which is correct — their Layer B is identical.
 
     prompt_cache_retention="24h" keeps the cached prefix warm across sessions.
-    Verified against pydantic-ai 2.2.0 (models/openai.py:558-568).
+    Verified against pydantic-ai 2.2.0's OpenAI model settings.
 
     Other providers: return {} (no-op; stable-content-first ordering still
     helps server-side caching where it exists).
@@ -325,9 +325,9 @@ class QueryBot(Bot):
             output_type=QueryOutput,
             toolsets=[toolset],
             instructions=static_instructions,
-            # anthropic_cache_instructions: verified against pydantic-ai 2.2.0 source.
-            # _agent_graph.py:908 calls InstructionPart.sorted(), which sorts static
-            # (dynamic=False) before dynamic parts. The Anthropic adapter then sets
+            # anthropic_cache_instructions: verified against pydantic-ai 2.2.0's
+            # anthropic adapter. InstructionPart.sorted() sorts static (dynamic=False)
+            # before dynamic parts; the adapter then sets
             # cache_block_idx = num_prefix_blocks + num_static - 1, placing the
             # cache_control breakpoint after the last static block (Layer B). Layer C
             # follows as a dynamic block and is NOT cached. Other providers ignore this.

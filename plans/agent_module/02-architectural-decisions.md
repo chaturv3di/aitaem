@@ -40,7 +40,7 @@ pip install aitaem[agent]     # core + agent module
 **Context.** Three shapes were considered: specialized bots only, one unified bot, or primitives + convenience bots. The convenience-bots-only shape forces subclassing/monkey-patching for extension; the unified-bot shape loses surface clarity per capability.
 
 **Decision.** Both layers are first-class:
-- **Convenience bots** — `QueryBot`, `DefinitionBot`, `SetupBot` as opinionated assemblies, each constructed in two lines.
+- **Convenience bots** — `QueryBot`, `DefinitionBot`, `SetupBot` (deferred to v1.x — not part of v1.0) as opinionated assemblies, each constructed in two lines.
 - **Primitives** — composable lower-level constructs (the underlying agent, tool, prompt, and response types) for users who want to build custom bots.
 
 The convenience classes are designed from day one as if primitives are available — internal structure is composition, not inheritance.

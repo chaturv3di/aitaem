@@ -128,3 +128,30 @@ jobs:
         run: uv pip install --system -e ".[agent-evals,dev]"
       - name: Run reference eval harness
         run: python -m pytest tests/evals/
+
+  agent-extra-smoke:
+    name: agent-extra-smoke (${{ matrix.extra }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - extra: agent-core
+            import_check: "import aitaem.agent"
+          - extra: agent-anthropic
+            import_check: "import aitaem.agent"
+          - extra: agent
+            import_check: "import aitaem.agent"
+          - extra: agent-evals
+            import_check: "import aitaem.agent; import pydantic_evals"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: pip install uv
+      - name: Install aitaem[${{ matrix.extra }}]
+        run: uv pip install --system -e ".[${{ matrix.extra }}]"
+      - name: Import smoke test
+        run: python -c "${{ matrix.import_check }}"

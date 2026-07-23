@@ -9,6 +9,13 @@ from pydantic import BaseModel, ConfigDict, computed_field
 
 
 class Status(str, Enum):
+    """Outcome of a bot response: ok, empty, refused, or error.
+
+    `refused` is the general "no spec precisely answers — don't substitute an
+    approximation" outcome (the Metric Precision Rule), distinct from `error`
+    (a tool or the run itself failed) and `empty` (ran fine, no results).
+    """
+
     ok = "ok"
     empty = "empty"
     refused = "refused"
@@ -16,6 +23,8 @@ class Status(str, Enum):
 
 
 class Usage(BaseModel):
+    """Token and tool-call usage counters for one bot run."""
+
     model_config = ConfigDict(frozen=True)
 
     requests: int = 0
@@ -43,6 +52,9 @@ class Usage(BaseModel):
 
 
 class ToolCall(BaseModel):
+    """One tool invocation within a run, with its arguments, outcome, and an
+    LLM-facing summary (never the raw result — see `result_id` for that)."""
+
     model_config = ConfigDict(frozen=True)
 
     tool_call_id: str
@@ -55,6 +67,8 @@ class ToolCall(BaseModel):
 
 
 class RunTrace(BaseModel):
+    """Aggregated, eval-friendly trace of one bot run — tool calls, usage, and timing."""
+
     model_config = ConfigDict(frozen=True)
 
     run_id: str

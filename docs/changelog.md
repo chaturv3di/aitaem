@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+This release is a stability declaration for `aitaem[agent]` (see
+[Stability & Limitations](agent/stability.md)) — it introduces no breaking changes to
+the existing core `aitaem` API. The version jump reflects the agent module's graduation
+to a stable, documented surface, not an API break.
+
 ### Breaking changes
 
 - **`MetricCompute.__init__` `tmp_dir` parameter removed.** Pass `tmp_dir` to
@@ -50,6 +55,14 @@
   failure had nothing to do with resolution validity. The token is now
   restored on failure and can be reused directly; a successful call still
   permanently consumes it.
+- **`DefinitionBot`'s Anthropic prompt-cache setting now matches `QueryBot`'s.**
+  It previously used `anthropic_cache` (a different, "automatic caching" mode)
+  instead of `anthropic_cache_instructions`, despite its docstring claiming to
+  mirror `QueryBot`'s cache config — the two bots had different actual
+  cache-hit/cost behavior for a mechanism presented as shared. No public API
+  change; both bots now place the cache breakpoint after the last static
+  instruction block (Layer B), excluding the per-turn dynamic date context
+  (Layer C) from the cached prefix.
 
 ### Added
 
@@ -88,6 +101,26 @@
   calls or API keys required. Validates that the substrate is consumable by
   `pydantic_evals.Evaluator`s, not agent behavior; point it at a live model
   outside CI to evaluate actual quality. See `plans/29-agent-phase6-evals.md`.
+- **Agent module docs.** A new `Agent` documentation section — Getting Started,
+  Building Your Own Bot, Evaluating Your Agent, and Stability & Limitations —
+  plus a full API reference page (`docs/api/agent.md`) covering all 33 public
+  symbols in `aitaem.agent.__all__`.
+- **`pip install "aitaem[agent]"` — a provider-neutral agent extra** (Anthropic
+  + OpenAI), alongside a new `agent-core` extra (pydantic-ai with no provider
+  SDK, for building/testing bots against `TestModel`/`FunctionModel`).
+  `agent-anthropic` is unchanged and remains the extra every example in this
+  repo is tested against.
+- **`examples/04_evaluating_agents_example.py` / `.ipynb`** — writing
+  `pydantic_evals` evaluations against a live `QueryBot`, including a
+  `pass_rate()` helper for repeated-run confidence. The live-model companion
+  to `tests/evals/`'s CI-safe substrate harness.
+
+### Changed
+
+- **Example files under `examples/` are now numbered** (`01_definition_bot_example`,
+  `02_query_bot_example`, `03_intent_resolution_example`,
+  `04_evaluating_agents_example`) to suggest a reading order. No content
+  changes to the existing three examples beyond the rename.
 
 ## v0.4.0 — 2026-06-26
 
