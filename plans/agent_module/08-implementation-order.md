@@ -287,9 +287,9 @@ Architectural estimates, not commitments. For Claude Code's downstream planning:
 | Phase | Relative effort | Risk |
 |---|---|---|
 | P0 (AITAEM v0.4.0) | ✅ Done | — |
-| Phase 1 — Foundations | Small | Low |
-| Phase 2 — QueryBot | Largest | Medium (real architectural validation happens here) |
-| Phase 3 — DefinitionBot | Medium | Low |
+| Phase 1 — Foundations | ✅ Done | — |
+| Phase 2 — QueryBot | ✅ Done | — |
+| Phase 3 — DefinitionBot | ✅ Done | — |
 | Phase 4 — SetupBot | Small | Low |
 | Phase 5.2 — Composition | ✅ Done | — |
 | Phase 6 — Eval validation | ✅ Done | — |
