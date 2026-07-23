@@ -500,18 +500,18 @@ No changes to `aitaem/agent/__init__.py`'s export *list* — the Documentation I
 
 ## 6. Success criteria
 
-- [ ] `ToolCall.result_id` is non-`None` for `compute_metrics` and `validate_spec` tool calls that succeed, and stays `None` for tools that don't mint store entries or that fail.
-- [ ] `ValidateSpecResult`'s LLM-facing serialization (`model_dump()`/`model_dump_json()`) contains `spec_draft_token` only — `result_id` is excluded, so the LLM never sees two differently-named fields carrying the same value.
-- [ ] `ValidateSpecResult(spec_draft_token="x")` (the pre-fix constructor call) raises `ValidationError` rather than silently constructing a `None`-valued object, and this breaking change is documented under `### Breaking changes` in `docs/changelog.md`.
-- [ ] `test_result_id_contract.py` passes today (every current store-writing tool exposes `result_id`) and is structured so a future tool violating the convention fails this test, not just returns a silent `None` from `assemble_trace()`.
-- [ ] `ToolCall.duration_ms` is non-`None` and reflects real elapsed time (not the whole-turn aggregate) for every tool call in `RunTrace.tool_calls`.
-- [ ] `tests/test_agent/test_otel_spans.py` demonstrates, against real (in-memory) captured OTel spans, that span count/names/order are consistent with `RunTrace.tool_calls` for both bots, and that `ToolCall.duration_ms` is never less than the corresponding span's true execution duration.
-- [ ] `tests/evals/` runs standalone (`python -m pytest tests/evals/`) with no live LLM calls or API keys, and demonstrates that the substrate (`RunTrace`, `ResultStore`, `BotResponse`) is wired correctly for each of the three eval-dimension *shapes* from Architecture §5 (tool-selection, refusal, deterministic correctness) for `QueryBot`, plus the `DefinitionBot`-specific equivalents — **not** that any agent behavior was measured. Every case is driven by a scripted `FunctionModel`, so this criterion is satisfied by "the harness runs, reads the right fields, and reports correctly," not by any claim about LLM decision quality. This scoping must be legible in the harness's own docstrings (SF-6/SF-7), not just in this plan.
-- [ ] New `evals` CI job is green.
-- [ ] `ruff check aitaem/ tests/` and `mypy aitaem/ tests/evals/` clean — `tests/evals/`'s `Evaluator`/`EvaluatorContext`/`Dataset` generic parameterization is type-checked, not just linted.
-- [ ] No regressions in the existing `test` / `test-agent` / `import-graph` CI jobs.
-- [ ] ND-09/OQ-2 is no longer stated as open anywhere it currently is: `07-non-decisions.md` (canonical), `ARCHITECTURE.md` §7 table, Executive Summary, and the `OQ-2` subsection, and `05-evals.md` §6.
-- [ ] `05-evals.md` §1's `RunTrace.tool_calls`/`ToolCall` field-name description matches `aitaem/agent/trace.py` exactly (`tool_calls`, `tool_call_id`, `llm_summary`) — no drift between the documented "contract" (`06-extensibility.md` §85) and the shipped shape.
+- [x] `ToolCall.result_id` is non-`None` for `compute_metrics` and `validate_spec` tool calls that succeed, and stays `None` for tools that don't mint store entries or that fail.
+- [x] `ValidateSpecResult`'s LLM-facing serialization (`model_dump()`/`model_dump_json()`) contains `spec_draft_token` only — `result_id` is excluded, so the LLM never sees two differently-named fields carrying the same value.
+- [x] `ValidateSpecResult(spec_draft_token="x")` (the pre-fix constructor call) raises `ValidationError` rather than silently constructing a `None`-valued object, and this breaking change is documented under `### Breaking changes` in `docs/changelog.md`.
+- [x] `test_result_id_contract.py` passes today (every current store-writing tool exposes `result_id`) and is structured so a future tool violating the convention fails this test, not just returns a silent `None` from `assemble_trace()`.
+- [x] `ToolCall.duration_ms` is non-`None` and reflects real elapsed time (not the whole-turn aggregate) for every tool call in `RunTrace.tool_calls`.
+- [x] `tests/test_agent/test_otel_spans.py` demonstrates, against real (in-memory) captured OTel spans, that span count/names/order are consistent with `RunTrace.tool_calls` for both bots, and that `ToolCall.duration_ms` is never less than the corresponding span's true execution duration.
+- [x] `tests/evals/` runs standalone (`python -m pytest tests/evals/`) with no live LLM calls or API keys, and demonstrates that the substrate (`RunTrace`, `ResultStore`, `BotResponse`) is wired correctly for each of the three eval-dimension *shapes* from Architecture §5 (tool-selection, refusal, deterministic correctness) for `QueryBot`, plus the `DefinitionBot`-specific equivalents — **not** that any agent behavior was measured. Every case is driven by a scripted `FunctionModel`, so this criterion is satisfied by "the harness runs, reads the right fields, and reports correctly," not by any claim about LLM decision quality. This scoping must be legible in the harness's own docstrings (SF-6/SF-7), not just in this plan.
+- [x] New `evals` CI job is green.
+- [x] `ruff check aitaem/ tests/` and `mypy aitaem/ tests/evals/` clean — `tests/evals/`'s `Evaluator`/`EvaluatorContext`/`Dataset` generic parameterization is type-checked, not just linted.
+- [x] No regressions in the existing `test` / `test-agent` / `import-graph` CI jobs.
+- [x] ND-09/OQ-2 is no longer stated as open anywhere it currently is: `07-non-decisions.md` (canonical), `ARCHITECTURE.md` §7 table, Executive Summary, and the `OQ-2` subsection, and `05-evals.md` §6.
+- [x] `05-evals.md` §1's `RunTrace.tool_calls`/`ToolCall` field-name description matches `aitaem/agent/trace.py` exactly (`tool_calls`, `tool_call_id`, `llm_summary`) — no drift between the documented "contract" (`06-extensibility.md` §85) and the shipped shape.
 
 ---
 
