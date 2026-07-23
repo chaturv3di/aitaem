@@ -41,7 +41,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 
 from pydantic_evals import Case, Dataset
@@ -187,14 +187,41 @@ dataset: Dataset[QIn, QOut, None] = Dataset(
 # dataset.evaluate() run tells you much less than a distribution does.
 # ---------------------------------------------------------------------------
 
-async def pass_rate(dataset: Dataset[QIn, QOut, None], task, n: int = 5) -> dict[str, float]:
-    tally: Counter[str] = Counter()
+async def pass_rate(
+    dataset: Dataset[QIn, QOut, None], task, n: int = 5
+) -> dict[str, dict[str, float]]:
+    """Per-case, per-evaluator pass rates, plus an "overall" (all-assertions-passed)
+    rate per case. A collapsed overall number can't tell you whether a low rate
+    means the bot isn't reaching status=ok at all, or is reaching it via a tool
+    sequence that doesn't match — those call for very different next steps. Runs
+    with progress=False: pydantic_evals' default progress display depends on
+    ipywidgets rendering correctly, which doesn't always hold in every notebook
+    environment.
+    """
+    # Counter() returns 0 for a key that was never incremented, but an evaluator
+    # that fails on *every* rep is never incremented at all — so its key would
+    # silently be absent from the result rather than reported at 0%. Track the
+    # full set of evaluator names seen per case so a 0% evaluator still shows up.
+    tally: dict[str, Counter[str]] = defaultdict(Counter)
+    evaluator_names: dict[str, set[str]] = defaultdict(set)
     for _ in range(n):
-        report = await dataset.evaluate(task)
+        report = await dataset.evaluate(task, progress=False)
         for case in report.cases:
-            ok = all(assertion.value is True for assertion in case.assertions.values())
-            tally[case.name] += ok
-    return {name: count / n for name, count in tally.items()}
+            all_ok = True
+            for evaluator_name, assertion in case.assertions.items():
+                evaluator_names[case.name].add(evaluator_name)
+                if assertion.value:
+                    tally[case.name][evaluator_name] += 1
+                else:
+                    all_ok = False
+            tally[case.name]["overall"] += all_ok
+    return {
+        case_name: {
+            **{name: tally[case_name][name] / n for name in sorted(names)},
+            "overall": tally[case_name]["overall"] / n,
+        }
+        for case_name, names in evaluator_names.items()
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -228,13 +255,17 @@ async def main() -> None:
     CONN_MGR.add_connection("duckdb", path=db_path)
 
     print("\nRunning dataset once …")
-    report = await dataset.evaluate(query_task)
+    report = await dataset.evaluate(query_task, progress=False)
     report.print(include_input=True, include_output=False)
 
     print("\nRunning pass_rate(n=5) — 10 bot invocations, budget accordingly …")
     rates = await pass_rate(dataset, query_task, n=5)
-    for name, rate in rates.items():
-        print(f"  {name}: {rate:.0%}")
+    for case_name, breakdown in rates.items():
+        print(f"  {case_name}:")
+        print(f"    overall: {breakdown['overall']:.0%}")
+        for evaluator_name, rate in breakdown.items():
+            if evaluator_name != "overall":
+                print(f"    {evaluator_name}: {rate:.0%}")
 
 
 if __name__ == "__main__":
