@@ -374,7 +374,7 @@ With AITAEM v0.4.0 shipped, P0 is done. Phase 1 (foundations) and Phase 2 prep c
 
 AITAEM v0.4.0 delivers the Ibis-return `compute()` and adds `tmp_dir` for cross-backend materialization. The dual-representation result store (Section 3, Section 4 §4) is realizable with the v0.4.0 API. AD-16 (one `MetricCompute` per bot) and AD-17 (opaque `compute_kwargs`) addressed the lifetime and forward-compatibility consequences at the time. (AD-16/AD-17 revised since — see Plan 30.)
 
-Any residual coordination — for instance, AITAEM-side feedback on how the bot uses `tmp_dir` in multi-tenant scenarios — is post-v1.0 territory.
+Any residual coordination — for instance, AITAEM-side feedback on how callers use `tmp_dir` in multi-tenant scenarios — is post-v1.0 territory.
 
 ### OQ-5: Context-window management for long-running sessions
 
