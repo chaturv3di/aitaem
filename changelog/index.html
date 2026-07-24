@@ -1120,7 +1120,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Unreleased">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v100-2026-07-23" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v1.0.0 — 2026-07-23
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="v1.0.0 — 2026-07-23">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1587,7 +1598,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Unreleased">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v100-2026-07-23" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v1.0.0 — 2026-07-23
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="v1.0.0 — 2026-07-23">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2006,10 +2028,12 @@
 
 <h1 id="changelog">Changelog</h1>
 <h2 id="unreleased">Unreleased</h2>
-<p>This release is a stability declaration for <code>aitaem[agent]</code> (see
-<a href="../agent/stability/">Stability &amp; Limitations</a>) — it introduces no breaking changes to
-the existing core <code>aitaem</code> API. The version jump reflects the agent module's graduation
-to a stable, documented surface, not an API break.</p>
+<h2 id="v100-2026-07-23">v1.0.0 — 2026-07-23</h2>
+<p>This release bundles the last breaking changes expected before v1.0's stability
+guarantees take effect (see Breaking changes below), alongside <code>aitaem[agent]</code>'s
+<a href="../agent/stability/">stability declaration</a> — from this release forward, convenience bot
+constructors, primitives base classes, default tool schemas, and <code>RunTrace</code>/
+<code>BotResponse</code> field shapes are semver-stable; default prompt content is explicitly not.</p>
 <h3 id="breaking-changes">Breaking changes</h3>
 <ul>
 <li><strong><code>MetricCompute.__init__</code> <code>tmp_dir</code> parameter removed.</strong> Pass <code>tmp_dir</code> to
