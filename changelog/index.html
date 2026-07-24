@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://chaturv3di.github.io/aitaem/changelog/">
       
       
-        <link rel="prev" href="../api/helpers/">
+        <link rel="prev" href="../api/agent/">
       
       
         <link rel="next" href="../license/">
@@ -291,6 +291,26 @@
   
   
   User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../agent/getting-started/" class="md-tabs__link">
+          
+  
+  
+  Agent
 
         </a>
       </li>
@@ -657,7 +677,7 @@
   <span class="md-ellipsis">
     
   
-    API Reference
+    Agent
   
 
     
@@ -670,6 +690,177 @@
         
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agent
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent/getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent/building-your-own-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building Your Own Bot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent/evaluating-your-agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluating Your Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent/stability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stability & Limitations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -819,6 +1010,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -931,6 +1150,17 @@
     <span class="md-ellipsis">
       
         Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
       
     </span>
   </a>
@@ -1206,7 +1436,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed" class="md-nav__link">
+  <a href="#changed_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -1393,6 +1623,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1662,7 +1903,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed" class="md-nav__link">
+  <a href="#changed_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -1765,6 +2006,10 @@
 
 <h1 id="changelog">Changelog</h1>
 <h2 id="unreleased">Unreleased</h2>
+<p>This release is a stability declaration for <code>aitaem[agent]</code> (see
+<a href="../agent/stability/">Stability &amp; Limitations</a>) — it introduces no breaking changes to
+the existing core <code>aitaem</code> API. The version jump reflects the agent module's graduation
+to a stable, documented surface, not an API break.</p>
 <h3 id="breaking-changes">Breaking changes</h3>
 <ul>
 <li><strong><code>MetricCompute.__init__</code> <code>tmp_dir</code> parameter removed.</strong> Pass <code>tmp_dir</code> to
@@ -1809,6 +2054,14 @@
   failure had nothing to do with resolution validity. The token is now
   restored on failure and can be reused directly; a successful call still
   permanently consumes it.</li>
+<li><strong><code>DefinitionBot</code>'s Anthropic prompt-cache setting now matches <code>QueryBot</code>'s.</strong>
+  It previously used <code>anthropic_cache</code> (a different, "automatic caching" mode)
+  instead of <code>anthropic_cache_instructions</code>, despite its docstring claiming to
+  mirror <code>QueryBot</code>'s cache config — the two bots had different actual
+  cache-hit/cost behavior for a mechanism presented as shared. No public API
+  change; both bots now place the cache breakpoint after the last static
+  instruction block (Layer B), excluding the per-turn dynamic date context
+  (Layer C) from the cached prefix.</li>
 </ul>
 <h3 id="added">Added</h3>
 <ul>
@@ -1846,7 +2099,27 @@
   CI via the new <code>evals</code> job against scripted <code>FunctionModel</code>s — no live LLM
   calls or API keys required. Validates that the substrate is consumable by
   <code>pydantic_evals.Evaluator</code>s, not agent behavior; point it at a live model
-  outside CI to evaluate actual quality. See <code>plans/29-agent-phase6-evals.md</code>.</p>
+  outside CI to evaluate actual quality. See <code>plans/29-agent-phase6-evals.md</code>.
+- <strong>Agent module docs.</strong> A new <code>Agent</code> documentation section — Getting Started,
+  Building Your Own Bot, Evaluating Your Agent, and Stability &amp; Limitations —
+  plus a full API reference page (<code>docs/api/agent.md</code>) covering all 33 public
+  symbols in <code>aitaem.agent.__all__</code>.
+- <strong><code>pip install "aitaem[agent]"</code> — a provider-neutral agent extra</strong> (Anthropic
+  + OpenAI), alongside a new <code>agent-core</code> extra (pydantic-ai with no provider
+  SDK, for building/testing bots against <code>TestModel</code>/<code>FunctionModel</code>).
+  <code>agent-anthropic</code> is unchanged and remains the extra every example in this
+  repo is tested against.
+- <strong><code>examples/04_evaluating_agents_example.py</code> / <code>.ipynb</code></strong> — writing
+  <code>pydantic_evals</code> evaluations against a live <code>QueryBot</code>, including a
+  <code>pass_rate()</code> helper for repeated-run confidence. The live-model companion
+  to <code>tests/evals/</code>'s CI-safe substrate harness.</p>
+<h3 id="changed">Changed</h3>
+<ul>
+<li><strong>Example files under <code>examples/</code> are now numbered</strong> (<code>01_definition_bot_example</code>,
+  <code>02_query_bot_example</code>, <code>03_intent_resolution_example</code>,
+  <code>04_evaluating_agents_example</code>) to suggest a reading order. No content
+  changes to the existing three examples beyond the rename.</li>
+</ul>
 <h2 id="v040-2026-06-26">v0.4.0 — 2026-06-26</h2>
 <h3 id="breaking-changes_1">Breaking changes</h3>
 <ul>
@@ -2061,7 +2334,7 @@
   falls back to treating the input as YAML content.</li>
 </ul>
 <h2 id="v014-2026-03-23">v0.1.4 — 2026-03-23</h2>
-<h3 id="changed">Changed</h3>
+<h3 id="changed_1">Changed</h3>
 <ul>
 <li><strong><code>MetricSpec</code></strong>: removed <code>aggregation</code> field. Aggregation type is now inferred from the SQL
   function embedded in <code>numerator</code> (and <code>denominator</code>). Ratio is implied when <code>denominator</code> is

@@ -2,54 +2,74 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://chaturv3di.github.io/aitaem/</loc>
-         <lastmod>2026-07-23</lastmod>
+         <lastmod>2026-07-24</lastmod>
     </url>
     <url>
          <loc>https://chaturv3di.github.io/aitaem/changelog/</loc>
-         <lastmod>2026-07-23</lastmod>
+         <lastmod>2026-07-24</lastmod>
     </url>
     <url>
          <loc>https://chaturv3di.github.io/aitaem/getting-started/</loc>
-         <lastmod>2026-07-23</lastmod>
+         <lastmod>2026-07-24</lastmod>
     </url>
     <url>
          <loc>https://chaturv3di.github.io/aitaem/license/</loc>
-         <lastmod>2026-07-23</lastmod>
+         <lastmod>2026-07-24</lastmod>
     </url>
     <url>
          <loc>https://chaturv3di.github.io/aitaem/use-cases/</loc>
-         <lastmod>2026-07-23</lastmod>
+         <lastmod>2026-07-24</lastmod>
+    </url>
+    <url>
+         <loc>https://chaturv3di.github.io/aitaem/agent/building-your-own-bot/</loc>
+         <lastmod>2026-07-24</lastmod>
+    </url>
+    <url>
+         <loc>https://chaturv3di.github.io/aitaem/agent/evaluating-your-agent/</loc>
+         <lastmod>2026-07-24</lastmod>
+    </url>
+    <url>
+         <loc>https://chaturv3di.github.io/aitaem/agent/getting-started/</loc>
+         <lastmod>2026-07-24</lastmod>
+    </url>
+    <url>
+         <loc>https://chaturv3di.github.io/aitaem/agent/stability/</loc>
+         <lastmod>2026-07-24</lastmod>
     </url>
     <url>
          <loc>https://chaturv3di.github.io/aitaem/api/</loc>
-         <lastmod>2026-07-23</lastmod>
+         <lastmod>2026-07-24</lastmod>
+    </url>
+    <url>
+         <loc>https://chaturv3di.github.io/aitaem/api/agent/</loc>
+         <lastmod>2026-07-24</lastmod>
     </url>
     <url>
          <loc>https://chaturv3di.github.io/aitaem/api/connectors/</loc>
-         <lastmod>2026-07-23</lastmod>
+         <lastmod>2026-07-24</lastmod>
     </url>
     <url>
          <loc>https://chaturv3di.github.io/aitaem/api/helpers/</loc>
-         <lastmod>2026-07-23</lastmod>
+         <lastmod>2026-07-24</lastmod>
     </url>
     <url>
          <loc>https://chaturv3di.github.io/aitaem/api/insights/</loc>
-         <lastmod>2026-07-23</lastmod>
+         <lastmod>2026-07-24</lastmod>
     </url>
     <url>
          <loc>https://chaturv3di.github.io/aitaem/api/specs/</loc>
-         <lastmod>2026-07-23</lastmod>
+         <lastmod>2026-07-24</lastmod>
     </url>
     <url>
          <loc>https://chaturv3di.github.io/aitaem/user-guide/computing-metrics/</loc>
-         <lastmod>2026-07-23</lastmod>
+         <lastmod>2026-07-24</lastmod>
     </url>
     <url>
          <loc>https://chaturv3di.github.io/aitaem/user-guide/connectors/</loc>
-         <lastmod>2026-07-23</lastmod>
+         <lastmod>2026-07-24</lastmod>
     </url>
     <url>
          <loc>https://chaturv3di.github.io/aitaem/user-guide/specs/</loc>
-         <lastmod>2026-07-23</lastmod>
+         <lastmod>2026-07-24</lastmod>
     </url>
 </urlset>
