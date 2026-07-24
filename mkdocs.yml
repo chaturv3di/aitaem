@@ -50,12 +50,18 @@ nav:
       - Writing Specs: user-guide/specs.md
       - Connectors: user-guide/connectors.md
       - Computing Metrics: user-guide/computing-metrics.md
+  - Agent:
+      - Getting Started: agent/getting-started.md
+      - Building Your Own Bot: agent/building-your-own-bot.md
+      - Evaluating Your Agent: agent/evaluating-your-agent.md
+      - Stability & Limitations: agent/stability.md
   - API Reference:
       - Overview: api/index.md
       - MetricCompute: api/insights.md
       - Specs: api/specs.md
       - Connectors: api/connectors.md
       - Helpers: api/helpers.md
+      - Agent: api/agent.md
   - Changelog: changelog.md
   - License: license.md
 

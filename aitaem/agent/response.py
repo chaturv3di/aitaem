@@ -10,6 +10,9 @@ PayloadT = TypeVar("PayloadT")
 
 
 class BotResponse(BaseModel, Generic[PayloadT]):
+    """The response returned by every Bot method — status, narrative, trace, and an
+    optional typed payload."""
+
     model_config = ConfigDict(frozen=True)
 
     status: Status

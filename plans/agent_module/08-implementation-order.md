@@ -177,6 +177,9 @@ patterns are battle-tested before DefinitionBot inherits them.
 
 ## Phase 4 — SetupBot
 
+**Status:** Deferred to v1.x — not implemented for v1.0. v1.0 ships `QueryBot` +
+`DefinitionBot` only (see Plan 32).
+
 The third convenience bot. Lightest of the three.
 
 ### P4.1 — Connection-validation tool
@@ -290,7 +293,7 @@ Architectural estimates, not commitments. For Claude Code's downstream planning:
 | Phase 1 — Foundations | ✅ Done | — |
 | Phase 2 — QueryBot | ✅ Done | — |
 | Phase 3 — DefinitionBot | ✅ Done | — |
-| Phase 4 — SetupBot | Small | Low |
+| Phase 4 — SetupBot | Deferred to v1.x | — |
 | Phase 5.2 — Composition | ✅ Done | — |
 | Phase 6 — Eval validation | ✅ Done | — |
 | Phase 7 — Docs + ship | Medium | Low |

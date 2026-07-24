@@ -66,3 +66,11 @@ All exceptions inherit from `AitaemError` and are importable from `aitaem`.
 | Function | Module | Purpose |
 |----------|--------|---------|
 | [`load_csvs_to_duckdb`](helpers.md) | `aitaem.helpers` | Load CSV file(s) into a DuckDB database |
+
+## Agent module (optional install)
+
+`aitaem.agent` ships LLM-facing convenience bots (`QueryBot`, `DefinitionBot`) and the
+primitives layer they're built on, on top of the deterministic compute layer documented
+above. It's an optional install (`pip install "aitaem[agent-anthropic]"`) and lives in
+its own [Agent](../agent/getting-started.md) section of these docs — see there for a
+quick start, and the [Agent API reference](agent.md) for the full class/type listing.

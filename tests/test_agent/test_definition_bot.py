@@ -17,6 +17,7 @@ from aitaem.agent.definition_bot import (
     _build_layer_a_definition,
     _build_layer_b_definition,
     _LARGE_CATALOG_THRESHOLD,
+    _provider_cache_config_definition,
 )
 from aitaem.agent.definition_types import DefinitionOutput
 from aitaem.agent.response import BotResponse
@@ -204,6 +205,13 @@ def test_definition_bot_store_is_result_store():
 
 def test_definition_response_is_subtype_of_bot_response():
     assert issubclass(DefinitionResponse, BotResponse)
+
+
+def test_provider_cache_config_definition_anthropic():
+    cfg = _provider_cache_config_definition(
+        "anthropic:claude-haiku-4-5-20251001", "t1"
+    )
+    assert cfg == {"anthropic_cache_instructions": "5m"}
 
 
 def test_definition_bot_agent_has_five_tools():

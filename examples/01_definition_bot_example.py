@@ -1,5 +1,5 @@
 """
-definition_bot_example.py — DefinitionBot spec-definition workflow.
+01_definition_bot_example.py — DefinitionBot spec-definition workflow.
 
 Demonstrates the four-step flow that DefinitionBot uses internally:
     record_definition_intent → list_tables / describe_table → draft_spec → validate_spec
@@ -19,6 +19,11 @@ Part 3 (Anthropic only, same API key)
     Prompt-cache efficiency.  Layer A (workflow rules) and Layer B (existing catalog)
     are cached across ask() calls.  The second ask() should report cache_read_tokens > 0.
 
+This module is the single implementation for both the standalone script below
+and 01_definition_bot_example.ipynb — the notebook imports from here rather than
+redefining any of this, so the two can't drift apart. If you're reading the
+notebook, everything it calls is defined here.
+
 Prerequisites
 -------------
 1. Set your Anthropic API key:
@@ -28,7 +33,7 @@ Prerequisites
        pip install aitaem[agent-anthropic]
 
 Run from the project root:
-    python examples/definition_bot_example.py
+    python examples/01_definition_bot_example.py
 """
 
 from __future__ import annotations
@@ -48,10 +53,12 @@ from aitaem.agent import (
     Status,
 )
 
+MODEL = "anthropic:claude-haiku-4-5-20251001"
+
 
 # ── Pretty-printers ─────────────────────────────────────────────────────────
 
-def _fmt_arg(v: Any) -> str:
+def fmt_arg(v: Any) -> str:
     if isinstance(v, str) and len(v) > 14:
         return f"'{v[:10]}…'"
     if isinstance(v, list):
@@ -59,7 +66,7 @@ def _fmt_arg(v: Any) -> str:
     return repr(v)
 
 
-def _print_spec_parse(label: str, yaml_string: str) -> None:
+def print_spec_parse(label: str, yaml_string: str) -> None:
     """Parse a YAML string and print the resulting spec's attributes."""
     print(f"\n  {'─' * 62}")
     print(f"  {label}")
@@ -71,7 +78,7 @@ def _print_spec_parse(label: str, yaml_string: str) -> None:
     try:
         if top_key == "metric":
             spec = MetricSpec.from_yaml(yaml_string)
-            print(f"  ✓  Parsed MetricSpec")
+            print("  ✓  Parsed MetricSpec")
             print(f"     name        : {spec.name}")
             print(f"     source      : {spec.source}")
             print(f"     numerator   : {spec.numerator}")
@@ -85,13 +92,13 @@ def _print_spec_parse(label: str, yaml_string: str) -> None:
                     print(f"     refs [{field}]  : {cols}")
         elif top_key == "slice":
             spec = SliceSpec.from_yaml(yaml_string)
-            print(f"  ✓  Parsed SliceSpec")
+            print("  ✓  Parsed SliceSpec")
             print(f"     name        : {spec.name}")
             if spec.is_composite:
-                print(f"     subtype     : composite")
+                print("     subtype     : composite")
                 print(f"     cross_product: {spec.cross_product}")
             elif spec.is_wildcard:
-                print(f"     subtype     : wildcard")
+                print("     subtype     : wildcard")
                 print(f"     column      : {spec.column}")
             else:
                 print(f"     subtype     : leaf ({len(spec.values)} values)")
@@ -105,7 +112,7 @@ def _print_spec_parse(label: str, yaml_string: str) -> None:
         print(f"  ✗  Parse failed: {type(exc).__name__}: {exc}")
 
 
-def _print_response(label: str, response: DefinitionResponse) -> None:
+def print_response(label: str, response: DefinitionResponse) -> None:
     print(f"\n{'─' * 70}")
     print(f"{label}")
     print(f"{'─' * 70}")
@@ -135,23 +142,23 @@ def _print_response(label: str, response: DefinitionResponse) -> None:
             print(f"Warning  : {w}")
 
 
-def _print_yaml(response: DefinitionResponse) -> None:
+def print_yaml(response: DefinitionResponse) -> None:
     p = response.payload
     if p is None or not p.yaml_string:
         return
-    print(f"\nGenerated YAML:")
+    print("\nGenerated YAML:")
     for line in p.yaml_string.splitlines():
         print(f"  {line}")
 
 
-def _print_trace(trace: RunTrace) -> None:
+def print_trace(trace: RunTrace) -> None:
     print(
         f"\nTrace    : run={trace.run_id[:8]}  conv={trace.conversation_id[:8]}"
         f"  {trace.duration_ms:.0f}ms"
     )
     for tc in trace.tool_calls:
         non_null = {k: v for k, v in tc.args.items() if v is not None}
-        args_str = ", ".join(f"{k}={_fmt_arg(v)}" for k, v in non_null.items())
+        args_str = ", ".join(f"{k}={fmt_arg(v)}" for k, v in non_null.items())
         icon = "✓" if tc.success else "✗"
         print(f"  {icon} {tc.name}({args_str})")
     u = trace.usage
@@ -159,6 +166,42 @@ def _print_trace(trace: RunTrace) -> None:
     if u.cache_read_tokens:
         cache_info = f"  cache_read={u.cache_read_tokens}"
     print(f"Tokens   : {u.input_tokens} in / {u.output_tokens} out{cache_info}")
+
+
+def cache_summary(label: str, response: DefinitionResponse) -> None:
+    u = response.trace.usage
+    ct = u.cache_read_tokens or 0
+    status = "✓  served from cache" if ct > 0 else "✗  no cache hit"
+    print(f"{label}")
+    print(f"  input_tokens       : {u.input_tokens:>6}")
+    print(f"  cache_read_tokens  : {ct:>6}  {status}")
+    print(f"  output_tokens      : {u.output_tokens:>6}")
+    print()
+
+
+# ── Setup ────────────────────────────────────────────────────────────────────
+
+def setup(base_path: str = ".") -> tuple[SpecCache, str]:
+    """Load the full spec catalog and ensure the bundled DuckDB exists, creating
+    it from the CSV if needed. base_path is the aitaem repo root — "." when run
+    as a script from the project root, or an explicit path from a notebook that
+    may be running from a different working directory. Returns (spec_cache,
+    db_path); the caller opens its own ConnectionManager when it needs one
+    (Part 1 doesn't)."""
+    # Full catalog — includes all metrics, slices, and segments. DefinitionBot
+    # checks this catalog in validate_spec to detect name conflicts.
+    spec_cache = SpecCache.from_yaml(
+        metric_paths=os.path.join(base_path, "examples/metrics/"),
+        slice_paths=os.path.join(base_path, "examples/slices/"),
+        segment_paths=os.path.join(base_path, "examples/segments/"),
+    )
+
+    db_path = os.path.join(base_path, "examples/data/ad_campaigns.duckdb")
+    if not os.path.exists(db_path):
+        csv_path = os.path.join(base_path, "examples/data/ad_campaigns.csv")
+        load_csvs_to_duckdb(csv_path, db_path)
+
+    return spec_cache, db_path
 
 
 # ── Part 1: direct YAML spec parsing ────────────────────────────────────────
@@ -187,7 +230,7 @@ def run_part1(spec_cache: SpecCache) -> None:
     )
 
     # ── Scenario 1: ratio metric (MetricSpec) ────────────────────────────────
-    _print_spec_parse(
+    print_spec_parse(
         "Scenario 1 — MetricSpec: avg_cpc (ratio — ad_spend ÷ clicks)",
         """\
 metric:
@@ -204,7 +247,7 @@ metric:
     # ── Scenario 2: wildcard slice (SliceSpec) ───────────────────────────────
     # Wildcard slices use a column name in `where`. At query time the engine
     # SELECTs DISTINCT values from that column and groups dynamically.
-    _print_spec_parse(
+    print_spec_parse(
         "Scenario 2 — SliceSpec (wildcard): country (auto-discovers values from column)",
         """\
 slice:
@@ -217,7 +260,7 @@ slice:
     # ── Scenario 3: structural parse failure ─────────────────────────────────
     # Missing `numerator` is a required field for MetricSpec.
     # validate_spec would catch this at check #2 and return errors=[...].
-    _print_spec_parse(
+    print_spec_parse(
         "Scenario 3 — MetricSpec parse failure: missing required 'numerator' field",
         """\
 metric:
@@ -260,7 +303,7 @@ async def run_parts2_and_3(spec_cache: SpecCache, db_path: str) -> None:
     )
 
     bot = DefinitionBot(
-        model="anthropic:claude-haiku-4-5-20251001",
+        model=MODEL,
         spec_cache=spec_cache,
         connection_manager=conn_mgr,
     )
@@ -273,9 +316,9 @@ async def run_parts2_and_3(spec_cache: SpecCache, db_path: str) -> None:
         "Define a metric called avg_cpc for average cost per click — "
         "total ad spend divided by total clicks."
     )
-    _print_response("Ask 1: avg_cpc — average cost per click", response1)
-    _print_yaml(response1)
-    _print_trace(response1.trace)
+    print_response("Ask 1: avg_cpc — average cost per click", response1)
+    print_yaml(response1)
+    print_trace(response1.trace)
 
     # ── Ask 2: wildcard slice ─────────────────────────────────────────────────
     # A wildcard slice delegates value discovery to the query engine at runtime.
@@ -284,28 +327,17 @@ async def run_parts2_and_3(spec_cache: SpecCache, db_path: str) -> None:
         "Define a wildcard slice called country that auto-discovers "
         "all country values from the country column in the campaigns table."
     )
-    _print_response("Ask 2: country — wildcard slice", response2)
-    _print_yaml(response2)
-    _print_trace(response2.trace)
+    print_response("Ask 2: country — wildcard slice", response2)
+    print_yaml(response2)
+    print_trace(response2.trace)
 
     # ── Part 3: cache summary ─────────────────────────────────────────────────
     if "anthropic:" in bot._model:
         print(f"\n{'─' * 70}")
         print("Part 3 — Cache efficiency summary (Anthropic only)")
         print(f"{'─' * 70}")
-
-        def _cache_row(label: str, response: DefinitionResponse) -> None:
-            u = response.trace.usage
-            ct = u.cache_read_tokens or 0
-            status = "✓  Layers A+B from cache" if ct > 0 else "✗  no cache hit"
-            print(f"{label}")
-            print(f"  input_tokens       : {u.input_tokens:>6}")
-            print(f"  cache_read_tokens  : {ct:>6}  {status}")
-            print(f"  output_tokens      : {u.output_tokens:>6}")
-            print()
-
-        _cache_row("Ask 1 (warms cache)", response1)
-        _cache_row("Ask 2 (Layers A+B should be cached)", response2)
+        cache_summary("Ask 1 (warms cache)", response1)
+        cache_summary("Ask 2 (Layers A+B should be cached)", response2)
 
     total = sum(
         r.trace.usage.total_tokens
@@ -320,30 +352,15 @@ async def run_parts2_and_3(spec_cache: SpecCache, db_path: str) -> None:
 
 # ── Entry point ──────────────────────────────────────────────────────────────
 
-async def main() -> None:
-    # ── 1. Load specs ────────────────────────────────────────────────────────
+async def main(base_path: str = ".") -> None:
     print("Loading specs …")
-
-    # Full catalog for Part 1 — SpecResolver reads YAML metadata only.
-    spec_cache = SpecCache.from_yaml(
-        metric_paths="examples/metrics/",
-        slice_paths="examples/slices/",
-        segment_paths="examples/segments/",
-    )
+    spec_cache, db_path = setup(base_path)
     print(
         f"  {len(spec_cache.metrics)} metrics, "
         f"{len(spec_cache.slices)} slices, "
         f"{len(spec_cache.segments)} segment(s) loaded"
     )
 
-    # ── 2. Ensure DuckDB exists ───────────────────────────────────────────────
-    db_path = "examples/data/ad_campaigns.duckdb"
-    if not os.path.exists(db_path):
-        print("\nDuckDB file not found — creating from CSV …")
-        load_csvs_to_duckdb("examples/data/ad_campaigns.csv", db_path)
-        print(f"  Created {db_path}")
-
-    # ── 3. Run the example sections ───────────────────────────────────────────
     run_part1(spec_cache)
     await run_parts2_and_3(spec_cache, db_path)
 
