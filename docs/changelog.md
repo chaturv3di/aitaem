@@ -2,10 +2,13 @@
 
 ## Unreleased
 
-This release is a stability declaration for `aitaem[agent]` (see
-[Stability & Limitations](agent/stability.md)) — it introduces no breaking changes to
-the existing core `aitaem` API. The version jump reflects the agent module's graduation
-to a stable, documented surface, not an API break.
+## v1.0.0 — 2026-07-23
+
+This release bundles the last breaking changes expected before v1.0's stability
+guarantees take effect (see Breaking changes below), alongside `aitaem[agent]`'s
+[stability declaration](agent/stability.md) — from this release forward, convenience bot
+constructors, primitives base classes, default tool schemas, and `RunTrace`/
+`BotResponse` field shapes are semver-stable; default prompt content is explicitly not.
 
 ### Breaking changes
 
