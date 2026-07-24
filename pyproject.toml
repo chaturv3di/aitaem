@@ -60,7 +60,14 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
     "pytest-asyncio>=0.23.0",
-    "ruff>=0.3.0",
+    # <0.16: ruff 0.16.0 expanded its default rule set from ~60 rules to 415
+    # (flake8-datetimez, flake8-bugbear, isort, etc.), flagging 139 pre-existing
+    # findings across the repo with no config change on our side. Ruff is
+    # pre-1.0 and explicitly does not treat minor bumps as SemVer-stable, so an
+    # unbounded floor lets a future minor release silently break CI again the
+    # same way. Bump this deliberately (and address findings, or pin an
+    # explicit `select=` in [tool.ruff.lint]) when adopting the new default.
+    "ruff>=0.3.0,<0.16",
     "mypy>=1.8.0",
     "build>=1.0.0",
     "pydantic-ai-slim[evals]>=2.2.0,<3",
