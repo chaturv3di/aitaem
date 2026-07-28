@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### Fixed
+
+- **`IbisConnector.get_table()` no longer rejects bare BigQuery table names.**
+  Previously any table name without a `dataset.table` prefix raised
+  `InvalidURIError`, even though `list_tables()` returns bare names whenever
+  the connection has a default `dataset_id` configured — making it impossible
+  to describe any table that `list_tables()` had just listed. Bare names now
+  resolve against the connection's configured default project/dataset, as
+  `dataset_id` in the connection config already documented.
+
+### Added
+
+- **`TableOutOfScopeError`**, a new exception raised when a BigQuery table
+  name specifies a project or dataset outside a connection's configured
+  scope. A connection configured with only `project_id` may access any
+  dataset within that project; one configured with both `project_id` and
+  `dataset_id` is confined to that single dataset. This replaces a previous,
+  silently-incorrect behavior where a `project.dataset.table` name naming a
+  *different* project had its project segment discarded and was resolved
+  against the connection's own default project instead — potentially
+  matching the wrong table (or failing) rather than reaching the intended
+  project.
+
 ## v1.0.0 — 2026-07-23
 
 This release bundles the last breaking changes expected before v1.0's stability

@@ -16,6 +16,7 @@ from aitaem.utils.exceptions import (
     InvalidURIError,
     QueryExecutionError,
     TableNotFoundError as AitaemTableNotFoundError,
+    TableOutOfScopeError,
     UnsupportedBackendError,
 )
 
@@ -53,6 +54,8 @@ class IbisConnector:
 
         self.backend_type = backend_type
         self.connection: ibis.BaseBackend | None = None
+        self._bq_project_id: str | None = None
+        self._bq_dataset_id: str | None = None
 
     def connect(self, connection_string: str | None = None, **kwargs: Any) -> None:
         """Establish connection to the backend.
@@ -116,6 +119,8 @@ class IbisConnector:
             if cfg.dataset_id is not None:
                 bq_kwargs["dataset_id"] = cfg.dataset_id
             self.connection = ibis.bigquery.connect(**bq_kwargs)
+            self._bq_project_id = cfg.project_id
+            self._bq_dataset_id = cfg.dataset_id
         except Exception as e:
             error_msg = str(e).lower()
             if "credentials" in error_msg or "authentication" in error_msg:
@@ -174,7 +179,10 @@ class IbisConnector:
         Args:
             table_name: Name of the table
                 - DuckDB: simple table name (e.g., 'events')
-                - BigQuery: 'dataset.table' or 'project.dataset.table'
+                - BigQuery: 'table', 'dataset.table', or 'project.dataset.table'.
+                  A bare or dataset-qualified name is resolved against the
+                  connection's configured project (and dataset, if one was
+                  configured) — see _resolve_bigquery_table_name.
 
         Returns:
             Ibis table expression
@@ -183,6 +191,8 @@ class IbisConnector:
             AitaemConnectionError: If not connected
             AitaemTableNotFoundError: If table doesn't exist
             InvalidURIError: If BigQuery table name format is invalid
+            TableOutOfScopeError: If the BigQuery table names a project or
+                dataset outside the connection's configured scope
         """
         if not self.is_connected:
             raise AitaemConnectionError(
@@ -190,9 +200,9 @@ class IbisConnector:
             )
 
         try:
-            # For BigQuery, parse table name to extract dataset.table
+            # For BigQuery, validate table name against the connection's scope
             if self.backend_type == "bigquery":
-                table_name = self._parse_bigquery_table_name(table_name)
+                table_name = self._resolve_bigquery_table_name(table_name)
 
             assert self.connection is not None
             return self.connection.table(table_name)
@@ -223,30 +233,65 @@ class IbisConnector:
                 ) from e
             raise
 
-    def _parse_bigquery_table_name(self, table_name: str) -> str:
-        """Extract dataset.table from fully-qualified BigQuery table name.
+    def _resolve_bigquery_table_name(self, table_name: str) -> str:
+        """Validate a BigQuery table name against the connection's configured scope.
+
+        A connection configured with only `project_id` may access any dataset
+        within that project — the table name must then be dataset-qualified
+        (bare names are ambiguous with no default dataset to fall back on). A
+        connection configured with both `project_id` and `dataset_id` is
+        confined to that single dataset; a name that specifies a different
+        project or dataset is rejected.
+
+        This method only validates — it does not rewrite the name. Ibis's
+        BigQuery backend already resolves 'table', 'dataset.table', and
+        'project.dataset.table' correctly against the connection's own
+        defaults, so a name that passes validation is returned unchanged.
 
         Args:
-            table_name: 'dataset.table' or 'project.dataset.table'
+            table_name: 'table', 'dataset.table', or 'project.dataset.table'
 
         Returns:
-            'dataset.table' format for Ibis
+            table_name, unchanged
 
         Raises:
-            InvalidURIError: If table name has <2 parts
+            InvalidURIError: If no dataset can be determined (bare name, no
+                default dataset configured on this connection)
+            TableOutOfScopeError: If the name specifies a project or dataset
+                outside this connection's configured scope
         """
         parts = table_name.split(".")
-        if len(parts) < 2:
+        if len(parts) == 1:
+            given_project, given_dataset = None, None
+        elif len(parts) == 2:
+            given_project, given_dataset = None, parts[0]
+        else:
+            given_project, given_dataset = parts[0], ".".join(parts[1:-1])
+
+        if given_project is not None and given_project != self._bq_project_id:
+            raise TableOutOfScopeError(
+                f"connection is scoped to project '{self._bq_project_id}'; "
+                f"cannot access project '{given_project}' "
+                f"(requested table: '{table_name}')"
+            )
+
+        if self._bq_dataset_id is not None:
+            if given_dataset is not None and given_dataset != self._bq_dataset_id:
+                raise TableOutOfScopeError(
+                    f"connection is scoped to '{self._bq_project_id}.{self._bq_dataset_id}'; "
+                    f"cannot access dataset '{given_dataset}' "
+                    f"(requested table: '{table_name}')"
+                )
+        elif given_dataset is None:
             raise InvalidURIError(
-                f"BigQuery table name must have at least 2 parts (dataset.table): {table_name}\n\n"
+                f"BigQuery table name must include a dataset — this connection has no "
+                f"default dataset configured: {table_name}\n\n"
                 "Valid formats:\n"
                 "  dataset.table\n"
                 "  project.dataset.table"
             )
-        if len(parts) == 2:
-            return table_name  # Already in dataset.table format
-        # 3+ parts: extract everything after first part (project)
-        return ".".join(parts[1:])
+
+        return table_name
 
     def execute(
         self, expr: ibis.expr.types.Expr, output_format: str = "pandas"
