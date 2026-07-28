@@ -12,6 +12,7 @@ from aitaem.utils.exceptions import (
     ConfigurationError,
     InvalidURIError,
     TableNotFoundError,
+    TableOutOfScopeError,
     UnsupportedBackendError,
 )
 
@@ -206,8 +207,8 @@ class TestGetTable:
         connector.close()
 
     @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
-    def test_get_table_bigquery_three_part_name(self, mocker):
-        """Test getting table with 3-part BigQuery name extracts dataset.table."""
+    def test_get_table_bigquery_three_part_name_matching_project(self, mocker):
+        """3-part name matching the connection's project is passed through unchanged."""
         mock_table = mocker.Mock()
         mock_backend = mocker.Mock()
         mock_backend.table.return_value = mock_table
@@ -216,16 +217,34 @@ class TestGetTable:
         connector = IbisConnector("bigquery")
         connector.connect(project_id="test-project")
 
-        table = connector.get_table("project.dataset.table")
+        table = connector.get_table("test-project.dataset.table")
         assert table is not None
-        # Should extract 'dataset.table' from 'project.dataset.table'
-        mock_backend.table.assert_called_once_with("dataset.table")
+        # ibis resolves project.dataset.table itself — no truncation needed
+        mock_backend.table.assert_called_once_with("test-project.dataset.table")
 
         connector.close()
 
     @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
+    def test_get_table_bigquery_three_part_name_other_project_raises(self, mocker):
+        """3-part name naming a different project raises TableOutOfScopeError."""
+        mock_backend = mocker.Mock()
+        mocker.patch("ibis.bigquery.connect", return_value=mock_backend)
+
+        connector = IbisConnector("bigquery")
+        connector.connect(project_id="test-project")
+
+        with pytest.raises(TableOutOfScopeError) as exc_info:
+            connector.get_table("other-project.dataset.table")
+
+        error_msg = str(exc_info.value)
+        assert "test-project" in error_msg
+        assert "other-project" in error_msg
+        mock_backend.table.assert_not_called()
+        connector.close()
+
+    @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
     def test_get_table_bigquery_invalid_name(self, mocker):
-        """Test that single-part BigQuery table name raises InvalidURIError."""
+        """Bare table name with no default dataset configured raises InvalidURIError."""
         mock_backend = mocker.Mock()
         mocker.patch("ibis.bigquery.connect", return_value=mock_backend)
 
@@ -235,7 +254,77 @@ class TestGetTable:
         with pytest.raises(InvalidURIError) as exc_info:
             connector.get_table("table")
 
-        assert "at least 2 parts" in str(exc_info.value)
+        assert "must include a dataset" in str(exc_info.value)
+        connector.close()
+
+    @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
+    def test_get_table_bigquery_bare_name_with_default_dataset(self, mocker):
+        """Bare table name resolves fine when the connection has a default dataset."""
+        mock_table = mocker.Mock()
+        mock_backend = mocker.Mock()
+        mock_backend.table.return_value = mock_table
+        mocker.patch("ibis.bigquery.connect", return_value=mock_backend)
+
+        connector = IbisConnector("bigquery")
+        connector.connect(project_id="test-project", dataset_id="my_dataset")
+
+        table = connector.get_table("table")
+        assert table is not None
+        mock_backend.table.assert_called_once_with("table")
+
+        connector.close()
+
+    @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
+    def test_get_table_bigquery_matching_dataset_with_default_dataset(self, mocker):
+        """dataset.table matching the connection's default dataset is allowed."""
+        mock_table = mocker.Mock()
+        mock_backend = mocker.Mock()
+        mock_backend.table.return_value = mock_table
+        mocker.patch("ibis.bigquery.connect", return_value=mock_backend)
+
+        connector = IbisConnector("bigquery")
+        connector.connect(project_id="test-project", dataset_id="my_dataset")
+
+        table = connector.get_table("my_dataset.table")
+        assert table is not None
+        mock_backend.table.assert_called_once_with("my_dataset.table")
+
+        connector.close()
+
+    @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
+    def test_get_table_bigquery_other_dataset_with_default_dataset_raises(self, mocker):
+        """dataset.table naming a different dataset raises TableOutOfScopeError
+        when the connection is scoped to a specific default dataset."""
+        mock_backend = mocker.Mock()
+        mocker.patch("ibis.bigquery.connect", return_value=mock_backend)
+
+        connector = IbisConnector("bigquery")
+        connector.connect(project_id="test-project", dataset_id="my_dataset")
+
+        with pytest.raises(TableOutOfScopeError) as exc_info:
+            connector.get_table("other_dataset.table")
+
+        error_msg = str(exc_info.value)
+        assert "test-project.my_dataset" in error_msg
+        assert "other_dataset" in error_msg
+        mock_backend.table.assert_not_called()
+        connector.close()
+
+    @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
+    def test_get_table_bigquery_fully_qualified_self_reference(self, mocker):
+        """project.dataset.table matching both configured project and dataset is allowed."""
+        mock_table = mocker.Mock()
+        mock_backend = mocker.Mock()
+        mock_backend.table.return_value = mock_table
+        mocker.patch("ibis.bigquery.connect", return_value=mock_backend)
+
+        connector = IbisConnector("bigquery")
+        connector.connect(project_id="test-project", dataset_id="my_dataset")
+
+        table = connector.get_table("test-project.my_dataset.table")
+        assert table is not None
+        mock_backend.table.assert_called_once_with("test-project.my_dataset.table")
+
         connector.close()
 
     def test_get_table_not_found(self):
