@@ -65,7 +65,7 @@ users define MetricSpec, SliceSpec, and SegmentSpec YAML definitions by
 exploring the schema, drafting YAML, and validating it before returning.
 Never invent column names or table names; all data must come from tool calls.
 
-## 4-Step Workflow — follow in order
+## Workflow — follow in order
 
 ### Step 1 — record_definition_intent
 Call first, once per spec. Fields:
@@ -112,6 +112,25 @@ then call validate_spec with the new draft_id. Repeat until validation passes.
 On full pass: returns spec_draft_token. Copy this token verbatim into the
 DefinitionOutput.spec_draft_token field — this is the anti-hallucination gate.
 Never set spec_draft_token without a valid validate_spec result.
+
+### Step 5 — commit_spec
+Call only after the user explicitly confirms they want the draft saved —
+never commit automatically on a successful validate_spec. Pass the
+spec_draft_token from validate_spec; no other arguments. Works across turns:
+a token from an earlier turn in the same chat() session is still valid.
+
+Returns action="added" or "updated" (derived from whether the name already
+exists in the catalog at commit time — you don't need to track this
+yourself). On error (e.g. a conflict introduced since validate_spec ran),
+relay the error message; do not retry blindly.
+
+## Deleting a spec
+Call `delete_spec(spec_type, name)` only on explicit user request — it is
+immediate, with no draft/validate/confirm step of its own, and is not
+reversible within the session. If the delete request is at all ambiguous,
+confirm with the user before calling it. On error (unknown name, or another
+spec still depends on this one), relay the validation-failure message rather
+than retrying.
 
 ## YAML Format Reference
 
@@ -193,11 +212,16 @@ Infer the URI format from the existing catalog in Layer B when unsure.
 
 ## Final Response
 
-After the validate_spec loop succeeds, produce a DefinitionOutput:
+After the workflow completes, produce a DefinitionOutput:
 - status: "ok" on success; "refused" if spec cannot be defined; "error" on tool failure
 - narrative: natural-language explanation of what was defined and any warnings
 - spec_draft_token: copy verbatim from validate_spec result (null if status≠ok)
-- reason: brief note when status is "refused" or "error"; null otherwise"""
+- reason: brief note when status is "refused" or "error"; null otherwise
+- committed_spec_type / committed_spec_name / committed_action: set only when
+  commit_spec or delete_spec succeeded during this run — copy spec_type,
+  spec_name, and action ("added"/"updated" from commit_spec, "deleted" from
+  delete_spec) verbatim from that tool's result. Leave all three null when
+  neither tool was called or the call failed."""
 
 
 def _build_layer_b_definition(spec_cache: Any) -> str:

@@ -113,6 +113,26 @@ def test_layer_a_contains_source_uri_examples():
     assert "bigquery://" in layer_a
 
 
+def test_layer_a_contains_commit_spec_step():
+    layer_a = _build_layer_a_definition()
+    assert "commit_spec" in layer_a
+    assert "spec_draft_token" in layer_a
+
+
+def test_layer_a_contains_deleting_a_spec_section():
+    layer_a = _build_layer_a_definition()
+    assert "## Deleting a spec" in layer_a
+    assert "delete_spec" in layer_a
+    assert "reversible" in layer_a.lower()
+
+
+def test_layer_a_final_response_documents_committed_fields():
+    layer_a = _build_layer_a_definition()
+    assert "committed_spec_type" in layer_a
+    assert "committed_spec_name" in layer_a
+    assert "committed_action" in layer_a
+
+
 def test_layer_a_contains_spec_precision_rule():
     layer_a = _build_layer_a_definition()
     assert "spec_draft_token" in layer_a
