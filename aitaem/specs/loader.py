@@ -96,6 +96,8 @@ class SpecCache:
         self._metrics: dict[str, MetricSpec] = {}
         self._slices: dict[str, SliceSpec] = {}
         self._segments: dict[str, SegmentSpec] = {}
+        self.version: int = 0
+        """Monotonic counter, incremented on every successful add()/update()/remove()/clear()."""
 
     @classmethod
     def from_yaml(
@@ -116,7 +118,7 @@ class SpecCache:
         cache._metrics = cls._load_paths_strict(metric_paths, MetricSpec)  # type: ignore[arg-type, assignment]
         cache._slices = cls._load_paths_strict(slice_paths, SliceSpec)  # type: ignore[arg-type, assignment]
         cache._segments = cls._load_paths_strict(segment_paths, SegmentSpec)  # type: ignore[arg-type, assignment]
-        cache._validate_slice_cross_references()
+        cache._validate()
         return cache
 
     @classmethod
@@ -161,39 +163,75 @@ class SpecCache:
                     [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
                 )
             cache._segments[spec.name] = spec  # type: ignore[assignment]
-        cache._validate_slice_cross_references()
+        cache._validate()
         return cache
 
     def add(self, spec: MetricSpec | SliceSpec | SegmentSpec) -> None:
         """Add a spec programmatically.
 
         Raises:
-            SpecValidationError: if a spec with the same name is already present.
+            SpecValidationError: if a spec with the same name is already present,
+                or if adding it breaks cross-reference consistency (rolled back
+                — the cache is left exactly as it was before the call).
         """
-        if isinstance(spec, MetricSpec):
-            if spec.name in self._metrics:
-                raise SpecValidationError(
-                    "MetricSpec",
-                    spec.name,
-                    [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
-                )
-            self._metrics[spec.name] = spec
-        elif isinstance(spec, SliceSpec):
-            if spec.name in self._slices:
-                raise SpecValidationError(
-                    "SliceSpec",
-                    spec.name,
-                    [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
-                )
-            self._slices[spec.name] = spec
-        elif isinstance(spec, SegmentSpec):
-            if spec.name in self._segments:
-                raise SpecValidationError(
-                    "SegmentSpec",
-                    spec.name,
-                    [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
-                )
-            self._segments[spec.name] = spec
+        bucket, _spec_type = self._bucket_for(spec)
+        if spec.name in bucket:
+            raise SpecValidationError(
+                type(spec).__name__,
+                spec.name,
+                [ValidationError(field="name", message=f"Duplicate spec name '{spec.name}'")],
+            )
+        bucket[spec.name] = spec
+        try:
+            self._validate()
+        except Exception:
+            del bucket[spec.name]
+            raise
+        self.version += 1
+
+    def update(self, spec: MetricSpec | SliceSpec | SegmentSpec) -> None:
+        """Update an existing spec by name (overwrite).
+
+        Raises:
+            SpecNotFoundError: if no spec with this name exists in the target bucket.
+            SpecValidationError: if the update breaks cross-reference consistency
+                (rolled back — the cache is left exactly as it was before the call).
+        """
+        bucket, spec_type = self._bucket_for(spec)
+        if spec.name not in bucket:
+            raise SpecNotFoundError(spec_type, spec.name, [])
+        previous = bucket[spec.name]
+        bucket[spec.name] = spec
+        try:
+            self._validate()
+        except Exception:
+            bucket[spec.name] = previous
+            raise
+        self.version += 1
+
+    def remove(self, spec_type: str, name: str) -> None:
+        """Remove a spec by type and name.
+
+        Args:
+            spec_type: "metric", "slice", or "segment".
+            name: Name of the spec to remove.
+
+        Raises:
+            SpecNotFoundError: if no such spec exists.
+            SpecValidationError: if removal breaks cross-reference consistency
+                (e.g. an existing composite slice still references it; rolled
+                back — the cache is left exactly as it was before the call).
+        """
+        bucket = self._bucket_for_type(spec_type)
+        if name not in bucket:
+            raise SpecNotFoundError(spec_type, name, [])
+        previous = bucket.pop(name)
+        try:
+            self._validate()
+        except Exception:
+            bucket[name] = previous
+            raise
+        self.version += 1
 
     @property
     def metrics(self) -> Mapping[str, MetricSpec]:
@@ -245,6 +283,7 @@ class SpecCache:
         self._metrics = {}
         self._slices = {}
         self._segments = {}
+        self.version += 1
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -307,7 +346,29 @@ class SpecCache:
                 result[spec.name] = spec
         return result
 
-    def _validate_slice_cross_references(self) -> None:
+    def _bucket_for(
+        self, spec: MetricSpec | SliceSpec | SegmentSpec
+    ) -> tuple[dict[str, AnySpec], str]:
+        """Return (cache dict, lowercase spec_type) for a spec instance."""
+        if isinstance(spec, MetricSpec):
+            return self._metrics, "metric"  # type: ignore[return-value]
+        elif isinstance(spec, SliceSpec):
+            return self._slices, "slice"  # type: ignore[return-value]
+        elif isinstance(spec, SegmentSpec):
+            return self._segments, "segment"  # type: ignore[return-value]
+        raise TypeError(f"Unsupported spec type: {type(spec).__name__}")
+
+    def _bucket_for_type(self, spec_type: str) -> dict[str, AnySpec]:
+        """Return the cache dict for a lowercase spec_type ('metric'/'slice'/'segment')."""
+        if spec_type == "metric":
+            return self._metrics  # type: ignore[return-value]
+        elif spec_type == "slice":
+            return self._slices  # type: ignore[return-value]
+        elif spec_type == "segment":
+            return self._segments  # type: ignore[return-value]
+        raise ValueError(f"Unknown spec_type: {spec_type!r}")
+
+    def _validate(self) -> None:
         """Validate that composite specs' cross-product references resolve.
 
         Raises:

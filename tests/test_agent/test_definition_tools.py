@@ -519,7 +519,9 @@ def test_validate_spec_composite_slice_missing_cross_ref():
 
 
 def test_validate_spec_composite_slice_all_refs_present():
-    sc = _make_spec_cache(slices={"by_country": MagicMock(), "by_device": MagicMock()})
+    by_country = MagicMock(is_composite=False)
+    by_device = MagicMock(is_composite=False)
+    sc = _make_spec_cache(slices={"by_country": by_country, "by_device": by_device})
     deps = _make_deps(spec_cache=sc)
     draft_id = _store_draft(deps, "slice", _VALID_COMPOSITE_SLICE_YAML)
     ctx = _make_ctx(deps)
@@ -529,6 +531,21 @@ def test_validate_spec_composite_slice_all_refs_present():
     # No cross-ref errors (column check may produce warning but not block)
     assert not any("cross_product" in e.field for e in result.errors)
     assert result.spec_draft_token is not None
+
+
+def test_validate_spec_composite_slice_already_composite_ref_rejected():
+    by_country = MagicMock(is_composite=False)
+    by_device = MagicMock(is_composite=True)  # already composite — nesting not allowed
+    sc = _make_spec_cache(slices={"by_country": by_country, "by_device": by_device})
+    deps = _make_deps(spec_cache=sc)
+    draft_id = _store_draft(deps, "slice", _VALID_COMPOSITE_SLICE_YAML)
+    ctx = _make_ctx(deps)
+
+    result = validate_spec(ctx, draft_id=draft_id)
+
+    assert result.spec_draft_token is None
+    assert any("cross_product" in e.field for e in result.errors)
+    assert any("by_device" in e.message for e in result.errors)
 
 
 def test_validate_spec_column_not_in_schema_populates_column_errors():

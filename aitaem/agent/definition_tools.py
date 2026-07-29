@@ -327,6 +327,21 @@ def validate_spec(
                     )
                 ]
             )
+        already_composite = [
+            name for name in slice_spec.cross_product if spec_cache.slices[name].is_composite
+        ]
+        if already_composite:
+            return ValidateSpecResult(
+                errors=[
+                    ValidationIssue(
+                        field="cross_product",
+                        message=(
+                            f"Composite slice references already-composite slice(s): "
+                            f"{already_composite}. Nested composite slices are not supported."
+                        ),
+                    )
+                ]
+            )
 
     # Check 5: column existence (best-effort)
     warnings: list[str] = []
