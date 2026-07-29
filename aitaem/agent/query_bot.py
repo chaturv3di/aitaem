@@ -295,24 +295,26 @@ class QueryBot(Bot):
         from pydantic_ai.toolsets import FunctionToolset
         from pydantic_ai.capabilities import ReinjectSystemPrompt
 
-        toolset = FunctionToolset()
-        toolset.add_function(record_intent)        # Step 1
-        toolset.add_function(resolve_intent)       # Step 2
-        toolset.add_function(compute_metrics)      # Step 3
-        toolset.add_function(rank_by_value)
-        toolset.add_function(filter_by_threshold)
-        toolset.add_function(distribution_summary)
-        toolset.add_function(period_over_period)
-        toolset.add_function(contribution_share)
+        if self._toolset is None:
+            toolset = FunctionToolset()
+            toolset.add_function(record_intent)        # Step 1
+            toolset.add_function(resolve_intent)       # Step 2
+            toolset.add_function(compute_metrics)      # Step 3
+            toolset.add_function(rank_by_value)
+            toolset.add_function(filter_by_threshold)
+            toolset.add_function(distribution_summary)
+            toolset.add_function(period_over_period)
+            toolset.add_function(contribution_share)
 
-        for tool in self._tools:
-            _register_tool(toolset, tool)
-        self._toolset = toolset
+            for tool in self._tools:
+                _register_tool(toolset, tool)
+            self._toolset = toolset
 
         # Static instructions: Layers A + B combined.
         # These become InstructionPart(dynamic=False) and are cached at the
         # provider-appropriate breakpoint (see _provider_cache_config above).
         static_instructions = _build_layer_a() + "\n\n" + _build_layer_b(self._spec_cache)
+        self._layer_b_version = self._spec_cache.version
 
         # Derive a stable routing key for OpenAI. Explicit tenant_id wins; fall back
         # to _permission_fingerprint so single-tenant installs require zero config and
@@ -323,7 +325,7 @@ class QueryBot(Bot):
             model=self._model,
             deps_type=QueryDeps,
             output_type=QueryOutput,
-            toolsets=[toolset],
+            toolsets=[self._toolset],
             instructions=static_instructions,
             # anthropic_cache_instructions: verified against pydantic-ai 2.2.0's
             # anthropic adapter. InstructionPart.sorted() sorts static (dynamic=False)
@@ -362,6 +364,9 @@ class QueryBot(Bot):
         """
         from datetime import datetime, timezone
         from aitaem.agent.trace import assemble_trace
+
+        if self._spec_cache.version != self._layer_b_version:
+            self._agent = self._build_agent()
 
         run_start = datetime.now(timezone.utc)
         deps = QueryDeps(
@@ -406,6 +411,9 @@ class QueryBot(Bot):
         """
         from datetime import datetime, timezone
         from aitaem.agent.trace import assemble_trace
+
+        if self._spec_cache.version != self._layer_b_version:
+            self._agent = self._build_agent()
 
         run_start = datetime.now(timezone.utc)
         deps = QueryDeps(

@@ -959,3 +959,136 @@ def test_compute_metrics_concurrent_race_never_double_executes():
     # Secondary: exactly one successful execution resulted from the race.
     successes = [r for r in results if r.error is None]
     assert len(successes) == 1
+
+
+# ---------------------------------------------------------------------------
+# Plan 33 / SF-9: version-gated agent rebuild (mirrors DefinitionBot's SF-5)
+# ---------------------------------------------------------------------------
+
+
+def _immediate_refused_model() -> FunctionModel:
+    """FunctionModel that ends the turn immediately, no tool calls."""
+
+    def fn(messages: list, info: AgentInfo) -> ModelResponse:
+        output = QueryOutput(status=Status.refused, narrative="out of scope", reason="n/a")
+        return ModelResponse(parts=[TextPart(content=output.model_dump_json())])
+
+    return FunctionModel(fn)
+
+
+def test_query_bot_no_rebuild_across_no_mutation_turns():
+    from aitaem.specs.loader import SpecCache
+
+    bot = QueryBot(
+        model=_immediate_refused_model(),
+        spec_cache=SpecCache(),
+        connection_manager=MagicMock(),
+    )
+    agent_before = bot._agent
+
+    asyncio.run(bot.chat("hello"))
+    asyncio.run(bot.chat("hello again"))
+
+    assert bot._agent is agent_before
+
+
+def test_query_bot_rebuilds_and_updates_version_after_mutation():
+    from aitaem.specs.loader import SpecCache
+    from aitaem.specs.metric import MetricSpec
+
+    cache = SpecCache()
+    bot = QueryBot(
+        model=_immediate_refused_model(),
+        spec_cache=cache,
+        connection_manager=MagicMock(),
+    )
+    agent_before = bot._agent
+    assert bot._layer_b_version == 0
+
+    cache.add(
+        MetricSpec(
+            name="new_metric", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
+        )
+    )
+    asyncio.run(bot.chat("hello"))
+
+    assert bot._agent is not agent_before
+    assert bot._layer_b_version == cache.version
+    assert any(
+        isinstance(instr, str) and "new_metric" in instr for instr in bot._agent._instructions
+    )
+
+
+def test_query_bot_rebuild_preserves_runtime_added_tool():
+    from aitaem.specs.loader import SpecCache
+    from aitaem.specs.metric import MetricSpec
+
+    def custom_tool() -> str:
+        return "x"
+
+    cache = SpecCache()
+    bot = QueryBot(
+        model=_immediate_refused_model(),
+        spec_cache=cache,
+        connection_manager=MagicMock(),
+    )
+    bot.add_tool(custom_tool)
+    assert "custom_tool" in bot._toolset.tools
+
+    cache.add(
+        MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
+    )
+    asyncio.run(bot.chat("hello"))  # triggers a rebuild
+
+    assert "custom_tool" in bot._toolset.tools
+
+
+def test_query_bot_layer_b_reflects_spec_committed_by_shared_definition_bot():
+    """A DefinitionBot commit against a shared SpecCache is visible in QueryBot's next turn."""
+    from unittest.mock import MagicMock as _MM
+
+    from aitaem.agent.definition_bot import DefinitionBot
+    from aitaem.agent.definition_tools import commit_spec
+    from aitaem.agent.definition_types import DefinitionDeps
+    from aitaem.specs.loader import SpecCache
+
+    cache = SpecCache()
+    query_bot = QueryBot(
+        model=_immediate_refused_model(),
+        spec_cache=cache,
+        connection_manager=MagicMock(),
+    )
+    # A DefinitionBot sharing the same SpecCache instance.
+    definition_bot = DefinitionBot(
+        model=TestModel(),
+        spec_cache=cache,
+        connection_manager=MagicMock(),
+    )
+
+    asyncio.run(query_bot.chat("hello"))  # warm turn 1, version 0
+    agent_before = query_bot._agent
+
+    # Commit a spec through DefinitionBot's own tool machinery (not the LLM
+    # loop — that path is covered by test_definition_bot.py's multi-turn
+    # commit test) against the SpecCache the two bots share.
+    token = definition_bot.store.store_text(
+        "metric:\n  name: shared_metric\n  source: duckdb://db/t\n"
+        "  numerator: SUM(x)\n  timestamp_col: ts\n",
+        "application/yaml",
+        metadata={"spec_type": "metric", "spec_name": "shared_metric"},
+    )
+    ctx = _MM()
+    ctx.deps = DefinitionDeps(
+        connection_manager=MagicMock(), spec_cache=cache, store=definition_bot.store
+    )
+    result = commit_spec(ctx, spec_draft_token=token)
+    assert result.error is None
+    assert result.action == "added"
+
+    asyncio.run(query_bot.chat("hello again"))
+
+    assert query_bot._agent is not agent_before
+    assert any(
+        isinstance(instr, str) and "shared_metric" in instr
+        for instr in query_bot._agent._instructions
+    )
