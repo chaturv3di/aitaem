@@ -74,6 +74,12 @@ class DefinitionOutput(BaseModel):
     spec_draft_token: str | None = None
     # Populated on status=refused or status=error.
     reason: str | None = None
+    # Set only when commit_spec/delete_spec succeeded during this run.
+    # spec_draft_token keeps its existing meaning (drafted-and-validated, not
+    # necessarily committed) regardless of whether these are set.
+    committed_spec_type: Literal["metric", "slice", "segment"] | None = None
+    committed_spec_name: str | None = None
+    committed_action: Literal["added", "updated", "deleted"] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +103,11 @@ class DefinitionPayload(BaseModel):
     metric_spec: Any | None = None
     slice_spec: Any | None = None
     segment_spec: Any | None = None
+    # Mirrors DefinitionOutput's committed_* fields — set only when
+    # commit_spec/delete_spec succeeded during this run.
+    committed_spec_type: Literal["metric", "slice", "segment"] | None = None
+    committed_spec_name: str | None = None
+    committed_action: Literal["added", "updated", "deleted"] | None = None
 
 
 # ---------------------------------------------------------------------------

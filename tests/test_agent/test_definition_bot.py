@@ -7,7 +7,14 @@ import json
 from unittest.mock import MagicMock, patch
 import pytest
 from pydantic_ai.exceptions import UserError
-from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, ToolCallPart, ToolReturnPart
+from pydantic_ai.messages import (
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
 from pydantic_ai.models.function import FunctionModel, AgentInfo
 from pydantic_ai.models.test import TestModel
 
@@ -23,6 +30,7 @@ from aitaem.agent.definition_types import DefinitionOutput
 from aitaem.agent.response import BotResponse
 from aitaem.agent.store import ResultStore, TextEntry
 from aitaem.agent.trace import Status
+from aitaem.specs.loader import SpecCache
 from aitaem.specs.metric import MetricSpec
 
 
@@ -996,3 +1004,257 @@ def test_definition_extra_tools_collision_surfaces_as_error_status():
     )
     assert response.status == Status.error
     assert "conflicts with existing tool" in (response.reason or "")
+
+
+# ---------------------------------------------------------------------------
+# Plan 33 / SF-4: commit_spec/delete_spec registration and payload surfacing
+# ---------------------------------------------------------------------------
+
+
+def test_definition_bot_agent_has_seven_tools():
+    bot = _make_bot()
+    tool_names = set(bot._toolset.tools.keys())
+    expected = {
+        "record_definition_intent",
+        "list_tables",
+        "describe_table",
+        "draft_spec",
+        "validate_spec",
+        "commit_spec",
+        "delete_spec",
+    }
+    assert expected.issubset(tool_names)
+
+
+def test_assemble_payload_surfaces_committed_fields_without_spec_draft_token():
+    """A delete_spec-only turn has no draft to re-parse, but committed_* must still surface."""
+    store = ResultStore()
+    output = DefinitionOutput(
+        status=Status.ok,
+        narrative="Deleted.",
+        committed_spec_type="metric",
+        committed_spec_name="revenue",
+        committed_action="deleted",
+    )
+    payload = DefinitionBot._assemble_payload(output, store)
+    assert payload.committed_spec_type == "metric"
+    assert payload.committed_spec_name == "revenue"
+    assert payload.committed_action == "deleted"
+    assert payload.yaml_string is None
+
+
+def test_assemble_payload_surfaces_committed_fields_alongside_draft_fields():
+    store = ResultStore()
+    token = store.store_text(
+        _VALID_METRIC_YAML,
+        "application/yaml",
+        metadata={"spec_type": "metric", "spec_name": "revenue"},
+    )
+    output = DefinitionOutput(
+        status=Status.ok,
+        narrative="Committed.",
+        spec_draft_token=token,
+        committed_spec_type="metric",
+        committed_spec_name="revenue",
+        committed_action="added",
+    )
+    payload = DefinitionBot._assemble_payload(output, store)
+    assert payload.yaml_string == _VALID_METRIC_YAML
+    assert payload.committed_action == "added"
+
+
+def test_assemble_payload_omits_committed_fields_when_not_set():
+    store = ResultStore()
+    token = store.store_text(
+        _VALID_METRIC_YAML,
+        "application/yaml",
+        metadata={"spec_type": "metric", "spec_name": "revenue"},
+    )
+    output = DefinitionOutput(status=Status.ok, narrative="Done", spec_draft_token=token)
+    payload = DefinitionBot._assemble_payload(output, store)
+    assert payload.committed_action is None
+    assert payload.committed_spec_name is None
+
+
+# ---------------------------------------------------------------------------
+# Plan 33 / SF-5: version-gated agent rebuild
+# ---------------------------------------------------------------------------
+
+
+def _immediate_ok_model() -> FunctionModel:
+    """FunctionModel that ends the turn immediately with status=ok, no tool calls."""
+
+    def fn(messages: list, info: AgentInfo) -> ModelResponse:
+        output = DefinitionOutput(status=Status.ok, narrative="ok")
+        return ModelResponse(parts=[TextPart(content=output.model_dump_json())])
+
+    return FunctionModel(fn)
+
+
+def test_layer_b_no_rebuild_across_no_mutation_turns():
+    bot = DefinitionBot(
+        model=_immediate_ok_model(),
+        spec_cache=SpecCache(),
+        connection_manager=MagicMock(),
+    )
+    agent_before = bot._agent
+
+    asyncio.run(bot.chat("hello"))
+    asyncio.run(bot.chat("hello again"))
+
+    assert bot._agent is agent_before
+
+
+def test_layer_b_rebuilds_and_updates_version_after_mutation():
+    cache = SpecCache()
+    bot = DefinitionBot(
+        model=_immediate_ok_model(),
+        spec_cache=cache,
+        connection_manager=MagicMock(),
+    )
+    agent_before = bot._agent
+    assert bot._layer_b_version == 0
+
+    cache.add(
+        MetricSpec(
+            name="new_metric", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
+        )
+    )
+    asyncio.run(bot.chat("hello"))
+
+    assert bot._agent is not agent_before
+    assert bot._layer_b_version == cache.version
+    assert any(
+        isinstance(instr, str) and "new_metric" in instr for instr in bot._agent._instructions
+    )
+
+
+def test_layer_b_rebuild_preserves_runtime_added_tool():
+    def custom_tool() -> str:
+        return "x"
+
+    cache = SpecCache()
+    bot = DefinitionBot(
+        model=_immediate_ok_model(),
+        spec_cache=cache,
+        connection_manager=MagicMock(),
+    )
+    bot.add_tool(custom_tool)
+    assert "custom_tool" in bot._toolset.tools
+
+    cache.add(
+        MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
+    )
+    asyncio.run(bot.chat("hello"))  # triggers a rebuild
+
+    assert "custom_tool" in bot._toolset.tools
+
+
+def test_history_survives_mid_chat_rebuild():
+    cache = SpecCache()
+    bot = DefinitionBot(
+        model=_immediate_ok_model(),
+        spec_cache=cache,
+        connection_manager=MagicMock(),
+    )
+    asyncio.run(bot.chat("first turn"))
+    history_len_before = len(bot._message_history)
+    assert history_len_before > 0
+
+    cache.add(
+        MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
+    )  # forces a rebuild on the next turn
+    asyncio.run(bot.chat("second turn"))
+
+    assert len(bot._message_history) > history_len_before
+    assert any(
+        isinstance(p, UserPromptPart) and p.content == "first turn"
+        for m in bot._message_history
+        if isinstance(m, ModelRequest)
+        for p in m.parts
+    )
+
+
+def _make_multi_turn_commit_model() -> FunctionModel:
+    """FunctionModel: turn 1 drafts+validates (no commit); turn 2 commits via the token."""
+    state = {"turn1_done": False}
+
+    def fn(messages: list, info: AgentInfo) -> ModelResponse:
+        returns = _collect_tool_returns(messages)
+
+        if "record_definition_intent" not in returns:
+            return ModelResponse(parts=[ToolCallPart(
+                tool_name="record_definition_intent",
+                args=json.dumps({"spec_type": "metric", "description": "Revenue"}),
+                tool_call_id="tc-1",
+            )])
+        if "draft_spec" not in returns:
+            return ModelResponse(parts=[ToolCallPart(
+                tool_name="draft_spec",
+                args=json.dumps({"spec_type": "metric", "yaml_string": _VALID_METRIC_YAML}),
+                tool_call_id="tc-2",
+            )])
+        if "validate_spec" not in returns:
+            draft_id = returns["draft_spec"].get("draft_id", "")
+            return ModelResponse(parts=[ToolCallPart(
+                tool_name="validate_spec",
+                args=json.dumps({"draft_id": draft_id}),
+                tool_call_id="tc-3",
+            )])
+
+        token = returns["validate_spec"].get("spec_draft_token")
+        if not state["turn1_done"]:
+            state["turn1_done"] = True
+            output = DefinitionOutput(status=Status.ok, narrative="Validated.", spec_draft_token=token)
+            return ModelResponse(parts=[TextPart(content=output.model_dump_json())])
+
+        commit_data = returns.get("commit_spec")
+        if commit_data is None:
+            return ModelResponse(parts=[ToolCallPart(
+                tool_name="commit_spec",
+                args=json.dumps({"spec_draft_token": token}),
+                tool_call_id="tc-commit",
+            )])
+
+        output = DefinitionOutput(
+            status=Status.ok,
+            narrative="Committed.",
+            committed_spec_type=commit_data.get("spec_type"),
+            committed_spec_name=commit_data.get("spec_name"),
+            committed_action=commit_data.get("action"),
+        )
+        return ModelResponse(parts=[TextPart(content=output.model_dump_json())])
+
+    return FunctionModel(fn)
+
+
+def test_multi_turn_commit_using_spec_draft_token():
+    mock_cm = MagicMock()
+    mock_cm.backend_types = ["duckdb"]
+    mock_connector = MagicMock()
+    mock_connector.list_tables.return_value = ["transactions"]
+    mock_ibis = MagicMock()
+    mock_ibis.columns = ["amount", "transaction_date"]
+    mock_ibis.schema.return_value = MagicMock(
+        names=["amount", "transaction_date"], types=["float64", "date"]
+    )
+    mock_connector.get_table.return_value = mock_ibis
+    mock_cm.get_connection.return_value = mock_connector
+
+    cache = SpecCache()
+    bot = DefinitionBot(
+        model=_make_multi_turn_commit_model(),
+        spec_cache=cache,
+        connection_manager=mock_cm,
+    )
+
+    turn1 = asyncio.run(bot.chat("Define a revenue metric"))
+    assert turn1.status == Status.ok
+    assert turn1.payload.spec_draft_token is not None
+    assert "revenue" not in cache.metrics
+
+    turn2 = asyncio.run(bot.chat("Yes, save it"))
+    assert turn2.status == Status.ok
+    assert turn2.payload.committed_action == "added"
+    assert turn2.payload.committed_spec_name == "revenue"
+    assert "revenue" in cache.metrics
