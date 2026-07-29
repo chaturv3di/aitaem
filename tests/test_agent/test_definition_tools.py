@@ -9,6 +9,8 @@ from aitaem.agent.definition_types import (
     DefinitionIntent,
 )
 from aitaem.agent.definition_tools import (
+    commit_spec,
+    delete_spec,
     describe_table,
     draft_spec,
     list_tables,
@@ -583,3 +585,197 @@ def test_validate_spec_connection_failure_during_column_check_adds_warning():
     assert result.spec_draft_token is not None
     assert len(result.warnings) > 0
     assert result.column_errors == []
+
+
+# ---------------------------------------------------------------------------
+# SF-2: commit_spec
+# ---------------------------------------------------------------------------
+
+
+def _validated_token(deps, spec_type, yaml_string):
+    """Helper: draft + validate a spec, returning its spec_draft_token."""
+    ctx = MagicMock()
+    ctx.deps = deps
+    draft_id = draft_spec(ctx, spec_type=spec_type, yaml_string=yaml_string).draft_id
+    result = validate_spec(ctx, draft_id=draft_id)
+    assert result.spec_draft_token is not None, f"validate_spec failed: {result.errors}"
+    return result.spec_draft_token
+
+
+def test_commit_spec_add_path():
+    from aitaem.specs.loader import SpecCache
+
+    deps = _make_deps(spec_cache=SpecCache())
+    token = _validated_token(deps, "metric", _VALID_METRIC_YAML)
+    ctx = _make_ctx(deps)
+
+    result = commit_spec(ctx, spec_draft_token=token)
+
+    assert result.error is None
+    assert result.action == "added"
+    assert result.spec_type == "metric"
+    assert result.spec_name == "revenue"
+    assert deps.spec_cache.get_metric("revenue").name == "revenue"
+    assert deps.spec_cache.version == 1
+
+
+def test_commit_spec_update_path():
+    from aitaem.specs.loader import SpecCache
+    from aitaem.specs.metric import MetricSpec
+
+    cache = SpecCache()
+    cache.add(
+        MetricSpec(name="revenue", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
+    )
+    deps = _make_deps(spec_cache=cache)
+    deps.definition_intent = DefinitionIntent(
+        spec_type="metric", description="Update revenue", is_update=True, original_name="revenue"
+    )
+    token = _validated_token(deps, "metric", _VALID_METRIC_YAML)
+    ctx = _make_ctx(deps)
+
+    result = commit_spec(ctx, spec_draft_token=token)
+
+    assert result.action == "updated"
+    assert cache.get_metric("revenue").source == "duckdb://analytics.db/transactions"
+    assert cache.version == 2  # 1 from the initial add(), 1 from this update()
+
+
+def test_commit_spec_unknown_token_returns_error():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+
+    result = commit_spec(ctx, spec_draft_token="does-not-exist")
+
+    assert result.error is not None
+    assert result.action is None
+
+
+def test_commit_spec_wrong_kind_token_returns_error():
+    deps = _make_deps()
+    tabular_id = deps.store.store_tabular(arrow=None, ibis_ref=None)
+    ctx = _make_ctx(deps)
+
+    result = commit_spec(ctx, spec_draft_token=tabular_id)
+
+    assert result.error is not None
+    assert result.action is None
+
+
+def test_commit_spec_drift_validated_new_but_now_exists_routes_to_update():
+    """Validated as new, but the name now exists at commit time -> routes to update()."""
+    from aitaem.specs.loader import SpecCache
+    from aitaem.specs.metric import MetricSpec
+
+    cache = SpecCache()
+    deps = _make_deps(spec_cache=cache)
+    token = _validated_token(deps, "metric", _VALID_METRIC_YAML)  # validated while cache was empty
+    # A concurrent commit adds "revenue" before this commit runs.
+    cache.add(
+        MetricSpec(
+            name="revenue", source="duckdb://db/other", numerator="SUM(y)", timestamp_col="ts2"
+        )
+    )
+    ctx = _make_ctx(deps)
+
+    result = commit_spec(ctx, spec_draft_token=token)
+
+    assert result.action == "updated"
+    assert result.error is None
+
+
+def test_commit_spec_drift_validated_update_but_target_deleted_routes_to_add():
+    """Validated as an update, but the target was deleted before commit -> routes to add()."""
+    from aitaem.specs.loader import SpecCache
+    from aitaem.specs.metric import MetricSpec
+
+    cache = SpecCache()
+    cache.add(
+        MetricSpec(name="revenue", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
+    )
+    deps = _make_deps(spec_cache=cache)
+    deps.definition_intent = DefinitionIntent(
+        spec_type="metric", description="Update revenue", is_update=True, original_name="revenue"
+    )
+    token = _validated_token(deps, "metric", _VALID_METRIC_YAML)
+    cache.remove("metric", "revenue")  # deleted before commit
+    ctx = _make_ctx(deps)
+
+    result = commit_spec(ctx, spec_draft_token=token)
+
+    assert result.action == "added"
+    assert result.error is None
+
+
+def test_commit_spec_cache_consistency_conflict_surfaces_as_error():
+    """A nested-composite conflict introduced since validate_spec ran surfaces as an error."""
+    from aitaem.specs.loader import SpecCache
+    from aitaem.specs.slice import SliceSpec, SliceValue
+
+    cache = SpecCache()
+    cache.add(SliceSpec(name="by_country", values=(SliceValue(name="US", where="country='US'"),)))
+    cache.add(SliceSpec(name="by_device", values=(SliceValue(name="mobile", where="d='mobile'"),)))
+    deps = _make_deps(spec_cache=cache)
+    token = _validated_token(deps, "slice", _VALID_COMPOSITE_SLICE_YAML)
+    # Promote by_device into a composite after validation, before commit.
+    cache.update(SliceSpec(name="by_device", cross_product=("by_country",)))
+    ctx = _make_ctx(deps)
+
+    result = commit_spec(ctx, spec_draft_token=token)
+
+    assert result.error is not None
+    assert result.action is None
+
+
+# ---------------------------------------------------------------------------
+# SF-3: delete_spec
+# ---------------------------------------------------------------------------
+
+
+def test_delete_spec_success():
+    from aitaem.specs.loader import SpecCache
+    from aitaem.specs.metric import MetricSpec
+
+    cache = SpecCache()
+    cache.add(
+        MetricSpec(name="revenue", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
+    )
+    deps = _make_deps(spec_cache=cache)
+    ctx = _make_ctx(deps)
+
+    result = delete_spec(ctx, spec_type="metric", name="revenue")
+
+    assert result.deleted is True
+    assert result.error is None
+    assert "revenue" not in cache.metrics
+
+
+def test_delete_spec_unknown_name_returns_error():
+    from aitaem.specs.loader import SpecCache
+
+    deps = _make_deps(spec_cache=SpecCache())
+    ctx = _make_ctx(deps)
+
+    result = delete_spec(ctx, spec_type="metric", name="ghost")
+
+    assert result.deleted is False
+    assert result.error is not None
+
+
+def test_delete_spec_blocked_by_dependent_composite():
+    from aitaem.specs.loader import SpecCache
+    from aitaem.specs.slice import SliceSpec, SliceValue
+
+    cache = SpecCache()
+    cache.add(SliceSpec(name="geo", values=(SliceValue(name="US", where="country='US'"),)))
+    cache.add(SliceSpec(name="device", values=(SliceValue(name="mobile", where="d='mobile'"),)))
+    cache.add(SliceSpec(name="geo_x_device", cross_product=("geo", "device")))
+    deps = _make_deps(spec_cache=cache)
+    ctx = _make_ctx(deps)
+
+    result = delete_spec(ctx, spec_type="slice", name="geo")
+
+    assert result.deleted is False
+    assert result.error is not None
+    assert "geo_x_device" in result.error
+    assert "geo" in cache.slices

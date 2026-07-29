@@ -25,8 +25,10 @@ from pydantic_ai import RunContext
 
 from aitaem.agent.definition_types import (
     ColumnInfo,
+    CommitSpecResult,
     DefinitionDeps,
     DefinitionIntent,
+    DeleteSpecResult,
     DescribeTableResult,
     DraftSpecResult,
     ListTablesResult,
@@ -417,6 +419,98 @@ def validate_spec(
         warnings=warnings,
         referenced_columns=referenced_columns,
     )
+
+
+# ── Step 6: commit_spec ──────────────────────────────────────────────────────
+
+
+def commit_spec(
+    ctx: RunContext[DefinitionDeps],
+    spec_draft_token: str,
+) -> CommitSpecResult:
+    """Commit a validated spec draft to the SpecCache.
+
+    Call only after the user explicitly confirms they want the draft saved.
+    Add-vs-update is derived from live cache state at commit time (name already
+    present -> update, else add) — not from anything recorded at validate_spec
+    time, since the cache may have changed since then.
+
+    Args:
+        spec_draft_token: Token returned by validate_spec on a full pass.
+
+    Returns:
+        CommitSpecResult with action="added"|"updated" on success, or error set
+        on an invalid token or a cache-consistency rejection.
+    """
+    from aitaem.agent.store import WrongEntryKindError
+    from aitaem.utils.exceptions import SpecNotFoundError, SpecValidationError
+
+    try:
+        entry = ctx.deps.store.get_text(spec_draft_token)
+    except (KeyError, WrongEntryKindError):
+        return CommitSpecResult(
+            error=f"spec_draft_token {spec_draft_token!r} not found or is not a spec draft. "
+            "Call validate_spec first to obtain a valid token."
+        )
+
+    spec_type = entry.metadata.get("spec_type")
+    if spec_type not in ("metric", "slice", "segment"):
+        return CommitSpecResult(
+            error=f"spec_draft_token {spec_draft_token!r} has no valid spec_type metadata."
+        )
+
+    try:
+        spec = _parse_yaml_to_spec(spec_type, entry.text)
+    except Exception as exc:
+        return CommitSpecResult(
+            error=f"Failed to re-parse validated YAML: {type(exc).__name__}: {exc}"
+        )
+
+    spec_cache = ctx.deps.spec_cache
+    existing = _get_spec_cache_bucket(spec_cache, spec_type)
+    try:
+        if spec.name in existing:
+            spec_cache.update(spec)
+            action: Literal["added", "updated"] = "updated"
+        else:
+            spec_cache.add(spec)
+            action = "added"
+    except (SpecValidationError, SpecNotFoundError) as exc:
+        return CommitSpecResult(error=f"{type(exc).__name__}: {exc}")
+
+    return CommitSpecResult(spec_type=spec_type, spec_name=spec.name, action=action)
+
+
+# ── Step 7: delete_spec ──────────────────────────────────────────────────────
+
+
+def delete_spec(
+    ctx: RunContext[DefinitionDeps],
+    spec_type: Literal["metric", "slice", "segment"],
+    name: str,
+) -> DeleteSpecResult:
+    """Delete a spec from the SpecCache. Immediate — no draft/token/confirm step.
+
+    Call only on explicit user request. Not reversible within the session.
+
+    Args:
+        spec_type: The kind of spec to delete: "metric", "slice", or "segment".
+        name: Name of the spec to delete.
+
+    Returns:
+        DeleteSpecResult with deleted=True on success, or deleted=False with
+        error set (unknown name, or blocked by a dependent composite slice).
+    """
+    from aitaem.utils.exceptions import SpecNotFoundError, SpecValidationError
+
+    try:
+        ctx.deps.spec_cache.remove(spec_type, name)
+    except (SpecNotFoundError, SpecValidationError) as exc:
+        return DeleteSpecResult(
+            spec_type=spec_type, spec_name=name, deleted=False, error=str(exc)
+        )
+
+    return DeleteSpecResult(spec_type=spec_type, spec_name=name, deleted=True)
 
 
 # ---------------------------------------------------------------------------

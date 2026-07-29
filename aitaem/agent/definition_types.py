@@ -181,3 +181,24 @@ class ValidateSpecResult(BaseModel):
     def spec_draft_token(self) -> str | None:
         """LLM-facing token. The LLM must copy this verbatim into DefinitionOutput.spec_draft_token."""
         return self.result_id or None
+
+
+class CommitSpecResult(BaseModel):
+    """Returned by commit_spec. action distinguishes add-vs-update, derived from live cache state."""
+
+    spec_type: Literal["metric", "slice", "segment"] | None = None
+    spec_name: str | None = None
+    action: Literal["added", "updated"] | None = None
+    # Set on an invalid/unknown token or a cache-consistency rejection (e.g. a
+    # nested-composite conflict introduced since validate_spec ran).
+    error: str | None = None
+
+
+class DeleteSpecResult(BaseModel):
+    """Returned by delete_spec."""
+
+    spec_type: Literal["metric", "slice", "segment"]
+    spec_name: str
+    deleted: bool
+    # Set when the spec was not found, or removal was blocked by a dependent composite.
+    error: str | None = None
