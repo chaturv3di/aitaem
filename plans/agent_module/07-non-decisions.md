@@ -80,15 +80,19 @@ Each non-decision is paired with an "escape valve" — the path forward we are l
 
 ---
 
-## ND-07: Hot-reload of SpecCache
+## ND-07: Hot-reload of SpecCache — partially resolved (Plan 33)
 
-**What's deferred.** A bot constructed with a `SpecCache` instance uses that instance for its lifetime. If the caller updates specs upstream (e.g. a user creates a new metric), the existing bot does not see the change. The caller constructs a new bot.
+**What's resolved.** A bot that mutates its own held `SpecCache` — via `DefinitionBot.commit_spec`/`delete_spec` — sees the change within the same instance, starting the next `ask()`/`chat()` turn. `DefinitionBot` and `QueryBot` both compare `SpecCache.version` against the version captured at their last agent build and rebuild only when it has moved, so a spec committed by one bot is visible in a `QueryBot` sharing the same `SpecCache` instance too. See `plans/33-definition-bot-spec-commit.md` (SF-5, SF-9).
 
-**Why safe.** Bot construction is cheap. The "new bot per session" pattern (AD-04) already implies fresh `SpecCache` lookups at construction time.
+**What's still deferred.** The original scope of this entry: a caller mutating specs *upstream* of any bot (e.g. loading a new YAML file directly into a fresh `SpecCache` that no existing bot instance was constructed with) is not picked up by existing bot instances. The caller still constructs a new bot for that case.
+
+**Why the remaining scope is safe.** Bot construction is cheap. The "new bot per session" pattern (AD-04) already implies fresh `SpecCache` lookups at construction time.
 
 **Escape valve.** `bot.reset(spec_cache=new_cache)` could be added in v1.x without breaking the in-construction lifetime model.
 
-**Trigger to revisit.** When users describe long-lived bot instances that need to track spec changes (probably never for `aitaem.agent`'s expected use; possibly for a hosted variant).
+**Trigger to revisit.** When users describe long-lived bot instances that need to track upstream spec changes (probably never for `aitaem.agent`'s expected use; possibly for a hosted variant).
+
+**Related.** ND-08's "one call at a time per bot" expectation now extends across a shared `DefinitionBot`/`QueryBot` pair: a `commit_spec`/`delete_spec` call must not run concurrently with a `QueryBot` run on the same `SpecCache`. Serializing that is the caller's responsibility, per ND-08's existing escape valve.
 
 ---
 

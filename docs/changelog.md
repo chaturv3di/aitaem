@@ -4,6 +4,15 @@
 
 ### Fixed
 
+- **`QueryBot`'s spec catalog no longer goes stale when it shares a
+  `SpecCache` with a `DefinitionBot` that commits, updates, or deletes a
+  spec.** Previously `QueryBot`'s LLM-visible catalog was built once at
+  construction time; a spec added by a `DefinitionBot` holding the same
+  `SpecCache` instance was immediately queryable but never appeared in
+  `QueryBot`'s own catalog for the rest of its session. `QueryBot` (and
+  `DefinitionBot`) now rebuild their agent when `SpecCache.version` moves,
+  keeping the catalog visible starting the next turn while staying
+  cache-eligible (no rebuild) on turns where nothing changed.
 - **`IbisConnector.get_table()` no longer rejects bare BigQuery table names.**
   Previously any table name without a `dataset.table` prefix raised
   `InvalidURIError`, even though `list_tables()` returns bare names whenever
@@ -14,6 +23,19 @@
 
 ### Added
 
+- **`DefinitionBot.commit_spec` and `DefinitionBot.delete_spec` tools.**
+  `commit_spec(spec_draft_token)` saves a validated draft to the shared
+  `SpecCache` — adding or updating based on live cache state at commit time.
+  `delete_spec(spec_type, name)` removes a spec immediately, blocked by
+  `SpecCache`'s referential-integrity check if another spec still depends on
+  it. `DefinitionOutput`/`DefinitionPayload` gain `committed_spec_type`,
+  `committed_spec_name`, and `committed_action` fields, set when either tool
+  succeeds.
+- **`SpecCache.update()` and `SpecCache.remove()`**, plus a transactional
+  `add()`: all three mutate-then-validate-then-commit-or-rollback against
+  `SpecCache`'s existing cross-reference validator, leaving the cache
+  untouched on a rejected mutation. `SpecCache.version` is a new monotonic
+  counter, incremented on every successful mutation (including `clear()`).
 - **`TableOutOfScopeError`**, a new exception raised when a BigQuery table
   name specifies a project or dataset outside a connection's configured
   scope. A connection configured with only `project_id` may access any

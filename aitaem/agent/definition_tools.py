@@ -1,11 +1,15 @@
-"""DefinitionBot tools (SF-2 through SF-6).
+"""DefinitionBot tools.
 
-Five tools in 4-step gate order:
+Seven tools. Tools 1-5 form the 4-step gate order; tools 6-7 are callable any
+time after validate_spec mints a token (delete_spec is standalone — no token
+needed):
   1. record_definition_intent — capture spec type, description, optional existing YAML
   2. list_tables              — enumerate tables across backends
   3. describe_table           — schema for one table
   4. draft_spec               — store LLM-written YAML, return draft_id
   5. validate_spec            — 5-check anti-hallucination gate; mints spec_draft_token
+  6. commit_spec               — save a validated draft to SpecCache (add or update)
+  7. delete_spec               — remove a spec from SpecCache
 """
 
 from __future__ import annotations
