@@ -4,6 +4,25 @@
 
 ### Fixed
 
+- **Non-`all_time` (period-granularity) queries against non-DuckDB backends
+  (confirmed: BigQuery) no longer fail with a dialect syntax error.**
+  `QueryBuilder` previously hand-assembled every query as a SQL string,
+  including a `VALUES`-with-column-list periods CTE that DuckDB accepts but
+  BigQuery's grammar rejects, plus hardcoded DuckDB type names. It now builds
+  real Ibis expressions throughout — the periods table is generated
+  server-side via `ibis.range()` and interval arithmetic instead, verified
+  across DuckDB/BigQuery/Postgres. User-authored SQL (`numerator`/
+  `denominator`/`where`) is spliced in via `Table.sql()`, uniformly across all
+  four fragment kinds — fixing, as a byproduct, a related bug where segment
+  `where` fragments were always re-emitted in DuckDB's dialect regardless of
+  the query's actual target backend.
+- **DefinitionBot's BigQuery URI prompt row now matches its DuckDB/Postgres
+  siblings' pattern** (`bigquery://<project>/<dataset>/<table>`, all-slash),
+  removing an inconsistent extra step (slash *then* dot) that caused
+  multi-attempt retry loops. `validate_spec()` translates the LLM's form to
+  the core-canonical `project/dataset.table` before storage. No breaking
+  change — `ConnectionManager._parse_bigquery_uri` still accepts every shape
+  it did before.
 - **`QueryBot`'s spec catalog no longer goes stale when it shares a
   `SpecCache` with a `DefinitionBot` that commits, updates, or deletes a
   spec.** Previously `QueryBot`'s LLM-visible catalog was built once at

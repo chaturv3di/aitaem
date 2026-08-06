@@ -588,6 +588,100 @@ def test_validate_spec_connection_failure_during_column_check_adds_warning():
 
 
 # ---------------------------------------------------------------------------
+# Plan 34 SF-5: BigQuery source URI normalizer
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_bigquery_source_uri_all_slash_to_canonical():
+    from aitaem.agent.definition_tools import _normalize_bigquery_source_uri
+
+    assert (
+        _normalize_bigquery_source_uri("bigquery://project/dataset/table")
+        == "bigquery://project/dataset.table"
+    )
+
+
+def test_normalize_bigquery_source_uri_noop_non_bigquery_scheme():
+    from aitaem.agent.definition_tools import _normalize_bigquery_source_uri
+
+    uri = "duckdb://analytics.db/events"
+    assert _normalize_bigquery_source_uri(uri) == uri
+
+
+def test_normalize_bigquery_source_uri_noop_already_canonical():
+    from aitaem.agent.definition_tools import _normalize_bigquery_source_uri
+
+    uri = "bigquery://project/dataset.table"
+    assert _normalize_bigquery_source_uri(uri) == uri
+
+
+def test_normalize_bigquery_source_uri_noop_unrecognized_shape():
+    from aitaem.agent.definition_tools import _normalize_bigquery_source_uri
+
+    # Fully-dotted: _parse_bigquery_uri already accepts it unchanged.
+    uri = "bigquery://project.dataset.table"
+    assert _normalize_bigquery_source_uri(uri) == uri
+
+
+def test_normalize_source_in_yaml_rewrites_source():
+    from aitaem.agent.definition_tools import _normalize_source_in_yaml
+
+    yaml_text = (
+        "metric:\n"
+        "  name: revenue\n"
+        "  source: bigquery://myproject/ds/sales\n"
+        "  numerator: \"SUM(amount)\"\n"
+        "  timestamp_col: ts\n"
+    )
+    result = _normalize_source_in_yaml(yaml_text)
+    import yaml as pyyaml
+
+    data = pyyaml.safe_load(result)
+    assert data["metric"]["source"] == "bigquery://myproject/ds.sales"
+
+
+def test_normalize_source_in_yaml_noop_malformed_yaml():
+    from aitaem.agent.definition_tools import _normalize_source_in_yaml
+
+    bad_yaml = "metric:\n  name: [unclosed"
+    assert _normalize_source_in_yaml(bad_yaml) == bad_yaml
+
+
+def test_normalize_source_in_yaml_noop_missing_source_key():
+    from aitaem.agent.definition_tools import _normalize_source_in_yaml
+
+    yaml_text = "slice:\n  name: by_country\n  values:\n    - name: US\n      where: \"country = 'US'\"\n"
+    assert _normalize_source_in_yaml(yaml_text) == yaml_text
+
+
+def test_normalize_source_in_yaml_noop_already_canonical_uri():
+    from aitaem.agent.definition_tools import _normalize_source_in_yaml
+
+    yaml_text = "metric:\n  name: revenue\n  source: bigquery://project/dataset.table\n"
+    assert _normalize_source_in_yaml(yaml_text) == yaml_text
+
+
+def test_validate_spec_normalizes_bigquery_source_in_stored_draft():
+    yaml_text = (
+        "metric:\n"
+        "  name: revenue\n"
+        "  source: bigquery://myproject/ds/sales\n"
+        "  numerator: \"SUM(amount)\"\n"
+        "  timestamp_col: transaction_date\n"
+    )
+    deps = _make_deps()
+    draft_id = _store_draft(deps, "metric", yaml_text)
+    ctx = _make_ctx(deps)
+
+    result = validate_spec(ctx, draft_id=draft_id)
+
+    assert result.spec_draft_token is not None, f"validate_spec failed: {result.errors}"
+    entry = deps.store.get_text(result.spec_draft_token)
+    assert "bigquery://myproject/ds.sales" in entry.text
+    assert "bigquery://myproject/ds/sales" not in entry.text
+
+
+# ---------------------------------------------------------------------------
 # SF-2: commit_spec
 # ---------------------------------------------------------------------------
 

@@ -1,17 +1,24 @@
 """
 aitaem.query.builder - QueryBuilder and QueryGroup
 
-Translates MetricSpec / SliceSpec / SegmentSpec into SQL strings grouped by source URI.
-No database connection required — all work is string manipulation.
+Translates MetricSpec / SliceSpec / SegmentSpec into ibis.Table expressions
+grouped by source URI. Building a ConnectionManager (or per-source connector)
+to obtain bound table handles, since resolving schema for the DIM join and
+splicing user-authored SQL fragments (via Table.sql()) both require a live
+backend — see plans/34-ibis-native-query-building.md.
 """
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from typing import Literal, get_args
 
+import ibis
+
 from aitaem.connectors.connection import ConnectionManager
+from aitaem.connectors.ibis_connector import IbisConnector
 from aitaem.specs.metric import MetricSpec
 from aitaem.specs.segment import SegmentSpec
 from aitaem.specs.slice import SliceSpec
@@ -20,24 +27,34 @@ from aitaem.utils.exceptions import QueryBuildError
 PeriodType = Literal["all_time", "daily", "weekly", "monthly", "yearly", "hourly"]
 VALID_PERIOD_TYPES: frozenset[str] = frozenset(get_args(PeriodType))
 
+# period_type -> ibis.interval() kwarg for one period's width
+_INTERVAL_UNIT_KWARGS: dict[str, dict[str, int]] = {
+    "hourly": {"hours": 1},
+    "daily": {"days": 1},
+    "weekly": {"days": 7},
+    "monthly": {"months": 1},
+    "yearly": {"years": 1},
+}
+
 
 @dataclass
 class QueryGroup:
-    """All SQL queries for a single source URI."""
+    """All Ibis table expressions for a single source URI."""
 
     source: str
     metrics: list[MetricSpec]
-    sql_queries: list[str] = field(default_factory=list)
+    expressions: list[ibis.Table] = field(default_factory=list)
 
 
 class QueryBuilder:
-    """Builds SQL query strings from specs.  All methods are static."""
+    """Builds Ibis table expressions from specs. All methods are static."""
 
     @staticmethod
     def build_queries(
         metric_specs: list[MetricSpec],
         slice_specs: list[SliceSpec] | None,
         segment_spec: SegmentSpec | None,
+        connection_manager: ConnectionManager,
         segment_join_key: str | None = None,
         time_window: tuple[str, str] | None = None,
         spec_cache: "SpecCache | None" = None,  # type: ignore[name-defined]  # noqa: F821
@@ -46,10 +63,13 @@ class QueryBuilder:
     ) -> list[QueryGroup]:
         """Build optimized query groups (one per unique source table).
 
-        Each QueryGroup contains all SQL queries for that source:
+        Each QueryGroup contains all Ibis expressions for that source:
         one per (metric × slice × (segment | no-segment baseline)).
 
         Args:
+            connection_manager: Provides bound ibis.Table handles per source —
+                required for the DIM join and for splicing user-authored SQL
+                fragments via Table.sql(), both of which need real schema.
             segment_spec: A single SegmentSpec to apply, or None for no segmentation.
             segment_join_key: Fact-table FK column to join to the segment's DIM table.
                               Defaults to ``segment_spec.entity_id`` when omitted.
@@ -94,7 +114,7 @@ class QueryBuilder:
                         f"Supported entities: {metric.entities or []}"
                     )
 
-        # Period metadata (used for all_time only; non-all_time uses dynamic SQL expressions)
+        # Period metadata (used for all_time only; non-all_time uses the periods spine)
         period_start: str | None = time_window[0] if time_window else None
         period_end: str | None = time_window[1] if time_window else None
 
@@ -102,11 +122,13 @@ class QueryBuilder:
 
         query_groups: list[QueryGroup] = []
         for source, metrics in groups_by_source.items():
-            sql_queries: list[str] = []
+            connector = connection_manager.get_connection_for_source(source)
+            expressions: list[ibis.Table] = []
             for metric in metrics:
-                sql_queries.extend(
+                expressions.extend(
                     QueryBuilder._build_queries_for_metric(
                         metric=metric,
+                        connector=connector,
                         slice_specs=slice_specs,
                         segment_spec=segment_spec,
                         segment_join_key=segment_join_key,
@@ -118,7 +140,9 @@ class QueryBuilder:
                         by_entity=by_entity,
                     )
                 )
-            query_groups.append(QueryGroup(source=source, metrics=metrics, sql_queries=sql_queries))
+            query_groups.append(
+                QueryGroup(source=source, metrics=metrics, expressions=expressions)
+            )
 
         return query_groups
 
@@ -133,6 +157,7 @@ class QueryBuilder:
     @staticmethod
     def _build_queries_for_metric(
         metric: MetricSpec,
+        connector: IbisConnector,
         slice_specs: list[SliceSpec] | None,
         segment_spec: SegmentSpec | None,
         segment_join_key: str | None,
@@ -142,20 +167,16 @@ class QueryBuilder:
         period_end: str | None,
         spec_cache: "SpecCache | None" = None,  # type: ignore[name-defined]  # noqa: F821
         by_entity: str | None = None,
-    ) -> list[str]:
-        """Build all SQL queries for one metric.
+    ) -> list[ibis.Table]:
+        """Build all Ibis expressions for one metric.
 
         Each SliceSpec is processed independently (+ a no-slice/all baseline).
-        For each slice × (segment | no-segment baseline) combination, one SQL query
-        is generated. Composite SliceSpecs are resolved via spec_cache.
+        For each slice × (segment | no-segment baseline) combination, one
+        expression is generated. Composite SliceSpecs are resolved via spec_cache.
 
         len(result) == (len(slice_specs) + 1) × (2 if segment_spec else 1)
         """
-        time_filter_sql: str | None = None
-        if time_window is not None:
-            time_filter_sql = QueryBuilder._build_time_filter_sql(time_window, metric.timestamp_col)
-        table_name = QueryBuilder._parse_table_name_from_uri(metric.source)
-        queries: list[str] = []
+        expressions: list[ibis.Table] = []
 
         all_slice_specs: list[SliceSpec | None] = list(slice_specs) if slice_specs else []
         all_slice_specs.append(None)  # no-slice baseline
@@ -168,23 +189,22 @@ class QueryBuilder:
         for slice_spec in all_slice_specs:
             resolved_slices = QueryBuilder._resolve_slice_components(slice_spec, spec_cache)
             for seg in segment_states:
-                queries.append(
+                expressions.append(
                     QueryBuilder._build_metric_segment_query(
                         metric=metric,
-                        table_name=table_name,
+                        connector=connector,
                         slice_specs=resolved_slices,
                         segment_spec=seg,
                         segment_join_key=segment_join_key if seg is not None else None,
-                        time_filter_sql=time_filter_sql,
+                        time_window=time_window,
                         period_type=period_type,
                         period_start=period_start,
                         period_end=period_end,
-                        time_window=time_window,
                         by_entity=by_entity,
                     )
                 )
 
-        return queries
+        return expressions
 
     @staticmethod
     def _resolve_slice_components(
@@ -216,188 +236,201 @@ class QueryBuilder:
     @staticmethod
     def _build_metric_segment_query(
         metric: MetricSpec,
-        table_name: str,
+        connector: IbisConnector,
         slice_specs: list[SliceSpec] | None,
         segment_spec: SegmentSpec | None,
-        time_filter_sql: str | None,
         period_type: str,
         period_start: str | None,
         period_end: str | None,
         segment_join_key: str | None = None,
         time_window: tuple[str, str] | None = None,
         by_entity: str | None = None,
-    ) -> str:
-        """Build a single SQL query for one (metric, segment_spec | None) combination."""
-        # --- DIM join metadata (populated only when segment_spec is provided) ---
-        dim_table_name: str | None = None
+    ) -> ibis.Table:
+        """Build a single Ibis expression for one (metric, segment_spec | None) combination."""
+        table_name = QueryBuilder._parse_table_name_from_uri(metric.source)
+        t = connector.get_table(table_name)
+
+        # --- Segment: splice classification onto the DIM table's own schema, ---
+        # --- then join — unqualified column refs in segment `where` resolve  ---
+        # --- naturally against the DIM table alone, no qualification needed. ---
+        dim_labeled: ibis.Table | None = None
         effective_join_key: str | None = None
+        segment_alias: str | None = None
         if segment_spec is not None:
             dim_table_name = QueryBuilder._parse_table_name_from_uri(segment_spec.source)
+            dim = connector.get_table(dim_table_name)
             effective_join_key = segment_join_key or segment_spec.entity_id
+            segment_alias = "_segment"
+            segment_col_sql = QueryBuilder._build_segment_case_when_expr(
+                segment_spec, segment_alias
+            )
+            dim_src_name = QueryBuilder._unique_alias("_dim_src")
+            dim_src = dim.alias(dim_src_name)
+            dim_labeled = dim_src.sql(f"SELECT *, {segment_col_sql} FROM {dim_src_name}")
 
-        # --- CTE SELECT columns ---
-        cte_extra_cols: list[str] = []
+        # --- Slices: splice classification(s) onto the fact table's own schema. ---
         slice_aliases: list[str] = []
-
+        slice_col_sqls: list[str] = []
         if slice_specs:
             for ss in slice_specs:
                 alias = f"_slice_{ss.name}"
                 slice_aliases.append(alias)
                 if ss.is_wildcard:
-                    cte_extra_cols.append(QueryBuilder._build_wildcard_slice_expr(ss, alias))
+                    slice_col_sqls.append(QueryBuilder._build_wildcard_slice_expr(ss, alias))
                 else:
-                    cte_extra_cols.append(QueryBuilder._build_slice_case_when_expr(ss, alias))
+                    slice_col_sqls.append(QueryBuilder._build_slice_case_when_expr(ss, alias))
 
-        segment_alias: str | None = None
-        if segment_spec is not None:
-            segment_alias = "_segment"
-            cte_extra_cols.append(
-                QueryBuilder._build_segment_case_when_expr(segment_spec, segment_alias)
-            )
-
-        # --- Outer SELECT scalar columns helpers ---
-        def lit(v: str | None) -> str:
-            return f"'{v}'" if v is not None else "CAST(NULL AS VARCHAR)"
-
-        slice_type_val = "|".join(ss.name for ss in slice_specs) if slice_specs else "none"
-        slice_value_expr = (
-            QueryBuilder._build_slice_value_concat_expr(slice_aliases) if slice_aliases else "'all'"
-        )
-        segment_name_val = segment_spec.name if segment_spec else "none"
-        segment_value_expr = segment_alias if segment_alias else "'all'"
-        metric_value_expr = QueryBuilder._build_metric_value_expr(metric)
-
-        # --- WHERE (IS NOT NULL filters) ---
-        null_filters: list[str] = []
-        for alias in slice_aliases:
-            null_filters.append(f"{alias} IS NOT NULL")
-        if segment_alias:
-            null_filters.append(f"{segment_alias} IS NOT NULL")
-        outer_where = "WHERE " + "\n  AND ".join(null_filters) if null_filters else ""
-
-        entity_id_expr = f"{by_entity}" if by_entity else "NULL"
-
-        if period_type == "all_time":
-            # ---- all_time path ----
-            if dim_table_name is not None:
-                # DIM join: alias fact table as t, join DIM table as _dim
-                cte_select = "    SELECT\n        t.*"
-                if cte_extra_cols:
-                    cte_select += ",\n        " + ",\n        ".join(cte_extra_cols)
-                cte_from = f"    FROM {table_name} t"
-                cte_dim_join = (
-                    f"    JOIN {dim_table_name} _dim"
-                    f" ON t.{effective_join_key} = _dim.{segment_spec.entity_id}"  # type: ignore[union-attr]
-                )
-                cte_where = f"    WHERE {time_filter_sql}" if time_filter_sql else ""
-                cte_lines = [cte_select, cte_from, cte_dim_join]
-                if cte_where:
-                    cte_lines.append(cte_where)
-            else:
-                cte_select = "    SELECT\n        *"
-                if cte_extra_cols:
-                    cte_select += ",\n        " + ",\n        ".join(cte_extra_cols)
-                cte_from = f"    FROM {table_name}"
-                cte_where = f"    WHERE {time_filter_sql}" if time_filter_sql else ""
-                cte_lines = [cte_select, cte_from]
-                if cte_where:
-                    cte_lines.append(cte_where)
-
-            cte_body = "\n".join(cte_lines)
-
-            outer_select_cols = [
-                f"    {lit(period_type)}                AS period_type",
-                f"    {lit(period_start)}               AS period_start_date",
-                f"    {lit(period_end)}                 AS period_end_date",
-                f"    {entity_id_expr}                  AS entity_id",
-                f"    '{metric.name}'                   AS metric_name",
-                f"    {lit(metric.format)}              AS metric_format",
-                f"    '{slice_type_val}'                AS slice_type",
-                f"    {slice_value_expr}                AS slice_value",
-                f"    '{segment_name_val}'              AS segment_name",
-                f"    {segment_value_expr}              AS segment_value",
-                f"    {metric_value_expr}               AS metric_value",
-            ]
-            outer_select = "SELECT\n" + ",\n".join(outer_select_cols)
-
-            group_by_cols = []
-            if by_entity:
-                group_by_cols.append(by_entity)
-            group_by_cols.extend(slice_aliases)
-            if segment_alias:
-                group_by_cols.append(segment_alias)
-            outer_group_by = f"GROUP BY {', '.join(group_by_cols)}" if group_by_cols else ""
-
-            parts = [f"WITH _labeled AS (\n{cte_body}\n)\n{outer_select}", "FROM _labeled"]
-            if outer_where:
-                parts.append(outer_where)
-            if outer_group_by:
-                parts.append(outer_group_by)
-
-            return "\n".join(parts)
-
+        if slice_col_sqls:
+            t_src_name = QueryBuilder._unique_alias("_fact_src")
+            t_src = t.alias(t_src_name)
+            t_labeled = t_src.sql(f"SELECT *, {', '.join(slice_col_sqls)} FROM {t_src_name}")
         else:
-            # ---- non-all_time path (period granularity) ----
+            t_labeled = t
+
+        # --- Join fact + dim, keeping fact columns plus only the derived _segment label. ---
+        fact_cols = list(t_labeled.columns)
+        if dim_labeled is not None:
+            joined = t_labeled.join(
+                dim_labeled,
+                t_labeled[effective_join_key] == dim_labeled[segment_spec.entity_id],  # type: ignore[union-attr]
+            )
+            labeled = joined.select(*fact_cols, joined[segment_alias])  # type: ignore[arg-type]
+        else:
+            labeled = t_labeled
+
+        # --- Time / periods filter. ---
+        ts_col = metric.timestamp_col
+        if period_type == "all_time":
+            if time_window is not None:
+                start, end = time_window
+                labeled = labeled.filter(
+                    (labeled[ts_col] >= ibis.literal(start))
+                    & (labeled[ts_col] < ibis.literal(end))
+                )
+            period_start_expr = QueryBuilder._lit_or_null(period_start)
+            period_end_expr = QueryBuilder._lit_or_null(period_end)
+        else:
             assert time_window is not None  # validated in build_queries
+            pre_period_cols = list(labeled.columns)
             boundaries = QueryBuilder._generate_period_boundaries(time_window, period_type)
-            periods_cte = QueryBuilder._build_periods_cte(boundaries)
-
-            # _labeled: SELECT t.*, period columns, slice/segment CASE WHEN expressions
-            cte_select = "    SELECT\n        t.*"
-            period_cols = [
-                "p.period_start AS _period_start",
-                "p.period_end   AS _period_end",
-            ]
-            all_extra = period_cols + cte_extra_cols
-            cte_select += ",\n        " + ",\n        ".join(all_extra)
-
-            ts_col = metric.timestamp_col
-            cte_from = f"    FROM {table_name} t"
-            cte_periods_join = (
-                f"    JOIN _periods p\n"
-                f"      ON CAST(t.{ts_col} AS TIMESTAMP) >= p.period_start\n"
-                f"     AND CAST(t.{ts_col} AS TIMESTAMP) <  p.period_end"
+            spine = QueryBuilder._build_periods_spine(boundaries, period_type)
+            joined = labeled.join(
+                spine,
+                (labeled[ts_col].cast("timestamp") >= spine["period_start"])
+                & (labeled[ts_col].cast("timestamp") < spine["period_end"]),
+            )
+            labeled = joined.select(
+                *pre_period_cols, joined["period_start"], joined["period_end"]
             )
 
-            cte_lines = [cte_select, cte_from, cte_periods_join]
-            if dim_table_name is not None:
-                cte_lines.append(
-                    f"    JOIN {dim_table_name} _dim"
-                    f" ON t.{effective_join_key} = _dim.{segment_spec.entity_id}"  # type: ignore[union-attr]
-                )
-            cte_body = "\n".join(cte_lines)
+        # --- Null-filtering: drop rows unclassified by any slice/segment. ---
+        null_filters = [labeled[alias].notnull() for alias in slice_aliases]
+        if segment_alias:
+            null_filters.append(labeled[segment_alias].notnull())
+        if null_filters:
+            condition = null_filters[0]
+            for c in null_filters[1:]:
+                condition = condition & c
+            labeled = labeled.filter(condition)
 
-            outer_select_cols = [
-                f"    '{period_type}'                        AS period_type",
-                "    CAST(_period_start AS VARCHAR)         AS period_start_date",
-                "    CAST(_period_end   AS VARCHAR)         AS period_end_date",
-                f"    {entity_id_expr}                       AS entity_id",
-                f"    '{metric.name}'                        AS metric_name",
-                f"    {lit(metric.format)}                   AS metric_format",
-                f"    '{slice_type_val}'                     AS slice_type",
-                f"    {slice_value_expr}                     AS slice_value",
-                f"    '{segment_name_val}'                   AS segment_name",
-                f"    {segment_value_expr}                   AS segment_value",
-                f"    {metric_value_expr}                    AS metric_value",
-            ]
-            outer_select = "SELECT\n" + ",\n".join(outer_select_cols)
+        # --- Group by + aggregate: splice numerator/denominator (already an ---
+        # --- aggregate expression) against the filtered/joined table.       ---
+        group_by_cols: list[str] = []
+        if period_type != "all_time":
+            group_by_cols.extend(["period_start", "period_end"])
+        if by_entity:
+            group_by_cols.append(by_entity)
+        group_by_cols.extend(slice_aliases)
+        if segment_alias:
+            group_by_cols.append(segment_alias)
 
-            # GROUP BY always includes _period_start, _period_end
-            group_by_cols = ["_period_start", "_period_end"]
-            if by_entity:
-                group_by_cols.append(by_entity)
-            group_by_cols.extend(slice_aliases)
-            if segment_alias:
-                group_by_cols.append(segment_alias)
-            outer_group_by = f"GROUP BY {', '.join(group_by_cols)}"
+        metric_value_fragment = QueryBuilder._build_metric_value_expr(metric)
+        agg_src_name = QueryBuilder._unique_alias("_agg_src")
+        labeled_src = labeled.alias(agg_src_name)
+        if group_by_cols:
+            group_sql = ", ".join(group_by_cols)
+            agg_query = (
+                f"SELECT {group_sql}, {metric_value_fragment} AS metric_value "
+                f"FROM {agg_src_name} GROUP BY {group_sql}"
+            )
+        else:
+            agg_query = f"SELECT {metric_value_fragment} AS metric_value FROM {agg_src_name}"
+        aggregated = labeled_src.sql(agg_query)
 
-            with_clause = f"WITH {periods_cte},\n_labeled AS (\n{cte_body}\n)"
-            parts = [f"{with_clause}\n{outer_select}", "FROM _labeled"]
-            if outer_where:
-                parts.append(outer_where)
-            parts.append(outer_group_by)
+        if period_type != "all_time":
+            period_start_expr = aggregated["period_start"].cast("string")
+            period_end_expr = aggregated["period_end"].cast("string")
 
-            return "\n".join(parts)
+        # --- Outer projection: literals, derived slice/segment values, metric_value. ---
+        entity_id_expr = aggregated[by_entity] if by_entity else ibis.null()
+        slice_type_val = "|".join(ss.name for ss in slice_specs) if slice_specs else "none"
+        slice_value_expr = QueryBuilder._build_slice_value_expr(aggregated, slice_aliases)
+        segment_name_val = segment_spec.name if segment_spec else "none"
+        segment_value_expr = (
+            aggregated[segment_alias] if segment_alias else ibis.literal("all")
+        )
+
+        final = aggregated.mutate(
+            period_type=ibis.literal(period_type),
+            period_start_date=period_start_expr,
+            period_end_date=period_end_expr,
+            entity_id=entity_id_expr,
+            metric_name=ibis.literal(metric.name),
+            metric_format=QueryBuilder._lit_or_null(metric.format),
+            slice_type=ibis.literal(slice_type_val),
+            slice_value=slice_value_expr,
+            segment_name=ibis.literal(segment_name_val),
+            segment_value=segment_value_expr,
+        ).select(
+            "period_type",
+            "period_start_date",
+            "period_end_date",
+            "entity_id",
+            "metric_name",
+            "metric_format",
+            "slice_type",
+            "slice_value",
+            "segment_name",
+            "segment_value",
+            "metric_value",
+        )
+
+        return final
+
+    @staticmethod
+    def _unique_alias(prefix: str) -> str:
+        """Generate a unique Table.alias() name.
+
+        Every query in a QueryGroup is built independently but later unioned
+        into one combined statement (QueryExecutor). A fixed alias string
+        (e.g. "_agg_src") would compile to a duplicate CTE name once more than
+        one query using it is combined, so each call gets its own suffix.
+        """
+        return f"{prefix}_{uuid.uuid4().hex[:8]}"
+
+    @staticmethod
+    def _lit_or_null(value: str | None) -> ibis.Value:
+        """Build a string literal, or a string-typed NULL when value is None.
+
+        Explicitly typed (not bare ibis.null()) so this column's dtype is
+        consistent across queries whose value differs between calls — e.g.
+        one metric with metric.format set, another with it None — which
+        QueryExecutor later unions into one combined statement.
+        """
+        return ibis.literal(value, type="string") if value is not None else ibis.null("string")
+
+    @staticmethod
+    def _build_slice_value_expr(table: ibis.Table, slice_aliases: list[str]) -> ibis.Value:
+        """Build the slice_value column: '|'-joined slice alias columns, or literal 'all'."""
+        if not slice_aliases:
+            return ibis.literal("all")
+        if len(slice_aliases) == 1:
+            return table[slice_aliases[0]]
+        first, *rest = slice_aliases
+        parts: list[ibis.Value] = []
+        for alias in rest:
+            parts.extend([ibis.literal("|"), table[alias]])
+        return table[first].concat(*parts)
 
     @staticmethod
     def _build_wildcard_slice_expr(slice_spec: SliceSpec, alias: str) -> str:
@@ -414,46 +447,21 @@ class QueryBuilder:
 
     @staticmethod
     def _build_segment_case_when_expr(segment_spec: SegmentSpec, alias: str) -> str:
-        """Build CASE WHEN expression for a SegmentSpec, qualifying columns with _dim."""
+        """Build CASE WHEN expression for a SegmentSpec.
+
+        Spliced directly onto the DIM table's own schema (see
+        _build_metric_segment_query), so unqualified column references in
+        each value's `where` resolve against the DIM table alone — no
+        qualification/rewrite step needed.
+        """
         when_clauses = "\n        ".join(
-            f"WHEN {QueryBuilder._qualify_where_with_dim_alias(sv.where)} THEN '{sv.name}'"
-            for sv in segment_spec.values
+            f"WHEN {sv.where} THEN '{sv.name}'" for sv in segment_spec.values
         )
         return f"CASE\n        {when_clauses}\n        ELSE NULL\n    END AS {alias}"
 
     @staticmethod
-    def _qualify_where_with_dim_alias(where_expr: str) -> str:
-        """Prefix unqualified column references in a WHERE expression with _dim."""
-        try:
-            import sqlglot
-            import sqlglot.expressions as exp
-        except ImportError:
-            return where_expr
-
-        try:
-            tree = sqlglot.parse_one(f"SELECT 1 WHERE {where_expr}")
-        except Exception:
-            return where_expr
-
-        for node in tree.walk():
-            if isinstance(node, exp.Column) and not node.table:
-                node.set("table", exp.to_identifier("_dim"))
-
-        where_node = tree.find(exp.Where)
-        if where_node is None:
-            return where_expr
-        return where_node.this.sql(dialect="duckdb")
-
-    @staticmethod
-    def _build_slice_value_concat_expr(slice_aliases: list[str]) -> str:
-        """Build slice_value column expression by concatenating slice aliases with '|'."""
-        if len(slice_aliases) == 1:
-            return slice_aliases[0]
-        return " || '|' || ".join(slice_aliases)
-
-    @staticmethod
     def _build_metric_value_expr(metric: MetricSpec) -> str:
-        """Build the metric value SQL expression."""
+        """Build the metric value SQL fragment (numerator/denominator, raw text)."""
         if metric.denominator is not None:
             return f"CAST({metric.numerator} / NULLIF({metric.denominator}, 0) AS DOUBLE)"
         return f"CAST({metric.numerator} AS DOUBLE)"
@@ -544,29 +552,31 @@ class QueryBuilder:
         return boundaries
 
     @staticmethod
-    def _build_periods_cte(boundaries: list[tuple[str, str]]) -> str:
-        """Build the _periods VALUES CTE SQL string.
+    def _build_periods_spine(boundaries: list[tuple[str, str]], period_type: str) -> ibis.Table:
+        """Build the periods spine table server-side via ibis.range()+interval arithmetic.
 
-        Returns:
-            "_periods(period_start, period_end) AS (\\n    VALUES\\n        (...),\\n        ...\\n)"
-
-        Each boundary value is wrapped in CAST('...' AS TIMESTAMP).
+        anchor/count are derived from boundaries (the unchanged
+        _generate_period_boundaries() output, which steps by exactly one fixed
+        calendar unit per iteration) — the per-row values themselves are
+        computed by the backend (GENERATE_ARRAY/RANGE-equivalent per backend),
+        not embedded as literals. See "Periods CTE replacement" in the plan.
         """
-        rows = [
-            f"        (CAST('{s}' AS TIMESTAMP), CAST('{e}' AS TIMESTAMP))" for s, e in boundaries
-        ]
-        values_str = ",\n".join(rows)
-        return f"_periods(period_start, period_end) AS (\n    VALUES\n{values_str}\n)"
+        anchor_str = boundaries[0][0]
+        count = len(boundaries)
+        unit_kwargs = _INTERVAL_UNIT_KWARGS[period_type]
 
-    @staticmethod
-    def _build_time_filter_sql(time_window: tuple[str, str], timestamp_col: str) -> str:
-        """Build time window filter condition."""
-        start, end = time_window
-        return f"{timestamp_col} >= '{start}' AND {timestamp_col} < '{end}'"
+        anchor = ibis.literal(anchor_str).cast("timestamp")
+        spine = ibis.range(0, count).unnest().name("_offset").as_table()
+        interval = ibis.interval(**unit_kwargs)
+        period_start = anchor + spine["_offset"] * interval
+        period_end = period_start + interval
+        return spine.mutate(period_start=period_start, period_end=period_end).select(
+            "period_start", "period_end"
+        )
 
     @staticmethod
     def _parse_table_name_from_uri(source_uri: str) -> str:
-        """Extract table name from source URI for use in SQL FROM clause."""
+        """Extract table name from source URI for use looking up a bound table."""
         backend_type, schema, table = ConnectionManager.parse_source_uri(source_uri)
         if backend_type == "bigquery":
             return table  # already 'dataset.table'

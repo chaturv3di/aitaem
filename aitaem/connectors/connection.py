@@ -271,8 +271,8 @@ class ConnectionManager:
             - 'duckdb:///abs/path/db/events' → ('duckdb', '/abs/path/db', 'events')
 
         BigQuery Examples:
-            - 'bigquery://my-project.dataset.table' → ('bigquery', 'my-project', 'dataset.table')
             - 'bigquery://project/dataset.table' → ('bigquery', 'project', 'dataset.table')
+            - 'bigquery://my-project.dataset.table' → ('bigquery', 'my-project', 'dataset.table')
 
         Args:
             uri: Source URI
@@ -293,7 +293,7 @@ class ConnectionManager:
                 f"Missing backend type in URI: '{uri}'\n\n"
                 "URI must start with backend type:\n"
                 "  duckdb://analytics.db/events\n"
-                "  bigquery://project.dataset.table"
+                "  bigquery://project/dataset.table"
             )
 
         # Combine netloc and path
@@ -382,10 +382,10 @@ class ConnectionManager:
 
         if len(parts) < 3:
             raise InvalidURIError(
-                f"BigQuery URI must have at least 3 parts (project.dataset.table): '{uri}'\n\n"
+                f"BigQuery URI must have at least 3 parts (project/dataset.table): '{uri}'\n\n"
                 "Valid formats:\n"
-                "  bigquery://project.dataset.table\n"
-                "  bigquery://project/dataset.table"
+                "  bigquery://project/dataset.table\n"
+                "  bigquery://project.dataset.table"
             )
 
         # Extract project (first part) and table (everything else as dataset.table)

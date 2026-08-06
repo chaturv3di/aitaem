@@ -194,11 +194,11 @@ segment:
 
 URIs encode the backend and table:
 
-| Backend  | Format                               | Example                            |
-|----------|--------------------------------------|------------------------------------|
-| DuckDB   | duckdb://<db_path>/<table>           | duckdb://analytics.db/events       |
-| BigQuery | bigquery://<project>/<dataset>.<tbl> | bigquery://myproject/ds.sales      |
-| Postgres | postgres://<schema>/<table>          | postgres://public/events           |
+| Backend  | Format                                | Example                            |
+|----------|----------------------------------------|------------------------------------|
+| DuckDB   | duckdb://<db_path>/<table>             | duckdb://analytics.db/events       |
+| BigQuery | bigquery://<project>/<dataset>/<table> | bigquery://myproject/ds/sales      |
+| Postgres | postgres://<schema>/<table>            | postgres://public/events           |
 
 Infer the URI format from the existing catalog in Layer B when unsure.
 

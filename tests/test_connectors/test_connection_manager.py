@@ -303,6 +303,22 @@ class TestURIParsing:
         assert project == "proj"
         assert table == "ds.tbl.extra"
 
+    def test_parse_bigquery_uri_all_shapes_equivalent(self):
+        """All four separator arrangements parse to the identical triple.
+
+        Plan 34 SF-4: core parsing is unchanged/permissive by design — no
+        shape is rejected, since BigQuery identifiers can never legally
+        contain '.' or '/' internally, so none is ambiguous with another.
+        """
+        shapes = [
+            "bigquery://project.dataset.table",
+            "bigquery://project/dataset.table",
+            "bigquery://project.dataset/table",
+            "bigquery://project/dataset/table",
+        ]
+        results = [ConnectionManager.parse_source_uri(uri) for uri in shapes]
+        assert all(r == ("bigquery", "project", "dataset.table") for r in results)
+
     def test_missing_scheme(self):
         """Test that URI without scheme raises InvalidURIError."""
         with pytest.raises(InvalidURIError) as exc_info:

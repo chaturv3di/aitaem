@@ -1,10 +1,14 @@
 """
 Tests for period granularity features in QueryBuilder.
 
-Sub-feature coverage order (per plan 08):
+Post Plan 34: the VALUES-with-column-list periods CTE is replaced by a
+server-side ibis.range()+interval spine (_build_periods_spine). Assertions on
+_build_metric_segment_query are expression/schema/executed-data based.
+
+Sub-feature coverage order (per plan 08 / plan 34):
   1. VALID_PERIOD_TYPES constant
   2. _generate_period_boundaries()
-  3. _build_periods_cte()
+  3. _build_periods_spine()
   4. _build_metric_segment_query() — non-all_time path (DuckDB execution)
   5. build_queries() — period_type validation + propagation
 """
@@ -12,7 +16,8 @@ Sub-feature coverage order (per plan 08):
 import ibis
 import pytest
 
-from aitaem.query.builder import QueryBuilder, VALID_PERIOD_TYPES
+from aitaem.connectors.connection import ConnectionManager
+from aitaem.query.builder import VALID_PERIOD_TYPES, QueryBuilder
 from aitaem.specs.metric import MetricSpec
 from aitaem.specs.segment import SegmentSpec, SegmentValue
 from aitaem.specs.slice import SliceSpec, SliceValue
@@ -82,11 +87,12 @@ SELECT * FROM (VALUES
 """
 
 
-def _run_sql_duckdb(sql: str, setup_sql: str | None = None):
-    conn = ibis.duckdb.connect(":memory:")
+def _make_manager(setup_sql: str | None = None) -> ConnectionManager:
+    manager = ConnectionManager()
+    manager.add_connection("duckdb", path=":memory:")
     if setup_sql:
-        conn.raw_sql(setup_sql)
-    return conn.sql(sql).to_pandas()
+        manager.get_connection("duckdb").connection.raw_sql(setup_sql)
+    return manager
 
 
 # ---------------------------------------------------------------------------
@@ -164,19 +170,14 @@ class TestGeneratePeriodBoundaries:
 
 
 # ---------------------------------------------------------------------------
-# 3. _build_periods_cte()
+# 3. _build_periods_spine()
 # ---------------------------------------------------------------------------
 
 
-class TestBuildPeriodsCte:
-    def test_header_present(self):
-        cte = QueryBuilder._build_periods_cte([("2026-01-01", "2026-02-01")])
-        assert "_periods(period_start, period_end) AS" in cte
-
-    def test_cast_wrapping(self):
-        cte = QueryBuilder._build_periods_cte([("2026-01-01", "2026-02-01")])
-        assert "CAST('2026-01-01' AS TIMESTAMP)" in cte
-        assert "CAST('2026-02-01' AS TIMESTAMP)" in cte
+class TestBuildPeriodsSpine:
+    def test_returns_period_start_and_period_end_columns(self):
+        spine = QueryBuilder._build_periods_spine([("2026-01-01", "2026-02-01")], "monthly")
+        assert set(spine.columns) == {"period_start", "period_end"}
 
     def test_correct_row_count(self):
         boundaries = [
@@ -184,13 +185,42 @@ class TestBuildPeriodsCte:
             ("2026-02-01", "2026-03-01"),
             ("2026-03-01", "2026-04-01"),
         ]
-        cte = QueryBuilder._build_periods_cte(boundaries)
-        # Each boundary should appear as a separate row
-        assert cte.count("CAST('2026") == 6  # 3 pairs × 2 casts each
+        spine = QueryBuilder._build_periods_spine(boundaries, "monthly")
+        df = spine.execute()
+        assert len(df) == 3
 
-    def test_values_keyword_present(self):
-        cte = QueryBuilder._build_periods_cte([("2026-01-01", "2026-02-01")])
-        assert "VALUES" in cte
+    def test_values_match_generated_boundaries(self):
+        boundaries = [
+            ("2026-01-01", "2026-02-01"),
+            ("2026-02-01", "2026-03-01"),
+        ]
+        spine = QueryBuilder._build_periods_spine(boundaries, "monthly")
+        df = spine.execute().sort_values("period_start").reset_index(drop=True)
+        assert str(df["period_start"].iloc[0])[:10] == "2026-01-01"
+        assert str(df["period_end"].iloc[0])[:10] == "2026-02-01"
+        assert str(df["period_start"].iloc[1])[:10] == "2026-02-01"
+        assert str(df["period_end"].iloc[1])[:10] == "2026-03-01"
+
+    def test_no_values_with_column_list_in_bigquery_sql(self):
+        """Direct regression test for Gap A: the old VALUES-with-column-list
+        CTE syntax that BigQuery's grammar rejects is gone."""
+        boundaries = [("2026-01-01", "2026-02-01"), ("2026-02-01", "2026-03-01")]
+        spine = QueryBuilder._build_periods_spine(boundaries, "monthly")
+        sql = ibis.to_sql(spine, dialect="bigquery")
+        assert "period_start, period_end) AS" not in sql
+
+    def test_hourly_unit(self):
+        boundaries = [("2026-01-01T00:00:00", "2026-01-01T01:00:00")]
+        spine = QueryBuilder._build_periods_spine(boundaries, "hourly")
+        df = spine.execute()
+        assert len(df) == 1
+
+    def test_weekly_unit_steps_seven_days(self):
+        boundaries = [("2026-01-05", "2026-01-12"), ("2026-01-12", "2026-01-19")]
+        spine = QueryBuilder._build_periods_spine(boundaries, "weekly")
+        df = spine.execute().sort_values("period_start").reset_index(drop=True)
+        delta = df["period_end"].iloc[0] - df["period_start"].iloc[0]
+        assert delta.days == 7
 
 
 # ---------------------------------------------------------------------------
@@ -199,22 +229,23 @@ class TestBuildPeriodsCte:
 
 
 class TestBuildMetricSegmentQueryPeriodGranularity:
-    def _run(self, metric, slices, segment, period_type, time_window, table="transactions"):
-        sql = QueryBuilder._build_metric_segment_query(
+    def _run(self, metric, slices, segment, period_type, time_window):
+        manager = _make_manager(SETUP_SQL)
+        connector = manager.get_connection("duckdb")
+        expr = QueryBuilder._build_metric_segment_query(
             metric=metric,
-            table_name=table,
+            connector=connector,
             slice_specs=slices,
             segment_spec=segment,
-            time_filter_sql=None,
             period_type=period_type,
             period_start=None,
             period_end=None,
             time_window=time_window,
         )
-        return sql, _run_sql_duckdb(sql, SETUP_SQL)
+        return expr, expr.execute()
 
     def test_monthly_no_slice_no_segment_row_count(self):
-        sql, df = self._run(
+        expr, df = self._run(
             make_metric(),
             None,
             None,
@@ -262,47 +293,28 @@ class TestBuildMetricSegmentQueryPeriodGranularity:
         assert by_month["2026-02-01"] == pytest.approx(120.0)  # 80 + 40
         assert by_month["2026-03-01"] == pytest.approx(180.0)  # 120 + 60
 
-    def test_monthly_with_slice_group_by_includes_period_cols(self):
-        sql, df = self._run(
+    def test_monthly_with_slice_row_count(self):
+        expr, df = self._run(
             make_metric(),
             [_geo_slice],
             None,
             "monthly",
             ("2026-01-01", "2026-04-01"),
         )
-        # GROUP BY must contain _period_start, _period_end alongside slice alias
-        assert "_period_start" in sql.split("GROUP BY")[1]
-        assert "_period_end" in sql.split("GROUP BY")[1]
-        assert "_slice_geography" in sql.split("GROUP BY")[1]
         # Test data: US only in Jan/Mar, DE only in Feb → 3 (month, region) pairs with data
         assert len(df) == 3
         assert set(df["period_type"]) == {"monthly"}
 
-    def test_monthly_with_segment_group_by_includes_period_cols(self):
-        sql, df = self._run(
+    def test_monthly_with_segment_row_count(self):
+        expr, df = self._run(
             make_metric(),
             None,
             _user_tier_segment,
             "monthly",
             ("2026-01-01", "2026-04-01"),
         )
-        assert "_period_start" in sql.split("GROUP BY")[1]
-        assert "_period_end" in sql.split("GROUP BY")[1]
-        assert "_segment" in sql.split("GROUP BY")[1]
         # 3 months × 2 segment values = 6 rows (both premium and free in every month)
         assert len(df) == 6
-
-    def test_no_slice_no_segment_group_by_has_period_cols(self):
-        sql, _ = self._run(
-            make_metric(),
-            None,
-            None,
-            "monthly",
-            ("2026-01-01", "2026-04-01"),
-        )
-        # Even with no slices/segments, GROUP BY must exist for period columns
-        assert "GROUP BY" in sql
-        assert "_period_start" in sql.split("GROUP BY")[1]
 
     def test_weekly_period_start_is_monday(self):
         _, df = self._run(
@@ -319,44 +331,35 @@ class TestBuildMetricSegmentQueryPeriodGranularity:
             assert d.weekday() == 0, f"{start_str} is not a Monday"
 
     def test_all_time_path_unchanged(self):
-        """all_time behavior is identical to before: no _periods CTE, static literals."""
-        sql = QueryBuilder._build_metric_segment_query(
+        """all_time behavior is identical to before: no periods spine, static literals."""
+        manager = _make_manager(SETUP_SQL)
+        connector = manager.get_connection("duckdb")
+        expr = QueryBuilder._build_metric_segment_query(
             metric=make_metric(),
-            table_name="transactions",
+            connector=connector,
             slice_specs=None,
             segment_spec=None,
-            time_filter_sql=None,
             period_type="all_time",
             period_start="2026-01-01",
             period_end="2026-04-01",
             time_window=("2026-01-01", "2026-04-01"),
         )
-        assert "_periods" not in sql
-        assert "'2026-01-01'" in sql
-        assert "'2026-04-01'" in sql
-        assert "JOIN" not in sql
+        df = expr.execute()
+        assert df["period_start_date"].iloc[0] == "2026-01-01"
+        assert df["period_end_date"].iloc[0] == "2026-04-01"
+        assert len(df) == 1
 
-    def test_non_all_time_sql_uses_join(self):
-        sql, _ = self._run(
+    def test_non_all_time_joins_against_spine(self):
+        """The non-all_time path produces period boundaries dynamically via
+        the periods spine, not via static literals passed through."""
+        expr, df = self._run(
             make_metric(),
             None,
             None,
             "monthly",
             ("2026-01-01", "2026-04-01"),
         )
-        assert "_periods" in sql
-        assert "JOIN _periods" in sql
-        assert "CAST(t.event_ts AS TIMESTAMP)" in sql
-
-    def test_non_all_time_select_uses_t_star(self):
-        sql, _ = self._run(
-            make_metric(),
-            None,
-            None,
-            "monthly",
-            ("2026-01-01", "2026-04-01"),
-        )
-        assert "SELECT\n        t.*" in sql or "SELECT t.*" in sql.replace("\n        ", " ")
+        assert set(df["period_start_date"].str[:10]) == {"2026-01-01", "2026-02-01", "2026-03-01"}
 
 
 # ---------------------------------------------------------------------------
@@ -366,59 +369,67 @@ class TestBuildMetricSegmentQueryPeriodGranularity:
 
 class TestBuildQueriesWithPeriodType:
     def test_unknown_period_type_raises(self):
+        manager = _make_manager()
         with pytest.raises(QueryBuildError, match="Invalid period_type"):
             QueryBuilder.build_queries(
                 [make_metric()],
                 slice_specs=None,
                 segment_spec=None,
+                connection_manager=manager,
                 time_window=("2026-01-01", "2026-04-01"),
                 period_type="quarterly",
             )
 
     def test_non_all_time_without_time_window_raises(self):
+        manager = _make_manager()
         with pytest.raises(QueryBuildError, match="requires time_window"):
             QueryBuilder.build_queries(
                 [make_metric()],
                 slice_specs=None,
                 segment_spec=None,
+                connection_manager=manager,
                 time_window=None,
                 period_type="monthly",
             )
 
     def test_non_all_time_missing_timestamp_col_raises(self):
+        manager = _make_manager()
         with pytest.raises(QueryBuildError, match="timestamp_col"):
             QueryBuilder.build_queries(
                 [make_metric_no_ts()],
                 slice_specs=None,
                 segment_spec=None,
+                connection_manager=manager,
                 time_window=("2026-01-01", "2026-04-01"),
                 period_type="monthly",
             )
 
-    def test_monthly_valid_inputs_produces_sql(self):
+    def test_monthly_valid_inputs_produces_correct_rows(self):
+        manager = _make_manager(SETUP_SQL)
         groups = QueryBuilder.build_queries(
             [make_metric()],
             slice_specs=None,
             segment_spec=None,
+            connection_manager=manager,
             time_window=("2026-01-01", "2026-04-01"),
             period_type="monthly",
         )
         assert len(groups) == 1
-        sql = groups[0].sql_queries[0]
-        df = _run_sql_duckdb(sql, SETUP_SQL)
+        df = groups[0].expressions[0].execute()
         assert len(df) == 3
 
     def test_all_time_default_backward_compatible(self):
+        manager = _make_manager(SETUP_SQL)
         groups = QueryBuilder.build_queries(
             [make_metric()],
             slice_specs=None,
             segment_spec=None,
+            connection_manager=manager,
         )
         assert len(groups) == 1
-        sql = groups[0].sql_queries[0]
-        # old behavior: static 'all_time' literal, no _periods CTE
-        assert "'all_time'" in sql
-        assert "_periods" not in sql
+        df = groups[0].expressions[0].execute()
+        assert df["period_type"].iloc[0] == "all_time"
+        assert len(df) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -525,37 +536,28 @@ class TestBuildQueriesHourly:
         assert "hourly" in VALID_PERIOD_TYPES
 
     def test_hourly_without_time_window_raises(self):
+        manager = _make_manager()
         with pytest.raises(QueryBuildError, match="requires time_window"):
             QueryBuilder.build_queries(
                 [make_metric()],
                 slice_specs=None,
                 segment_spec=None,
+                connection_manager=manager,
                 time_window=None,
                 period_type="hourly",
             )
 
     def test_hourly_missing_timestamp_col_raises(self):
+        manager = _make_manager()
         with pytest.raises(QueryBuildError, match="timestamp_col"):
             QueryBuilder.build_queries(
                 [make_metric_no_ts()],
                 slice_specs=None,
                 segment_spec=None,
+                connection_manager=manager,
                 time_window=("2026-01-01T00:00:00", "2026-01-01T03:00:00"),
                 period_type="hourly",
             )
-
-    def test_hourly_generates_periods_cte(self):
-        groups = QueryBuilder.build_queries(
-            [make_metric()],
-            slice_specs=None,
-            segment_spec=None,
-            time_window=("2026-01-01T00:00:00", "2026-01-01T03:00:00"),
-            period_type="hourly",
-        )
-        sql = groups[0].sql_queries[0]
-        assert "_periods" in sql
-        assert "'hourly'" in sql
-        assert "2026-01-01T00:00:00" in sql
 
     def test_hourly_sql_executes_and_returns_correct_periods(self):
         setup = """
@@ -566,15 +568,16 @@ SELECT * FROM (VALUES
     (150.0, TIMESTAMP '2026-01-01 02:10:00')
 ) AS t(amount, event_ts)
 """
+        manager = _make_manager(setup)
         groups = QueryBuilder.build_queries(
             [make_metric()],
             slice_specs=None,
             segment_spec=None,
+            connection_manager=manager,
             time_window=("2026-01-01T00:00:00", "2026-01-01T03:00:00"),
             period_type="hourly",
         )
-        sql = groups[0].sql_queries[0]
-        df = _run_sql_duckdb(sql, setup)
+        df = groups[0].expressions[0].execute()
         assert len(df) == 3
         assert set(df["period_type"]) == {"hourly"}
         # Each row carries data from exactly one hour

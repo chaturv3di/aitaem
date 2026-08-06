@@ -2,7 +2,8 @@
 Tests for aitaem.query.executor — QueryExecutor
 
 Sub-feature coverage:
- _union_queries: lazy ibis.Table union per group
+ _union_queries: lazy ibis.Table union per group (post Plan 34: takes
+   already-built expressions, no more connector.connection.sql(q) step)
  execute: returns ibis.Table; single/multi-backend; all fail → exception; partial failure → warning
 """
 
@@ -41,33 +42,40 @@ EXPECTED_OUTPUT_COLUMNS = {
 
 
 class TestUnionQueries:
-    def test_union_queries_single_sql_returns_ibis_table(self, ad_campaigns_connection_manager):
+    def test_union_queries_single_expr_returns_ibis_table(self, ad_campaigns_connection_manager):
         connector = ad_campaigns_connection_manager.get_connection("duckdb")
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
-        sql = "SELECT 1 AS metric_value"
-        result = executor._union_queries([sql], connector)
+        expr = connector.connection.sql("SELECT 1 AS metric_value")
+        result = executor._union_queries([expr])
         assert isinstance(result, ibis.Table)
 
-    def test_union_queries_multiple_sqls_returns_ibis_table(self, ad_campaigns_connection_manager):
+    def test_union_queries_multiple_exprs_returns_ibis_table(
+        self, ad_campaigns_connection_manager
+    ):
         connector = ad_campaigns_connection_manager.get_connection("duckdb")
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
-        sqls = ["SELECT 1 AS metric_value", "SELECT 2 AS metric_value"]
-        result = executor._union_queries(sqls, connector)
+        exprs = [
+            connector.connection.sql("SELECT 1 AS metric_value"),
+            connector.connection.sql("SELECT 2 AS metric_value"),
+        ]
+        result = executor._union_queries(exprs)
         assert isinstance(result, ibis.Table)
 
     def test_union_queries_result_materialises_correctly(self, ad_campaigns_connection_manager):
         connector = ad_campaigns_connection_manager.get_connection("duckdb")
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
-        sqls = ["SELECT 1 AS metric_value", "SELECT 2 AS metric_value"]
-        result = executor._union_queries(sqls, connector)
+        exprs = [
+            connector.connection.sql("SELECT 1 AS metric_value"),
+            connector.connection.sql("SELECT 2 AS metric_value"),
+        ]
+        result = executor._union_queries(exprs)
         df = result.to_pandas()
         assert list(df.columns) == ["metric_value"]
         assert set(df["metric_value"].tolist()) == {1, 2}
 
     def test_union_queries_empty_list_returns_none(self, ad_campaigns_connection_manager):
-        connector = ad_campaigns_connection_manager.get_connection("duckdb")
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
-        result = executor._union_queries([], connector)
+        result = executor._union_queries([])
         assert result is None
 
 
@@ -86,7 +94,12 @@ class TestExecute:
             denominator="SUM(impressions)",
             timestamp_col="date",
         )
-        groups = QueryBuilder.build_queries([metric], slice_specs=None, segment_spec=None)
+        groups = QueryBuilder.build_queries(
+            [metric],
+            slice_specs=None,
+            segment_spec=None,
+            connection_manager=ad_campaigns_connection_manager,
+        )
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         result = executor.execute(groups)
         assert isinstance(result, ibis.Table)
@@ -100,7 +113,12 @@ class TestExecute:
             denominator="SUM(impressions)",
             timestamp_col="date",
         )
-        groups = QueryBuilder.build_queries([metric], slice_specs=None, segment_spec=None)
+        groups = QueryBuilder.build_queries(
+            [metric],
+            slice_specs=None,
+            segment_spec=None,
+            connection_manager=ad_campaigns_connection_manager,
+        )
 
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         result = executor.execute(groups)
@@ -147,9 +165,10 @@ class TestExecute:
             [metric],
             slice_specs=[campaign_type_slice],
             segment_spec=platform_segment,
+            connection_manager=ad_campaigns_connection_manager,
         )
         # (1 slice + 1 no-slice) × (1 segment + 1 no-segment) = 4 queries
-        assert len(groups[0].sql_queries) == 4
+        assert len(groups[0].expressions) == 4
 
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         result = executor.execute(groups)
@@ -172,7 +191,7 @@ class TestExecute:
             QueryGroup(
                 source="duckdb://nonexistent.db/table",
                 metrics=[],
-                sql_queries=["SELECT 1"],
+                expressions=[],
             )
         ]
         executor = QueryExecutor(connection_manager=isolated_manager)
@@ -188,12 +207,17 @@ class TestExecute:
             denominator="SUM(impressions)",
             timestamp_col="date",
         )
-        good_groups = QueryBuilder.build_queries([good_metric], slice_specs=None, segment_spec=None)
+        good_groups = QueryBuilder.build_queries(
+            [good_metric],
+            slice_specs=None,
+            segment_spec=None,
+            connection_manager=ad_campaigns_connection_manager,
+        )
 
         bad_group = QueryGroup(
             source="bigquery://my-project/my_dataset/my_table",
             metrics=[],
-            sql_queries=["SELECT 1"],
+            expressions=[],
         )
 
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
@@ -222,7 +246,12 @@ class TestExecute:
             timestamp_col="date",
         )
 
-        groups = QueryBuilder.build_queries([ctr, roas], slice_specs=None, segment_spec=None)
+        groups = QueryBuilder.build_queries(
+            [ctr, roas],
+            slice_specs=None,
+            segment_spec=None,
+            connection_manager=ad_campaigns_connection_manager,
+        )
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         result = executor.execute(groups)
         df = result.to_pandas()
@@ -239,11 +268,17 @@ class TestExecute:
             timestamp_col="date",
         )
 
-        groups_all = QueryBuilder.build_queries([metric], slice_specs=None, segment_spec=None)
+        groups_all = QueryBuilder.build_queries(
+            [metric],
+            slice_specs=None,
+            segment_spec=None,
+            connection_manager=ad_campaigns_connection_manager,
+        )
         groups_windowed = QueryBuilder.build_queries(
             [metric],
             slice_specs=None,
             segment_spec=None,
+            connection_manager=ad_campaigns_connection_manager,
             time_window=("2024-01-01", "2024-04-01"),
         )
 
@@ -312,10 +347,11 @@ class TestEndToEndIntegration:
             [ctr],
             slice_specs=[geo_slice, campaign_type_slice],
             segment_spec=platform_segment,
+            connection_manager=ad_campaigns_connection_manager,
         )
         # 1 metric × (2 slices + 1 no-slice) × (1 segment + 1 no-segment) = 6 queries in 1 group
         assert len(groups) == 1
-        assert len(groups[0].sql_queries) == 6
+        assert len(groups[0].expressions) == 6
 
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         result = executor.execute(groups)

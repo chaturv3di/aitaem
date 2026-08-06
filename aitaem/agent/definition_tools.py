@@ -18,6 +18,8 @@ import json
 import uuid
 from typing import TYPE_CHECKING, Literal, Union, cast
 
+import yaml
+
 if TYPE_CHECKING:
     from aitaem.specs.metric import MetricSpec
     from aitaem.specs.segment import SegmentSpec
@@ -223,6 +225,56 @@ def draft_spec(
 # ── Step 5: validate_spec ────────────────────────────────────────────────────
 
 
+def _normalize_bigquery_source_uri(uri: str) -> str:
+    """Rewrite an all-slash BigQuery URI to the core-canonical form.
+
+    ``bigquery://<project>/<dataset>/<table>`` (the prompt's canonical LLM-facing
+    shape) becomes ``bigquery://<project>/<dataset>.<table>``. No-op for any
+    other scheme or shape, including forms ``_parse_bigquery_uri`` already
+    accepts unchanged (e.g. the fully-dotted form) — only the specific shape
+    the prompt asks the LLM to produce is normalized.
+    """
+    prefix = "bigquery://"
+    if not uri.startswith(prefix):
+        return uri
+    parts = uri[len(prefix) :].split("/")
+    if len(parts) != 3 or not all(parts):
+        return uri
+    project, dataset, table = parts
+    return f"{prefix}{project}/{dataset}.{table}"
+
+
+def _normalize_source_in_yaml(yaml_text: str) -> str:
+    """Normalize a BigQuery ``source:`` URI in raw spec YAML text.
+
+    Fails open (returns ``yaml_text`` unchanged) on anything unexpected: YAML
+    parse failure, a top-level shape other than a single spec-type key mapping
+    to a dict, a missing ``source`` key, or a ``source`` value that isn't a
+    string. Matches Check 5's warn-not-block posture.
+    """
+    try:
+        data = yaml.safe_load(yaml_text)
+    except yaml.YAMLError:
+        return yaml_text
+
+    if not isinstance(data, dict) or len(data) != 1:
+        return yaml_text
+    (body,) = data.values()
+    if not isinstance(body, dict) or "source" not in body:
+        return yaml_text
+
+    source = body["source"]
+    if not isinstance(source, str):
+        return yaml_text
+
+    normalized = _normalize_bigquery_source_uri(source)
+    if normalized == source:
+        return yaml_text
+
+    body["source"] = normalized
+    return yaml.safe_dump(data)
+
+
 def validate_spec(
     ctx: RunContext[DefinitionDeps],
     draft_id: str,
@@ -252,6 +304,10 @@ def validate_spec(
         return ValidateSpecResult(
             error=f"draft_id {draft_id!r} not found. Call draft_spec first to register a YAML draft."
         )
+
+    # Normalize a BigQuery source: URI (all-slash LLM form -> core-canonical
+    # form) before any later step reads draft.yaml_string. Fails open.
+    draft.yaml_string = _normalize_source_in_yaml(draft.yaml_string)
 
     # Check 2: structural + SQL validation
     try:

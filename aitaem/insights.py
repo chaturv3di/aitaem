@@ -212,11 +212,12 @@ class MetricCompute:
         metric_specs = [self.spec_cache.get_metric(n) for n in metric_names]
         slice_specs = [self.spec_cache.get_slice(n) for n in slice_names] if slice_names else None
 
-        # 4. Build SQL query groups
+        # 4. Build query groups (Ibis expressions)
         query_groups = QueryBuilder.build_queries(
             metric_specs=metric_specs,
             slice_specs=slice_specs,
             segment_spec=segment_spec,
+            connection_manager=self.connection_manager,
             segment_join_key=segment_join_key,
             time_window=time_window,
             spec_cache=self.spec_cache,
