@@ -4,6 +4,14 @@
 
 ### Fixed
 
+- **`compute()` without `by_entity` no longer fails against BigQuery with
+  `ArrowNotImplementedError: Unsupported cast from int64 to null using
+  function cast_null`.** `entity_id` was built from a bare, untyped
+  `ibis.null()` when `by_entity` wasn't set — DuckDB tolerates this, but
+  BigQuery assigns its own default type to an untyped `NULL` literal, which
+  then conflicts with ibis's expected `null` dtype when pyarrow materializes
+  the result. `entity_id` now uses the same explicitly-`string`-typed null
+  already used for `metric_format`/`period_start_date`/`period_end_date`.
 - **Non-`all_time` (period-granularity) queries against non-DuckDB backends
   (confirmed: BigQuery) no longer fail with a dialect syntax error.**
   `QueryBuilder` previously hand-assembled every query as a SQL string,

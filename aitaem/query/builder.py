@@ -364,7 +364,7 @@ class QueryBuilder:
             period_end_expr = aggregated["period_end"].cast("string")
 
         # --- Outer projection: literals, derived slice/segment values, metric_value. ---
-        entity_id_expr = aggregated[by_entity] if by_entity else ibis.null()
+        entity_id_expr = aggregated[by_entity] if by_entity else QueryBuilder._lit_or_null(None)
         slice_type_val = "|".join(ss.name for ss in slice_specs) if slice_specs else "none"
         slice_value_expr = QueryBuilder._build_slice_value_expr(aggregated, slice_aliases)
         segment_name_val = segment_spec.name if segment_spec else "none"

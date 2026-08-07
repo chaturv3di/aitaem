@@ -753,6 +753,17 @@ class TestByEntity:
         assert "entity_id" in df.columns
         assert df["entity_id"].isna().all()
 
+    def test_no_by_entity_entity_id_is_typed_string_not_bare_null(self):
+        """Regression: a bare ibis.null() (untyped) for entity_id compiles fine
+        against DuckDB but fails against BigQuery — pyarrow can't cast the
+        int64 BigQuery assigns to an untyped NULL literal back into the
+        'null' dtype ibis's schema expects (ArrowNotImplementedError:
+        Unsupported cast from int64 to null using function cast_null).
+        entity_id must carry an explicit string dtype, like metric_format/
+        period_start_date/period_end_date already do via _lit_or_null."""
+        expr, _ = self._run(_entity_metric)
+        assert str(expr.schema()["entity_id"]) == "string"
+
     def test_by_entity_column_in_select(self):
         expr, df = self._run(_entity_metric, by_entity="user_id")
         assert "entity_id" in df.columns
