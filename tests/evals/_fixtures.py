@@ -93,15 +93,17 @@ def _definition_connection_manager() -> Any:
     )
     mock_ibis_table.columns = ["amount", "transaction_date"]
     mock_connector.get_table.return_value = mock_ibis_table
+    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://analytics.db/{name}"
     # describe_table()/list_tables() go through get_connection(backend_type);
     # validate_spec()'s live-schema column check goes through
-    # get_connection_for_source(source_uri) + parse_source_uri(source_uri).
+    # get_connection_for_source(source_uri) + resolve_table_reference(source_uri).
     # Both must resolve to the same table for the column-existence check
     # (SF-7's refusal-on-ambiguous-schema case) to exercise real logic
     # instead of silently no-op'ing into a warning.
     mock_cm.get_connection.return_value = mock_connector
     mock_cm.get_connection_for_source.return_value = mock_connector
     mock_cm.parse_source_uri.return_value = ("duckdb", "analytics.db", "transactions")
+    mock_cm.resolve_table_reference.return_value = ("transactions", None)
     return mock_cm
 
 

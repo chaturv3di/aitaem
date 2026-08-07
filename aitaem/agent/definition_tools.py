@@ -131,7 +131,12 @@ def list_tables(
     for bt in backends:
         try:
             connector = cm.get_connection(bt)
-            tables[bt] = connector.list_tables()
+            raw_names = connector.list_tables()
+            tables[bt] = [
+                uri
+                for name in raw_names
+                if (uri := connector.build_source_uri(name)) is not None
+            ]
         except Exception as exc:
             errors[bt] = f"{type(exc).__name__}: {exc}"
 
@@ -143,46 +148,45 @@ def list_tables(
 
 def describe_table(
     ctx: RunContext[DefinitionDeps],
-    table_name: str,
-    backend_type: str,
+    source: str,
 ) -> DescribeTableResult:
     """Retrieve the schema (column names and types) for a single table.
 
     Args:
-        table_name: Name of the table to describe.
-        backend_type: Backend where the table lives. Required — always available
-            from a prior list_tables call. Making this required keeps traces stable
-            regardless of how many backends are registered.
+        source: Source URI identifying the table, exactly as returned by a
+            prior list_tables() call. Reuse it verbatim — never reconstruct
+            one from parts.
 
     Returns:
         DescribeTableResult with column info, or error set on failure.
     """
+    cm = ctx.deps.connection_manager
+
     try:
-        connector = ctx.deps.connection_manager.get_connection(backend_type)
+        backend_type, _, _ = cm.parse_source_uri(source)
+        connector = cm.get_connection(backend_type)
     except Exception as exc:
         return DescribeTableResult(
-            table_name=table_name,
-            backend_type=backend_type,
+            source=source,
             columns=[],
-            error=f"Unknown backend {backend_type!r}: {exc}",
+            error=f"{type(exc).__name__}: {exc}",
         )
 
     try:
-        ibis_table = connector.get_table(table_name)
+        table_name, database = cm.resolve_table_reference(source)
+        ibis_table = connector.get_table(table_name, database=database)
         schema = ibis_table.schema()
         columns = [
             ColumnInfo(name=name, dtype=str(dtype))
             for name, dtype in zip(schema.names, schema.types)
         ]
         return DescribeTableResult(
-            table_name=table_name,
-            backend_type=backend_type,
+            source=source,
             columns=columns,
         )
     except Exception as exc:
         return DescribeTableResult(
-            table_name=table_name,
-            backend_type=backend_type,
+            source=source,
             columns=[],
             error=f"{type(exc).__name__}: {exc}",
         )
@@ -424,10 +428,14 @@ def validate_spec(
             # Metrics and segments have spec.source; slices have no single source.
             source_uri = getattr(spec, "source", None)
             if source_uri and all_referenced:
+                from aitaem.utils.exceptions import TableNotFoundError as AitaemTableNotFoundError
+
                 try:
                     connector = ctx.deps.connection_manager.get_connection_for_source(source_uri)
-                    _, _, table_name = ctx.deps.connection_manager.parse_source_uri(source_uri)
-                    ibis_table = connector.get_table(table_name)
+                    table_name, database = ctx.deps.connection_manager.resolve_table_reference(
+                        source_uri
+                    )
+                    ibis_table = connector.get_table(table_name, database=database)
                     live_columns = set(ibis_table.columns)
                     for col in sorted(all_referenced):
                         if col not in live_columns:
@@ -439,11 +447,22 @@ def validate_spec(
                                         f"Available columns: {sorted(live_columns)}"
                                     ),
                                     suggestion=(
-                                        f"Call describe_table(table_name={table_name!r}, "
-                                        f"backend_type=...) to see the current schema."
+                                        f"Call describe_table(source={source_uri!r}) "
+                                        "to see the current schema."
                                     ),
                                 )
                             )
+                except AitaemTableNotFoundError as table_exc:
+                    column_errors.append(
+                        ValidationIssue(
+                            field="source",
+                            message=(
+                                f"Source {source_uri!r} could not be resolved: {table_exc}. "
+                                "The table may not exist, or may not be accessible with the "
+                                "current connection's credentials."
+                            ),
+                        )
+                    )
                 except Exception as col_exc:
                     warnings.append(
                         f"Column existence check skipped: "

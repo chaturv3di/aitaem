@@ -143,8 +143,7 @@ class ListTablesResult(BaseModel):
 class DescribeTableResult(BaseModel):
     """Returned by describe_table."""
 
-    table_name: str
-    backend_type: str
+    source: str
     columns: list[ColumnInfo] = []
     # Set on unknown backend or table-not-found; columns will be empty.
     error: str | None = None

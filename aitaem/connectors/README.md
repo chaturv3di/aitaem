@@ -84,7 +84,7 @@ duckdb_conn = manager.get_connection('duckdb')
 connector = manager.get_connection_for_source('duckdb://analytics.db/events')
 
 # Get table reference
-table = connector.get_table('events')
+table = connector.get_table('events')  # database=None for DuckDB
 
 # Execute query with Ibis
 import ibis
@@ -173,7 +173,7 @@ bigquery://my-project.dataset.table     → project='my-project', table='dataset
 bigquery://project/dataset.table        → project='project', table='dataset.table'
 ```
 
-**Note**: BigQuery table names in URIs must have at least 3 parts (project.dataset.table). When retrieving tables, aitaem automatically extracts the `dataset.table` format needed by Ibis.
+**Note**: BigQuery table names in URIs must have at least 3 parts (project.dataset.table). `ConnectionManager.resolve_table_reference()` extracts the bare table name and `project.dataset` database value that `get_table()` needs.
 
 ### PostgreSQL URIs
 
@@ -240,6 +240,20 @@ backend, database, table = ConnectionManager.parse_source_uri(
 # Returns: ('duckdb', 'analytics.db', 'events')
 ```
 
+**`resolve_table_reference(source_uri: str) -> tuple[str, str | None]`** (static)
+
+Resolve a source URI into the `(table_name, database)` pair `get_table()`
+accepts — the bare table name and, when the backend needs one, its
+database/schema location as a separate value.
+
+```python
+table_name, database = ConnectionManager.resolve_table_reference(
+    'postgres://public/orders'
+)
+# Returns: ('orders', 'public')
+connector.get_table(table_name, database=database)
+```
+
 **`close_all() -> None`**
 
 Close all connections.
@@ -284,17 +298,21 @@ connector.connect(database='mydb', user='myuser', password='secret')
 connector.connect(host='db.example.com', port=5433, database='mydb', user='myuser', password='secret')
 ```
 
-**`get_table(table_name: str) -> ibis.expr.types.Table`**
+**`get_table(table_name: str, database: str | None = None) -> ibis.expr.types.Table`**
 
-Get table reference from backend.
+Get table reference from backend. `database` carries the schema/dataset
+location as a separate parameter — never joined into `table_name`.
 
 ```python
 # DuckDB
 table = connector.get_table('events')
 
 # BigQuery
-table = connector.get_table('dataset.table')
-table = connector.get_table('project.dataset.table')  # Auto-extracts dataset.table
+table = connector.get_table('table', database='dataset')
+table = connector.get_table('table', database='project.dataset')
+
+# PostgreSQL
+table = connector.get_table('orders', database='public')
 ```
 
 **`execute(expr: ibis.expr.types.Expr, output_format: str = 'pandas') -> DataFrame`**
@@ -431,7 +449,7 @@ os.environ['GCP_PROJECT_ID'] = 'my-production-project'
 manager = ConnectionManager.from_yaml('connections.yaml')
 connector = manager.get_connection('bigquery')
 
-table = connector.get_table('analytics.user_events')
+table = connector.get_table('user_events', database='analytics')
 # ... run queries
 ```
 
@@ -463,11 +481,11 @@ local_table = duckdb_conn.get_table('cache')
 
 # Use BigQuery for cloud data warehouse
 bq_conn = manager.get_connection('bigquery')
-cloud_table = bq_conn.get_table('dataset.events')
+cloud_table = bq_conn.get_table('events', database='dataset')
 
 # Use PostgreSQL for transactional data
 pg_conn = manager.get_connection('postgres')
-pg_table = pg_conn.get_table('public.orders')
+pg_table = pg_conn.get_table('orders', database='public')
 ```
 
 ### Production with PostgreSQL
@@ -487,7 +505,7 @@ from aitaem.connectors import ConnectionManager
 manager = ConnectionManager.from_yaml('connections.yaml')
 connector = manager.get_connection('postgres')
 
-table = connector.get_table('public.events')
+table = connector.get_table('events', database='public')
 result = connector.execute(table.filter(table.status == 'active'))
 ```
 

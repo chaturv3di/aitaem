@@ -189,6 +189,7 @@ def test_list_tables_single_backend_success():
     mock_cm.backend_types = ["duckdb"]
     mock_connector = MagicMock()
     mock_connector.list_tables.return_value = ["events", "users"]
+    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://db.duckdb/{name}"
     mock_cm.get_connection.return_value = mock_connector
 
     deps = _make_deps(connection_manager=mock_cm)
@@ -197,8 +198,28 @@ def test_list_tables_single_backend_success():
     result = list_tables(ctx)
 
     assert "duckdb" in result.tables
-    assert result.tables["duckdb"] == ["events", "users"]
+    assert result.tables["duckdb"] == ["duckdb://db.duckdb/events", "duckdb://db.duckdb/users"]
     assert result.errors == {}
+
+
+def test_list_tables_omits_names_with_no_resolvable_uri():
+    """build_source_uri() returning None (e.g. ambiguous bare BigQuery name) is
+    filtered out, not passed through as a bare name."""
+    mock_cm = MagicMock()
+    mock_cm.backend_types = ["bigquery"]
+    mock_connector = MagicMock()
+    mock_connector.list_tables.return_value = ["good_table", "ambiguous_table"]
+    mock_connector.build_source_uri.side_effect = lambda name: (
+        "bigquery://proj/ds.good_table" if name == "good_table" else None
+    )
+    mock_cm.get_connection.return_value = mock_connector
+
+    deps = _make_deps(connection_manager=mock_cm)
+    ctx = _make_ctx(deps)
+
+    result = list_tables(ctx)
+
+    assert result.tables["bigquery"] == ["bigquery://proj/ds.good_table"]
 
 
 def test_list_tables_all_backends_succeed():
@@ -208,6 +229,7 @@ def test_list_tables_all_backends_succeed():
     def get_conn(bt):
         conn = MagicMock()
         conn.list_tables.return_value = [f"{bt}_table"]
+        conn.build_source_uri.side_effect = lambda name, bt=bt: f"{bt}://db/{name}"
         return conn
 
     mock_cm.get_connection.side_effect = get_conn
@@ -230,6 +252,7 @@ def test_list_tables_one_backend_fails():
             raise AitaemConnectionError("BQ auth failed")
         conn = MagicMock()
         conn.list_tables.return_value = ["events"]
+        conn.build_source_uri.side_effect = lambda name: f"duckdb://db.duckdb/{name}"
         return conn
 
     mock_cm.get_connection.side_effect = get_conn
@@ -294,16 +317,18 @@ def test_describe_table_returns_column_info():
         [("user_id", "int64"), ("event_ts", "timestamp"), ("amount", "float64")]
     )
     mock_cm = MagicMock()
+    mock_cm.parse_source_uri.return_value = ("duckdb", "analytics.db", "events")
+    mock_cm.resolve_table_reference.return_value = ("events", None)
     mock_cm.get_connection.return_value = mock_connector
 
     deps = _make_deps(connection_manager=mock_cm)
     ctx = _make_ctx(deps)
 
-    result = describe_table(ctx, table_name="events", backend_type="duckdb")
+    result = describe_table(ctx, source="duckdb://analytics.db/events")
 
     assert result.error is None
-    assert result.table_name == "events"
-    assert result.backend_type == "duckdb"
+    assert result.source == "duckdb://analytics.db/events"
+    mock_connector.get_table.assert_called_once_with("events", database=None)
     col_names = [c.name for c in result.columns]
     assert "user_id" in col_names
     assert "event_ts" in col_names
@@ -316,12 +341,14 @@ def test_describe_table_table_not_found():
     mock_connector = MagicMock()
     mock_connector.get_table.side_effect = TableNotFoundError("Table 'foo' not found")
     mock_cm = MagicMock()
+    mock_cm.parse_source_uri.return_value = ("duckdb", "analytics.db", "foo")
+    mock_cm.resolve_table_reference.return_value = ("foo", None)
     mock_cm.get_connection.return_value = mock_connector
 
     deps = _make_deps(connection_manager=mock_cm)
     ctx = _make_ctx(deps)
 
-    result = describe_table(ctx, table_name="foo", backend_type="duckdb")
+    result = describe_table(ctx, source="duckdb://analytics.db/foo")
 
     assert result.error is not None
     assert result.columns == []
@@ -329,15 +356,32 @@ def test_describe_table_table_not_found():
 
 def test_describe_table_unknown_backend():
     mock_cm = MagicMock()
+    mock_cm.parse_source_uri.return_value = ("xyz", "db", "t")
     mock_cm.get_connection.side_effect = ConnectionNotFoundError("No backend 'xyz'")
 
     deps = _make_deps(connection_manager=mock_cm)
     ctx = _make_ctx(deps)
 
-    result = describe_table(ctx, table_name="t", backend_type="xyz")
+    result = describe_table(ctx, source="xyz://db/t")
 
     assert result.error is not None
     assert "xyz" in result.error
+    assert result.columns == []
+
+
+def test_describe_table_invalid_uri():
+    mock_cm = MagicMock()
+    from aitaem.utils.exceptions import InvalidURIError
+
+    mock_cm.parse_source_uri.side_effect = InvalidURIError("Missing backend type")
+
+    deps = _make_deps(connection_manager=mock_cm)
+    ctx = _make_ctx(deps)
+
+    result = describe_table(ctx, source="not-a-uri")
+
+    assert result.error is not None
+    assert result.source == "not-a-uri"
     assert result.columns == []
 
 
@@ -558,7 +602,7 @@ def test_validate_spec_column_not_in_schema_populates_column_errors():
     mock_connector.get_table.return_value = mock_ibis
     mock_cm = MagicMock()
     mock_cm.get_connection_for_source.return_value = mock_connector
-    mock_cm.parse_source_uri.return_value = ("duckdb", "analytics.db", "transactions")
+    mock_cm.resolve_table_reference.return_value = ("transactions", None)
 
     deps = _make_deps(connection_manager=mock_cm)
     draft_id = _store_draft(deps, "metric", _VALID_METRIC_YAML)
@@ -568,6 +612,7 @@ def test_validate_spec_column_not_in_schema_populates_column_errors():
 
     assert len(result.column_errors) > 0
     assert result.spec_draft_token is None
+    mock_connector.get_table.assert_called_once_with("transactions", database=None)
 
 
 def test_validate_spec_connection_failure_during_column_check_adds_warning():
@@ -585,6 +630,32 @@ def test_validate_spec_connection_failure_during_column_check_adds_warning():
     assert result.spec_draft_token is not None
     assert len(result.warnings) > 0
     assert result.column_errors == []
+
+
+def test_validate_spec_table_not_found_during_column_check_blocks(mocker):
+    """SF-6 (Plan 35): AitaemTableNotFoundError blocks via column_errors instead
+    of degrading to a warning — this is the exception a fabricated/wrong
+    source: surfaces as."""
+    from aitaem.utils.exceptions import TableNotFoundError as AitaemTableNotFoundError
+
+    mock_connector = mocker.MagicMock()
+    mock_connector.get_table.side_effect = AitaemTableNotFoundError(
+        "Table 'transactions' not found in duckdb backend"
+    )
+    mock_cm = mocker.MagicMock()
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_cm.resolve_table_reference.return_value = ("transactions", None)
+
+    deps = _make_deps(connection_manager=mock_cm)
+    draft_id = _store_draft(deps, "metric", _VALID_METRIC_YAML)
+    ctx = _make_ctx(deps)
+
+    result = validate_spec(ctx, draft_id=draft_id)
+
+    assert result.spec_draft_token is None
+    assert len(result.column_errors) == 1
+    assert result.column_errors[0].field == "source"
+    assert "not found" in result.column_errors[0].message.lower()
 
 
 # ---------------------------------------------------------------------------

@@ -326,6 +326,35 @@ class ConnectionManager:
             return (backend_type, database, table)
 
     @staticmethod
+    def resolve_table_reference(source_uri: str) -> tuple[str, str | None]:
+        """Resolve a source URI into (table_name, database) for IbisConnector.get_table().
+
+        Returns the bare table name and, when the backend needs one to
+        resolve it, the database/schema location — as a separate value,
+        never joined into table_name. This mirrors get_table()'s own
+        two-parameter shape, so a Postgres quoted identifier containing a
+        literal '.' can never be misread as a schema/table boundary.
+
+        Args:
+            source_uri: Source URI (e.g. 'postgres://public/events')
+
+        Returns:
+            BigQuery: (table, 'project.dataset').
+            Postgres: (table, schema) if schema else (table, None).
+            DuckDB:   (table, None).
+
+        Raises:
+            InvalidURIError: If source_uri is malformed
+        """
+        backend_type, database, table = ConnectionManager.parse_source_uri(source_uri)
+        if backend_type == "bigquery":
+            dataset, bare_table = table.split(".", 1)
+            return bare_table, f"{database}.{dataset}"
+        if backend_type == "postgres":
+            return table, database if database else None
+        return table, None
+
+    @staticmethod
     def _parse_duckdb_uri(uri: str, full_path: str) -> tuple[str, str, str]:
         """Parse DuckDB URI.
 

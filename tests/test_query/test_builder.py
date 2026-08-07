@@ -9,7 +9,7 @@ Sub-feature coverage order (per plan):
   1. QueryGroup dataclass
   2. QueryBuildError
   3. _group_by_source
-  4. _parse_table_name_from_uri
+  4. (table-reference resolution — see ConnectionManager.resolve_table_reference)
   5. _build_metric_value_expr
   6. _build_slice_case_when_expr
   7. _build_segment_case_when_expr
@@ -175,30 +175,12 @@ class TestGroupBySource:
 
 
 # ---------------------------------------------------------------------------
-# 4. _parse_table_name_from_uri
+# 4. table-reference resolution moved to ConnectionManager.resolve_table_reference
+#    (see tests/test_connectors/test_connection_manager.py::TestURIParsing) —
+#    QueryBuilder's two call sites are covered by TestBuildMetricSegmentQuery
+#    and TestBuildQueries below, which exercise get_table(table_name, database=...)
+#    end to end via a live DuckDB connection.
 # ---------------------------------------------------------------------------
-
-
-class TestParseTableNameFromUri:
-    def test_duckdb(self):
-        assert QueryBuilder._parse_table_name_from_uri(DUCKDB_URI) == "ad_campaigns"
-
-    def test_bigquery(self):
-        assert QueryBuilder._parse_table_name_from_uri(BIGQUERY_URI) == "my_dataset.my_table"
-
-    def test_postgres_with_schema(self):
-        assert (
-            QueryBuilder._parse_table_name_from_uri("postgres://public/events") == "public.events"
-        )
-
-    def test_postgres_no_schema(self):
-        assert QueryBuilder._parse_table_name_from_uri("postgres:///events") == "events"
-
-    def test_postgres_custom_schema(self):
-        assert (
-            QueryBuilder._parse_table_name_from_uri("postgres://analytics/orders")
-            == "analytics.orders"
-        )
 
 
 # ---------------------------------------------------------------------------

@@ -10,9 +10,7 @@ from aitaem.connectors import IbisConnector
 from aitaem.utils.exceptions import (
     AitaemConnectionError,
     ConfigurationError,
-    InvalidURIError,
     TableNotFoundError,
-    TableOutOfScopeError,
     UnsupportedBackendError,
 )
 
@@ -191,7 +189,7 @@ class TestGetTable:
 
     @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
     def test_get_table_bigquery_success(self, mocker):
-        """Test getting table from BigQuery (mocked)."""
+        """Test getting table from BigQuery (mocked), database passed as a separate kwarg."""
         mock_table = mocker.Mock()
         mock_backend = mocker.Mock()
         mock_backend.table.return_value = mock_table
@@ -200,66 +198,15 @@ class TestGetTable:
         connector = IbisConnector("bigquery")
         connector.connect(project_id="test-project")
 
-        table = connector.get_table("dataset.table")
+        table = connector.get_table("table", database="dataset")
         assert table is not None
-        mock_backend.table.assert_called_once_with("dataset.table")
+        mock_backend.table.assert_called_once_with("table", database="dataset")
 
         connector.close()
 
     @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
-    def test_get_table_bigquery_three_part_name_matching_project(self, mocker):
-        """3-part name matching the connection's project is passed through unchanged."""
-        mock_table = mocker.Mock()
-        mock_backend = mocker.Mock()
-        mock_backend.table.return_value = mock_table
-        mocker.patch("ibis.bigquery.connect", return_value=mock_backend)
-
-        connector = IbisConnector("bigquery")
-        connector.connect(project_id="test-project")
-
-        table = connector.get_table("test-project.dataset.table")
-        assert table is not None
-        # ibis resolves project.dataset.table itself — no truncation needed
-        mock_backend.table.assert_called_once_with("test-project.dataset.table")
-
-        connector.close()
-
-    @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
-    def test_get_table_bigquery_three_part_name_other_project_raises(self, mocker):
-        """3-part name naming a different project raises TableOutOfScopeError."""
-        mock_backend = mocker.Mock()
-        mocker.patch("ibis.bigquery.connect", return_value=mock_backend)
-
-        connector = IbisConnector("bigquery")
-        connector.connect(project_id="test-project")
-
-        with pytest.raises(TableOutOfScopeError) as exc_info:
-            connector.get_table("other-project.dataset.table")
-
-        error_msg = str(exc_info.value)
-        assert "test-project" in error_msg
-        assert "other-project" in error_msg
-        mock_backend.table.assert_not_called()
-        connector.close()
-
-    @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
-    def test_get_table_bigquery_invalid_name(self, mocker):
-        """Bare table name with no default dataset configured raises InvalidURIError."""
-        mock_backend = mocker.Mock()
-        mocker.patch("ibis.bigquery.connect", return_value=mock_backend)
-
-        connector = IbisConnector("bigquery")
-        connector.connect(project_id="test-project")
-
-        with pytest.raises(InvalidURIError) as exc_info:
-            connector.get_table("table")
-
-        assert "must include a dataset" in str(exc_info.value)
-        connector.close()
-
-    @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
-    def test_get_table_bigquery_bare_name_with_default_dataset(self, mocker):
-        """Bare table name resolves fine when the connection has a default dataset."""
+    def test_get_table_bigquery_no_database_passthrough(self, mocker):
+        """No database kwarg: table_name passed straight through, no local resolution."""
         mock_table = mocker.Mock()
         mock_backend = mocker.Mock()
         mock_backend.table.return_value = mock_table
@@ -275,8 +222,10 @@ class TestGetTable:
         connector.close()
 
     @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
-    def test_get_table_bigquery_matching_dataset_with_default_dataset(self, mocker):
-        """dataset.table matching the connection's default dataset is allowed."""
+    def test_get_table_bigquery_cross_project_dataset_succeeds(self, mocker):
+        """A database naming a different project/dataset than the connection's own
+        default now succeeds — scope enforcement was removed (Plan 35): the
+        connection's own credentials are the real boundary, not an app-level check."""
         mock_table = mocker.Mock()
         mock_backend = mocker.Mock()
         mock_backend.table.return_value = mock_table
@@ -285,47 +234,54 @@ class TestGetTable:
         connector = IbisConnector("bigquery")
         connector.connect(project_id="test-project", dataset_id="my_dataset")
 
-        table = connector.get_table("my_dataset.table")
+        table = connector.get_table("table", database="other-project.other_dataset")
         assert table is not None
-        mock_backend.table.assert_called_once_with("my_dataset.table")
+        mock_backend.table.assert_called_once_with(
+            "table", database="other-project.other_dataset"
+        )
 
         connector.close()
 
-    @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
-    def test_get_table_bigquery_other_dataset_with_default_dataset_raises(self, mocker):
-        """dataset.table naming a different dataset raises TableOutOfScopeError
-        when the connection is scoped to a specific default dataset."""
-        mock_backend = mocker.Mock()
-        mocker.patch("ibis.bigquery.connect", return_value=mock_backend)
+    def test_get_table_postgres_schema_as_separate_kwarg(self, mocker):
+        """Gap B regression: schema is passed as database=, never dot-joined into
+        table_name — the join-then-resplit pattern that broke every Postgres
+        table lookup is gone."""
+        import aitaem.connectors.ibis_connector as ibis_connector_module
 
-        connector = IbisConnector("bigquery")
-        connector.connect(project_id="test-project", dataset_id="my_dataset")
-
-        with pytest.raises(TableOutOfScopeError) as exc_info:
-            connector.get_table("other_dataset.table")
-
-        error_msg = str(exc_info.value)
-        assert "test-project.my_dataset" in error_msg
-        assert "other_dataset" in error_msg
-        mock_backend.table.assert_not_called()
-        connector.close()
-
-    @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
-    def test_get_table_bigquery_fully_qualified_self_reference(self, mocker):
-        """project.dataset.table matching both configured project and dataset is allowed."""
         mock_table = mocker.Mock()
-        mock_backend = mocker.Mock()
+        mock_backend = mocker.MagicMock()
         mock_backend.table.return_value = mock_table
-        mocker.patch("ibis.bigquery.connect", return_value=mock_backend)
+        mock_backend.raw_sql.return_value.fetchone.return_value = ("public",)
+        mock_ibis = mocker.MagicMock()
+        mock_ibis.postgres.connect.return_value = mock_backend
+        mocker.patch.object(ibis_connector_module, "ibis", mock_ibis)
 
-        connector = IbisConnector("bigquery")
-        connector.connect(project_id="test-project", dataset_id="my_dataset")
+        connector = IbisConnector("postgres")
+        connector.connect(database="mydb", user="myuser", password="secret")
 
-        table = connector.get_table("test-project.my_dataset.table")
-        assert table is not None
-        mock_backend.table.assert_called_once_with("test-project.my_dataset.table")
+        table = connector.get_table("specs", database="public")
+        assert table is mock_table
+        mock_backend.table.assert_called_once_with("specs", database="public")
 
-        connector.close()
+    def test_get_table_postgres_table_name_with_literal_dot(self, mocker):
+        """A quoted Postgres identifier containing a literal '.' is passed through
+        intact as table_name — never split on the embedded dot."""
+        import aitaem.connectors.ibis_connector as ibis_connector_module
+
+        mock_table = mocker.Mock()
+        mock_backend = mocker.MagicMock()
+        mock_backend.table.return_value = mock_table
+        mock_backend.raw_sql.return_value.fetchone.return_value = ("public",)
+        mock_ibis = mocker.MagicMock()
+        mock_ibis.postgres.connect.return_value = mock_backend
+        mocker.patch.object(ibis_connector_module, "ibis", mock_ibis)
+
+        connector = IbisConnector("postgres")
+        connector.connect(database="mydb", user="myuser", password="secret")
+
+        table = connector.get_table("my.weird.table", database="public")
+        assert table is mock_table
+        mock_backend.table.assert_called_once_with("my.weird.table", database="public")
 
     def test_get_table_not_found(self):
         """Test that non-existent table raises TableNotFoundError."""
@@ -346,6 +302,73 @@ class TestGetTable:
         with pytest.raises(AitaemConnectionError) as exc_info:
             connector.get_table("events")
         assert "Not connected" in str(exc_info.value)
+
+
+class TestBuildSourceURI:
+    """Test build_source_uri() functionality (SF-1)."""
+
+    def test_not_connected_returns_none(self):
+        connector = IbisConnector("duckdb")
+        assert connector.build_source_uri("events") is None
+
+    def test_duckdb_memory(self):
+        connector = IbisConnector("duckdb")
+        connector.connect(":memory:")
+        assert connector.build_source_uri("events") == "duckdb://:memory:/events"
+        connector.close()
+
+    def test_duckdb_file_path(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        connector = IbisConnector("duckdb")
+        connector.connect(str(db_path))
+        assert connector.build_source_uri("events") == f"duckdb://{db_path}/events"
+        connector.close()
+
+    def test_postgres_with_schema(self, mocker):
+        import aitaem.connectors.ibis_connector as ibis_connector_module
+
+        mock_backend = mocker.MagicMock()
+        mock_backend.raw_sql.return_value.fetchone.return_value = ("public",)
+        mock_ibis = mocker.MagicMock()
+        mock_ibis.postgres.connect.return_value = mock_backend
+        mocker.patch.object(ibis_connector_module, "ibis", mock_ibis)
+
+        connector = IbisConnector("postgres")
+        connector.connect(database="mydb", user="myuser", password="secret")
+        assert connector.build_source_uri("orders") == "postgres://public/orders"
+
+    def test_postgres_without_captured_schema_returns_none(self, mocker):
+        import aitaem.connectors.ibis_connector as ibis_connector_module
+
+        mock_backend = mocker.MagicMock()
+        mock_backend.raw_sql.return_value.fetchone.return_value = ("public",)
+        mock_ibis = mocker.MagicMock()
+        mock_ibis.postgres.connect.return_value = mock_backend
+        mocker.patch.object(ibis_connector_module, "ibis", mock_ibis)
+
+        connector = IbisConnector("postgres")
+        connector.connect(database="mydb", user="myuser", password="secret")
+        connector._pg_schema = None  # simulate current_schema() capture never happening
+        assert connector.build_source_uri("orders") is None
+
+    @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
+    def test_bigquery_with_default_dataset(self, mocker):
+        mocker.patch("ibis.bigquery.connect", return_value=mocker.Mock())
+        connector = IbisConnector("bigquery")
+        connector.connect(project_id="test-project", dataset_id="my_dataset")
+        assert connector.build_source_uri("table") == "bigquery://test-project/my_dataset.table"
+        connector.close()
+
+    @pytest.mark.skipif(not HAS_BIGQUERY, reason="BigQuery backend not installed")
+    def test_bigquery_without_default_dataset_returns_none(self, mocker):
+        """Defensive only — not reachable via list_tables() today (Plan 35 §1):
+        a project-only-scoped BigQuery connection's list_tables() call fails for
+        the whole backend before any bare name is returned."""
+        mocker.patch("ibis.bigquery.connect", return_value=mocker.Mock())
+        connector = IbisConnector("bigquery")
+        connector.connect(project_id="test-project")
+        assert connector.build_source_uri("table") is None
+        connector.close()
 
 
 class TestExecute:
@@ -459,6 +482,23 @@ class TestPostgresConnection:
         connector = IbisConnector("postgres")
         with pytest.raises(AitaemConnectionError, match="PostgreSQL connection failed"):
             connector.connect(database="mydb", user="myuser", password="secret")
+
+    def test_connect_success_captures_current_schema(self, mocker):
+        """SF-1: current_schema() is queried once at connect time and stored."""
+        import aitaem.connectors.ibis_connector as ibis_connector_module
+
+        mock_backend = mocker.MagicMock()
+        mock_backend.raw_sql.return_value.fetchone.return_value = ("public",)
+        mock_ibis = mocker.MagicMock()
+        mock_ibis.postgres.connect.return_value = mock_backend
+        mocker.patch.object(ibis_connector_module, "ibis", mock_ibis)
+
+        connector = IbisConnector("postgres")
+        connector.connect(database="mydb", user="myuser", password="secret")
+
+        assert connector.is_connected
+        assert connector._pg_schema == "public"
+        mock_backend.raw_sql.assert_called_once_with("SELECT current_schema()")
 
 
 class TestLifecycle:

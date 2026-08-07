@@ -33,6 +33,7 @@ from aitaem.agent.definition_types import DefinitionOutput
 from aitaem.agent.query_bot import QueryBot
 from aitaem.agent.query_types import QueryOutput
 from aitaem.agent.trace import Status
+from aitaem.connectors.connection import ConnectionManager
 
 
 @contextlib.contextmanager
@@ -218,6 +219,10 @@ def _definition_connection_manager():
     mock_ibis_table.columns = ["amount", "transaction_date"]
     mock_connector.get_table.return_value = mock_ibis_table
     mock_cm.get_connection.return_value = mock_connector
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://analytics.db/{name}"
+    mock_cm.parse_source_uri.side_effect = ConnectionManager.parse_source_uri
+    mock_cm.resolve_table_reference.side_effect = ConnectionManager.resolve_table_reference
     return mock_cm
 
 
@@ -256,7 +261,7 @@ def _full_flow_model() -> FunctionModel:
         if "describe_table" not in returns:
             return ModelResponse(parts=[ToolCallPart(
                 tool_name="describe_table",
-                args=json.dumps({"table_name": "transactions", "backend_type": "duckdb"}),
+                args=json.dumps({"source": "duckdb://analytics.db/transactions"}),
                 tool_call_id="tc-3",
             )])
         if "draft_spec" not in returns:

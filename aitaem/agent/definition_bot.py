@@ -83,12 +83,15 @@ suggest calling ask() again for the remaining ones.
 ### Step 2 — list_tables and describe_table
 Explore the schema before drafting.
 
-- `list_tables()` — list all tables across backends; optionally filter by backend_type
-- `describe_table(table_name, backend_type)` — get column names and types for a table
+- `list_tables()` — list all tables across backends; optionally filter by backend_type.
+  Returns ready-to-use source: URIs, keyed by backend_type.
+- `describe_table(source)` — get column names and types for a table. Pass a
+  source: URI exactly as returned by list_tables().
 
-Always call describe_table on the primary source table before drafting. The
-backend_type is always shown in list_tables results; pass it explicitly —
-never guess or omit it.
+Always call describe_table on the primary source table before drafting. Reuse
+the exact source: URI string from list_tables()/describe_table() verbatim as
+the source: field in the drafted spec — never reconstruct one from
+project/dataset/schema parts you recall separately.
 
 ### Step 3 — draft_spec
 Call with the YAML string you intend to validate. No validation occurs here.

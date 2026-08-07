@@ -247,8 +247,8 @@ class QueryBuilder:
         by_entity: str | None = None,
     ) -> ibis.Table:
         """Build a single Ibis expression for one (metric, segment_spec | None) combination."""
-        table_name = QueryBuilder._parse_table_name_from_uri(metric.source)
-        t = connector.get_table(table_name)
+        table_name, database = ConnectionManager.resolve_table_reference(metric.source)
+        t = connector.get_table(table_name, database=database)
 
         # --- Segment: splice classification onto the DIM table's own schema, ---
         # --- then join — unqualified column refs in segment `where` resolve  ---
@@ -257,8 +257,10 @@ class QueryBuilder:
         effective_join_key: str | None = None
         segment_alias: str | None = None
         if segment_spec is not None:
-            dim_table_name = QueryBuilder._parse_table_name_from_uri(segment_spec.source)
-            dim = connector.get_table(dim_table_name)
+            dim_table_name, dim_database = ConnectionManager.resolve_table_reference(
+                segment_spec.source
+            )
+            dim = connector.get_table(dim_table_name, database=dim_database)
             effective_join_key = segment_join_key or segment_spec.entity_id
             segment_alias = "_segment"
             segment_col_sql = QueryBuilder._build_segment_case_when_expr(
@@ -573,13 +575,3 @@ class QueryBuilder:
         return spine.mutate(period_start=period_start, period_end=period_end).select(
             "period_start", "period_end"
         )
-
-    @staticmethod
-    def _parse_table_name_from_uri(source_uri: str) -> str:
-        """Extract table name from source URI for use looking up a bound table."""
-        backend_type, schema, table = ConnectionManager.parse_source_uri(source_uri)
-        if backend_type == "bigquery":
-            return table  # already 'dataset.table'
-        if backend_type == "postgres" and schema:
-            return f"{schema}.{table}"
-        return table

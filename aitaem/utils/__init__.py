@@ -12,7 +12,6 @@ from aitaem.utils.exceptions import (
     ConfigurationError,
     InvalidURIError,
     UnsupportedBackendError,
-    TableOutOfScopeError,
     QueryExecutionError,
 )
 
@@ -24,6 +23,5 @@ __all__ = [
     "ConfigurationError",
     "InvalidURIError",
     "UnsupportedBackendError",
-    "TableOutOfScopeError",
     "QueryExecutionError",
 ]

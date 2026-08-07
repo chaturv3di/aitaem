@@ -32,13 +32,42 @@
   `DefinitionBot`) now rebuild their agent when `SpecCache.version` moves,
   keeping the catalog visible starting the next turn while staying
   cache-eligible (no rebuild) on turns where nothing changed.
-- **`IbisConnector.get_table()` no longer rejects bare BigQuery table names.**
-  Previously any table name without a `dataset.table` prefix raised
-  `InvalidURIError`, even though `list_tables()` returns bare names whenever
-  the connection has a default `dataset_id` configured — making it impossible
-  to describe any table that `list_tables()` had just listed. Bare names now
-  resolve against the connection's configured default project/dataset, as
-  `dataset_id` in the connection config already documented.
+- **`list_tables()`/`describe_table()` now return/accept a ready-to-use
+  `source:` URI instead of a bare table name, so `DefinitionBot` never has to
+  assemble one from parts.** Previously both tools dealt in bare table names,
+  requiring the LLM to reconstruct a `source:` URI (project, dataset, schema)
+  from memory — confirmed live to produce fabricated, non-existent
+  project/dataset values that passed structural validation and committed.
+  Breaking change: `describe_table`'s signature changes from
+  `(table_name, backend_type)` to `(source)`; `DescribeTableResult` drops
+  `table_name`/`backend_type` in favor of `source`; `ListTablesResult.tables`'
+  entries are now full `source:` URIs. A `source:` that doesn't resolve to a
+  real, accessible table now fails `validate_spec` (via `column_errors`)
+  instead of committing with a warning.
+- **`IbisConnector.get_table()` now resolves correctly against a real
+  Postgres backend — previously failed for every schema, including
+  `public`.** The old code joined schema and table into one dotted string
+  (`"public.specs"`) before passing it to Ibis, which requires the schema as
+  a separate `database=` keyword argument. `get_table()` now takes
+  `(table_name, database=None)` as two explicit parameters for every backend,
+  removing the join-then-resplit round trip — and, as a byproduct, the
+  ambiguity a Postgres quoted identifier containing a literal `.` would
+  otherwise have created. `TableOutOfScopeError` and BigQuery dataset-scope
+  enforcement are removed: confirmed live that Ibis does not enforce
+  `database=` against a connection's configured project/dataset, so the
+  app-level check only blocked legitimate cross-dataset specs without adding
+  real protection — the connection's own credentials are the actual
+  boundary. `dataset_id`/`project_id` on a BigQuery connection remain
+  resolution defaults only.
+- **`compute()` now honors a BigQuery metric/segment source's own project
+  instead of silently substituting the connection's default project.**
+  The table-reference resolver used by `QueryBuilder` discarded a `source:`
+  URI's project for BigQuery; a metric naming a different project than the
+  connection's default silently queried the wrong (or a nonexistent) table
+  under the connection's own project instead of failing loudly. Table
+  reference resolution moves off `QueryBuilder` onto a new public
+  `ConnectionManager.resolve_table_reference()`, shared by `describe_table()`,
+  `compute()`, and `scan()`.
 
 ### Added
 
@@ -55,17 +84,6 @@
   `SpecCache`'s existing cross-reference validator, leaving the cache
   untouched on a rejected mutation. `SpecCache.version` is a new monotonic
   counter, incremented on every successful mutation (including `clear()`).
-- **`TableOutOfScopeError`**, a new exception raised when a BigQuery table
-  name specifies a project or dataset outside a connection's configured
-  scope. A connection configured with only `project_id` may access any
-  dataset within that project; one configured with both `project_id` and
-  `dataset_id` is confined to that single dataset. This replaces a previous,
-  silently-incorrect behavior where a `project.dataset.table` name naming a
-  *different* project had its project segment discarded and was resolved
-  against the connection's own default project instead — potentially
-  matching the wrong table (or failing) rather than reaching the intended
-  project.
-
 ## v1.0.0 — 2026-07-23
 
 This release bundles the last breaking changes expected before v1.0's stability

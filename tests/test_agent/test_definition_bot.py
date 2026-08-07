@@ -30,6 +30,7 @@ from aitaem.agent.definition_types import DefinitionOutput
 from aitaem.agent.response import BotResponse
 from aitaem.agent.store import ResultStore, TextEntry
 from aitaem.agent.trace import Status
+from aitaem.connectors.connection import ConnectionManager
 from aitaem.specs.loader import SpecCache
 from aitaem.specs.metric import MetricSpec
 
@@ -468,7 +469,7 @@ def _make_full_flow_model(yaml_string: str = _VALID_METRIC_YAML, spec_type: str 
         if "describe_table" not in returns:
             return ModelResponse(parts=[ToolCallPart(
                 tool_name="describe_table",
-                args=json.dumps({"table_name": "transactions", "backend_type": "duckdb"}),
+                args=json.dumps({"source": "duckdb://analytics.db/transactions"}),
                 tool_call_id="tc-3",
             )])
 
@@ -731,6 +732,10 @@ def test_full_flow_returns_status_ok():
     mock_ibis_table.columns = ["amount", "transaction_date"]
     mock_connector.get_table.return_value = mock_ibis_table
     mock_cm.get_connection.return_value = mock_connector
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://analytics.db/{name}"
+    mock_cm.parse_source_uri.side_effect = ConnectionManager.parse_source_uri
+    mock_cm.resolve_table_reference.side_effect = ConnectionManager.resolve_table_reference
 
     bot = DefinitionBot(
         model=_make_full_flow_model(),
@@ -756,6 +761,10 @@ def test_full_flow_validate_spec_trace_result_id_and_duration_populated():
     mock_ibis_table.columns = ["amount", "transaction_date"]
     mock_connector.get_table.return_value = mock_ibis_table
     mock_cm.get_connection.return_value = mock_connector
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://analytics.db/{name}"
+    mock_cm.parse_source_uri.side_effect = ConnectionManager.parse_source_uri
+    mock_cm.resolve_table_reference.side_effect = ConnectionManager.resolve_table_reference
 
     bot = DefinitionBot(
         model=_make_full_flow_model(),
@@ -784,6 +793,10 @@ def test_full_flow_payload_metric_spec_populated():
     mock_ibis.schema.return_value = MagicMock(names=["amount", "transaction_date"], types=["float64", "date"])
     mock_connector.get_table.return_value = mock_ibis
     mock_cm.get_connection.return_value = mock_connector
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://analytics.db/{name}"
+    mock_cm.parse_source_uri.side_effect = ConnectionManager.parse_source_uri
+    mock_cm.resolve_table_reference.side_effect = ConnectionManager.resolve_table_reference
 
     bot = DefinitionBot(
         model=_make_full_flow_model(),
@@ -809,6 +822,10 @@ def test_full_flow_get_result_returns_text_entry():
     mock_ibis.schema.return_value = MagicMock(names=["amount", "transaction_date"], types=["float64", "date"])
     mock_connector.get_table.return_value = mock_ibis
     mock_cm.get_connection.return_value = mock_connector
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://analytics.db/{name}"
+    mock_cm.parse_source_uri.side_effect = ConnectionManager.parse_source_uri
+    mock_cm.resolve_table_reference.side_effect = ConnectionManager.resolve_table_reference
 
     bot = DefinitionBot(
         model=_make_full_flow_model(),
@@ -835,6 +852,10 @@ def test_ask_does_not_accumulate_history_on_full_flow():
     mock_ibis.schema.return_value = MagicMock(names=["amount", "transaction_date"], types=["float64", "date"])
     mock_connector.get_table.return_value = mock_ibis
     mock_cm.get_connection.return_value = mock_connector
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://analytics.db/{name}"
+    mock_cm.parse_source_uri.side_effect = ConnectionManager.parse_source_uri
+    mock_cm.resolve_table_reference.side_effect = ConnectionManager.resolve_table_reference
 
     bot = DefinitionBot(
         model=_make_full_flow_model(),
@@ -858,6 +879,10 @@ def test_trace_contains_all_five_tool_names():
     mock_ibis.schema.return_value = MagicMock(names=["amount", "transaction_date"], types=["float64", "date"])
     mock_connector.get_table.return_value = mock_ibis
     mock_cm.get_connection.return_value = mock_connector
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://analytics.db/{name}"
+    mock_cm.parse_source_uri.side_effect = ConnectionManager.parse_source_uri
+    mock_cm.resolve_table_reference.side_effect = ConnectionManager.resolve_table_reference
 
     bot = DefinitionBot(
         model=_make_full_flow_model(),
@@ -891,7 +916,12 @@ def test_correction_loop_final_status_ok():
     mock_connector.list_tables.return_value = ["transactions"]
     mock_ibis = MagicMock()
     mock_ibis.columns = ["amount", "transaction_date"]
+    mock_connector.get_table.return_value = mock_ibis
     mock_cm.get_connection.return_value = mock_connector
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://analytics.db/{name}"
+    mock_cm.parse_source_uri.side_effect = ConnectionManager.parse_source_uri
+    mock_cm.resolve_table_reference.side_effect = ConnectionManager.resolve_table_reference
 
     bot = DefinitionBot(
         model=_make_correction_loop_model(),
@@ -917,7 +947,14 @@ def test_is_update_rename_conflict_name_lock_fires():
     mock_cm.backend_types = ["duckdb"]
     mock_connector = MagicMock()
     mock_connector.list_tables.return_value = ["transactions"]
+    mock_ibis = MagicMock()
+    mock_ibis.columns = ["amount", "transaction_date"]
+    mock_connector.get_table.return_value = mock_ibis
     mock_cm.get_connection.return_value = mock_connector
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://analytics.db/{name}"
+    mock_cm.parse_source_uri.side_effect = ConnectionManager.parse_source_uri
+    mock_cm.resolve_table_reference.side_effect = ConnectionManager.resolve_table_reference
 
     model, call_sequence = _make_name_lock_model()
     bot = DefinitionBot(
@@ -951,6 +988,10 @@ def test_chat_accumulates_history_on_full_flow():
     mock_ibis.schema.return_value = MagicMock(names=["amount", "transaction_date"], types=["float64", "date"])
     mock_connector.get_table.return_value = mock_ibis
     mock_cm.get_connection.return_value = mock_connector
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://analytics.db/{name}"
+    mock_cm.parse_source_uri.side_effect = ConnectionManager.parse_source_uri
+    mock_cm.resolve_table_reference.side_effect = ConnectionManager.resolve_table_reference
 
     bot = DefinitionBot(
         model=_make_full_flow_model(),
@@ -1260,6 +1301,10 @@ def test_multi_turn_commit_using_spec_draft_token():
     )
     mock_connector.get_table.return_value = mock_ibis
     mock_cm.get_connection.return_value = mock_connector
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://analytics.db/{name}"
+    mock_cm.parse_source_uri.side_effect = ConnectionManager.parse_source_uri
+    mock_cm.resolve_table_reference.side_effect = ConnectionManager.resolve_table_reference
 
     cache = SpecCache()
     bot = DefinitionBot(
