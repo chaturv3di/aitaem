@@ -2086,26 +2086,94 @@
 <h2 id="unreleased">Unreleased</h2>
 <h3 id="fixed">Fixed</h3>
 <ul>
-<li><strong><code>IbisConnector.get_table()</code> no longer rejects bare BigQuery table names.</strong>
-  Previously any table name without a <code>dataset.table</code> prefix raised
-  <code>InvalidURIError</code>, even though <code>list_tables()</code> returns bare names whenever
-  the connection has a default <code>dataset_id</code> configured — making it impossible
-  to describe any table that <code>list_tables()</code> had just listed. Bare names now
-  resolve against the connection's configured default project/dataset, as
-  <code>dataset_id</code> in the connection config already documented.</li>
+<li><strong><code>compute()</code> without <code>by_entity</code> no longer fails against BigQuery with
+  <code>ArrowNotImplementedError: Unsupported cast from int64 to null using
+  function cast_null</code>.</strong> <code>entity_id</code> was built from a bare, untyped
+  <code>ibis.null()</code> when <code>by_entity</code> wasn't set — DuckDB tolerates this, but
+  BigQuery assigns its own default type to an untyped <code>NULL</code> literal, which
+  then conflicts with ibis's expected <code>null</code> dtype when pyarrow materializes
+  the result. <code>entity_id</code> now uses the same explicitly-<code>string</code>-typed null
+  already used for <code>metric_format</code>/<code>period_start_date</code>/<code>period_end_date</code>.</li>
+<li><strong>Non-<code>all_time</code> (period-granularity) queries against non-DuckDB backends
+  (confirmed: BigQuery) no longer fail with a dialect syntax error.</strong>
+  <code>QueryBuilder</code> previously hand-assembled every query as a SQL string,
+  including a <code>VALUES</code>-with-column-list periods CTE that DuckDB accepts but
+  BigQuery's grammar rejects, plus hardcoded DuckDB type names. It now builds
+  real Ibis expressions throughout — the periods table is generated
+  server-side via <code>ibis.range()</code> and interval arithmetic instead, verified
+  across DuckDB/BigQuery/Postgres. User-authored SQL (<code>numerator</code>/
+  <code>denominator</code>/<code>where</code>) is spliced in via <code>Table.sql()</code>, uniformly across all
+  four fragment kinds — fixing, as a byproduct, a related bug where segment
+  <code>where</code> fragments were always re-emitted in DuckDB's dialect regardless of
+  the query's actual target backend.</li>
+<li><strong>DefinitionBot's BigQuery URI prompt row now matches its DuckDB/Postgres
+  siblings' pattern</strong> (<code>bigquery://&lt;project&gt;/&lt;dataset&gt;/&lt;table&gt;</code>, all-slash),
+  removing an inconsistent extra step (slash <em>then</em> dot) that caused
+  multi-attempt retry loops. <code>validate_spec()</code> translates the LLM's form to
+  the core-canonical <code>project/dataset.table</code> before storage. No breaking
+  change — <code>ConnectionManager._parse_bigquery_uri</code> still accepts every shape
+  it did before.</li>
+<li><strong><code>QueryBot</code>'s spec catalog no longer goes stale when it shares a
+  <code>SpecCache</code> with a <code>DefinitionBot</code> that commits, updates, or deletes a
+  spec.</strong> Previously <code>QueryBot</code>'s LLM-visible catalog was built once at
+  construction time; a spec added by a <code>DefinitionBot</code> holding the same
+  <code>SpecCache</code> instance was immediately queryable but never appeared in
+  <code>QueryBot</code>'s own catalog for the rest of its session. <code>QueryBot</code> (and
+  <code>DefinitionBot</code>) now rebuild their agent when <code>SpecCache.version</code> moves,
+  keeping the catalog visible starting the next turn while staying
+  cache-eligible (no rebuild) on turns where nothing changed.</li>
+<li><strong><code>list_tables()</code>/<code>describe_table()</code> now return/accept a ready-to-use
+  <code>source:</code> URI instead of a bare table name, so <code>DefinitionBot</code> never has to
+  assemble one from parts.</strong> Previously both tools dealt in bare table names,
+  requiring the LLM to reconstruct a <code>source:</code> URI (project, dataset, schema)
+  from memory — confirmed live to produce fabricated, non-existent
+  project/dataset values that passed structural validation and committed.
+  Breaking change: <code>describe_table</code>'s signature changes from
+  <code>(table_name, backend_type)</code> to <code>(source)</code>; <code>DescribeTableResult</code> drops
+  <code>table_name</code>/<code>backend_type</code> in favor of <code>source</code>; <code>ListTablesResult.tables</code>'
+  entries are now full <code>source:</code> URIs. A <code>source:</code> that doesn't resolve to a
+  real, accessible table now fails <code>validate_spec</code> (via <code>column_errors</code>)
+  instead of committing with a warning.</li>
+<li><strong><code>IbisConnector.get_table()</code> now resolves correctly against a real
+  Postgres backend — previously failed for every schema, including
+  <code>public</code>.</strong> The old code joined schema and table into one dotted string
+  (<code>"public.specs"</code>) before passing it to Ibis, which requires the schema as
+  a separate <code>database=</code> keyword argument. <code>get_table()</code> now takes
+  <code>(table_name, database=None)</code> as two explicit parameters for every backend,
+  removing the join-then-resplit round trip — and, as a byproduct, the
+  ambiguity a Postgres quoted identifier containing a literal <code>.</code> would
+  otherwise have created. <code>TableOutOfScopeError</code> and BigQuery dataset-scope
+  enforcement are removed: confirmed live that Ibis does not enforce
+  <code>database=</code> against a connection's configured project/dataset, so the
+  app-level check only blocked legitimate cross-dataset specs without adding
+  real protection — the connection's own credentials are the actual
+  boundary. <code>dataset_id</code>/<code>project_id</code> on a BigQuery connection remain
+  resolution defaults only.</li>
+<li><strong><code>compute()</code> now honors a BigQuery metric/segment source's own project
+  instead of silently substituting the connection's default project.</strong>
+  The table-reference resolver used by <code>QueryBuilder</code> discarded a <code>source:</code>
+  URI's project for BigQuery; a metric naming a different project than the
+  connection's default silently queried the wrong (or a nonexistent) table
+  under the connection's own project instead of failing loudly. Table
+  reference resolution moves off <code>QueryBuilder</code> onto a new public
+  <code>ConnectionManager.resolve_table_reference()</code>, shared by <code>describe_table()</code>,
+  <code>compute()</code>, and <code>scan()</code>.</li>
 </ul>
 <h3 id="added">Added</h3>
 <ul>
-<li><strong><code>TableOutOfScopeError</code></strong>, a new exception raised when a BigQuery table
-  name specifies a project or dataset outside a connection's configured
-  scope. A connection configured with only <code>project_id</code> may access any
-  dataset within that project; one configured with both <code>project_id</code> and
-  <code>dataset_id</code> is confined to that single dataset. This replaces a previous,
-  silently-incorrect behavior where a <code>project.dataset.table</code> name naming a
-  <em>different</em> project had its project segment discarded and was resolved
-  against the connection's own default project instead — potentially
-  matching the wrong table (or failing) rather than reaching the intended
-  project.</li>
+<li><strong><code>DefinitionBot.commit_spec</code> and <code>DefinitionBot.delete_spec</code> tools.</strong>
+  <code>commit_spec(spec_draft_token)</code> saves a validated draft to the shared
+  <code>SpecCache</code> — adding or updating based on live cache state at commit time.
+  <code>delete_spec(spec_type, name)</code> removes a spec immediately, blocked by
+  <code>SpecCache</code>'s referential-integrity check if another spec still depends on
+  it. <code>DefinitionOutput</code>/<code>DefinitionPayload</code> gain <code>committed_spec_type</code>,
+  <code>committed_spec_name</code>, and <code>committed_action</code> fields, set when either tool
+  succeeds.</li>
+<li><strong><code>SpecCache.update()</code> and <code>SpecCache.remove()</code></strong>, plus a transactional
+  <code>add()</code>: all three mutate-then-validate-then-commit-or-rollback against
+  <code>SpecCache</code>'s existing cross-reference validator, leaving the cache
+  untouched on a rejected mutation. <code>SpecCache.version</code> is a new monotonic
+  counter, incremented on every successful mutation (including <code>clear()</code>).</li>
 </ul>
 <h2 id="v100-2026-07-23">v1.0.0 — 2026-07-23</h2>
 <p>This release bundles the last breaking changes expected before v1.0's stability
