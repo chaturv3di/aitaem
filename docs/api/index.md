@@ -53,7 +53,6 @@ All exceptions inherit from `AitaemError` and are importable from `aitaem`.
 | `AitaemConnectionError` | Backend connection fails |
 | `ConnectionNotFoundError` | Requested backend is not configured |
 | `TableNotFoundError` | Table does not exist in the backend |
-| `TableOutOfScopeError` | Requested table names a project/dataset outside the connection's configured scope |
 | `ConfigurationError` | Configuration is invalid or incomplete |
 | `InvalidURIError` | Source URI is malformed |
 | `UnsupportedBackendError` | Backend type is not supported |

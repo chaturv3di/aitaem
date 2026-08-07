@@ -22,8 +22,6 @@ logger = logging.getLogger(__name__)
 
 def _run_scan(spec_cache: SpecCache, connection_manager: ConnectionManager) -> ScanResult:
     """Core logic for MetricCompute.scan() — separated for independent testability."""
-    from aitaem.query.builder import QueryBuilder
-
     results: list[CompatibilityResult] = []
 
     # Batch schema introspections by unique source URI
@@ -32,8 +30,10 @@ def _run_scan(spec_cache: SpecCache, connection_manager: ConnectionManager) -> S
     for uri in unique_uris:
         try:
             connector = connection_manager.get_connection_for_source(uri)
-            table_name = QueryBuilder._parse_table_name_from_uri(uri)
-            source_columns[uri] = frozenset(connector.get_table(table_name).schema().names)
+            table_name, database = ConnectionManager.resolve_table_reference(uri)
+            source_columns[uri] = frozenset(
+                connector.get_table(table_name, database=database).schema().names
+            )
         except Exception as e:
             logger.warning(
                 "scan: could not introspect schema for '%s' (%s) — metrics with this source will be skipped",
@@ -212,11 +212,12 @@ class MetricCompute:
         metric_specs = [self.spec_cache.get_metric(n) for n in metric_names]
         slice_specs = [self.spec_cache.get_slice(n) for n in slice_names] if slice_names else None
 
-        # 4. Build SQL query groups
+        # 4. Build query groups (Ibis expressions)
         query_groups = QueryBuilder.build_queries(
             metric_specs=metric_specs,
             slice_specs=slice_specs,
             segment_spec=segment_spec,
+            connection_manager=self.connection_manager,
             segment_join_key=segment_join_key,
             time_window=time_window,
             spec_cache=self.spec_cache,

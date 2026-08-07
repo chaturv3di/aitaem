@@ -22,6 +22,8 @@ from aitaem.agent.definition_tools import (
     describe_table,
     draft_spec,
     validate_spec,
+    commit_spec,
+    delete_spec,
     _parse_yaml_to_spec,
 )
 from aitaem.agent.store import ResultStore
@@ -63,7 +65,7 @@ users define MetricSpec, SliceSpec, and SegmentSpec YAML definitions by
 exploring the schema, drafting YAML, and validating it before returning.
 Never invent column names or table names; all data must come from tool calls.
 
-## 4-Step Workflow — follow in order
+## Workflow — follow in order
 
 ### Step 1 — record_definition_intent
 Call first, once per spec. Fields:
@@ -81,12 +83,15 @@ suggest calling ask() again for the remaining ones.
 ### Step 2 — list_tables and describe_table
 Explore the schema before drafting.
 
-- `list_tables()` — list all tables across backends; optionally filter by backend_type
-- `describe_table(table_name, backend_type)` — get column names and types for a table
+- `list_tables()` — list all tables across backends; optionally filter by backend_type.
+  Returns ready-to-use source: URIs, keyed by backend_type.
+- `describe_table(source)` — get column names and types for a table. Pass a
+  source: URI exactly as returned by list_tables().
 
-Always call describe_table on the primary source table before drafting. The
-backend_type is always shown in list_tables results; pass it explicitly —
-never guess or omit it.
+Always call describe_table on the primary source table before drafting. Reuse
+the exact source: URI string from list_tables()/describe_table() verbatim as
+the source: field in the drafted spec — never reconstruct one from
+project/dataset/schema parts you recall separately.
 
 ### Step 3 — draft_spec
 Call with the YAML string you intend to validate. No validation occurs here.
@@ -110,6 +115,25 @@ then call validate_spec with the new draft_id. Repeat until validation passes.
 On full pass: returns spec_draft_token. Copy this token verbatim into the
 DefinitionOutput.spec_draft_token field — this is the anti-hallucination gate.
 Never set spec_draft_token without a valid validate_spec result.
+
+### Step 5 — commit_spec
+Call only after the user explicitly confirms they want the draft saved —
+never commit automatically on a successful validate_spec. Pass the
+spec_draft_token from validate_spec; no other arguments. Works across turns:
+a token from an earlier turn in the same chat() session is still valid.
+
+Returns action="added" or "updated" (derived from whether the name already
+exists in the catalog at commit time — you don't need to track this
+yourself). On error (e.g. a conflict introduced since validate_spec ran),
+relay the error message; do not retry blindly.
+
+## Deleting a spec
+Call `delete_spec(spec_type, name)` only on explicit user request — it is
+immediate, with no draft/validate/confirm step of its own, and is not
+reversible within the session. If the delete request is at all ambiguous,
+confirm with the user before calling it. On error (unknown name, or another
+spec still depends on this one), relay the validation-failure message rather
+than retrying.
 
 ## YAML Format Reference
 
@@ -173,11 +197,11 @@ segment:
 
 URIs encode the backend and table:
 
-| Backend  | Format                               | Example                            |
-|----------|--------------------------------------|------------------------------------|
-| DuckDB   | duckdb://<db_path>/<table>           | duckdb://analytics.db/events       |
-| BigQuery | bigquery://<project>/<dataset>.<tbl> | bigquery://myproject/ds.sales      |
-| Postgres | postgres://<schema>/<table>          | postgres://public/events           |
+| Backend  | Format                                | Example                            |
+|----------|----------------------------------------|------------------------------------|
+| DuckDB   | duckdb://<db_path>/<table>             | duckdb://analytics.db/events       |
+| BigQuery | bigquery://<project>/<dataset>/<table> | bigquery://myproject/ds/sales      |
+| Postgres | postgres://<schema>/<table>            | postgres://public/events           |
 
 Infer the URI format from the existing catalog in Layer B when unsure.
 
@@ -191,11 +215,16 @@ Infer the URI format from the existing catalog in Layer B when unsure.
 
 ## Final Response
 
-After the validate_spec loop succeeds, produce a DefinitionOutput:
+After the workflow completes, produce a DefinitionOutput:
 - status: "ok" on success; "refused" if spec cannot be defined; "error" on tool failure
 - narrative: natural-language explanation of what was defined and any warnings
 - spec_draft_token: copy verbatim from validate_spec result (null if status≠ok)
-- reason: brief note when status is "refused" or "error"; null otherwise"""
+- reason: brief note when status is "refused" or "error"; null otherwise
+- committed_spec_type / committed_spec_name / committed_action: set only when
+  commit_spec or delete_spec succeeded during this run — copy spec_type,
+  spec_name, and action ("added"/"updated" from commit_spec, "deleted" from
+  delete_spec) verbatim from that tool's result. Leave all three null when
+  neither tool was called or the call failed."""
 
 
 def _build_layer_b_definition(spec_cache: Any) -> str:
@@ -334,22 +363,26 @@ class DefinitionBot(Bot):
         from pydantic_ai.toolsets import FunctionToolset
         from pydantic_ai.capabilities import ReinjectSystemPrompt
 
-        toolset = FunctionToolset()
-        toolset.add_function(record_definition_intent)  # Step 1
-        toolset.add_function(list_tables)               # Step 2a
-        toolset.add_function(describe_table)            # Step 2b
-        toolset.add_function(draft_spec)                # Step 3
-        toolset.add_function(validate_spec)             # Step 4
+        if self._toolset is None:
+            toolset = FunctionToolset()
+            toolset.add_function(record_definition_intent)  # Step 1
+            toolset.add_function(list_tables)               # Step 2a
+            toolset.add_function(describe_table)            # Step 2b
+            toolset.add_function(draft_spec)                # Step 3
+            toolset.add_function(validate_spec)             # Step 4
+            toolset.add_function(commit_spec)                # Step 6
+            toolset.add_function(delete_spec)                 # Step 7
 
-        for tool in self._tools:
-            _register_tool(toolset, tool)
-        self._toolset = toolset
+            for tool in self._tools:
+                _register_tool(toolset, tool)
+            self._toolset = toolset
 
         static_instructions = (
             _build_layer_a_definition()
             + "\n\n"
             + _build_layer_b_definition(self._spec_cache)
         )
+        self._layer_b_version = self._spec_cache.version
 
         tenant_id = self._tenant_id or _definition_permission_fingerprint(self._spec_cache)
 
@@ -357,7 +390,7 @@ class DefinitionBot(Bot):
             model=self._model,
             deps_type=DefinitionDeps,
             output_type=DefinitionOutput,
-            toolsets=[toolset],
+            toolsets=[self._toolset],
             instructions=static_instructions,
             model_settings=_provider_cache_config_definition(self._model, tenant_id),
             capabilities=[ReinjectSystemPrompt(replace_existing=True)],
@@ -387,6 +420,9 @@ class DefinitionBot(Bot):
         """
         from datetime import datetime, timezone
         from aitaem.agent.trace import assemble_trace
+
+        if self._spec_cache.version != self._layer_b_version:
+            self._agent = self._build_agent()
 
         run_start = datetime.now(timezone.utc)
         deps = DefinitionDeps(
@@ -429,6 +465,9 @@ class DefinitionBot(Bot):
         from datetime import datetime, timezone
         from aitaem.agent.trace import assemble_trace
 
+        if self._spec_cache.version != self._layer_b_version:
+            self._agent = self._build_agent()
+
         run_start = datetime.now(timezone.utc)
         deps = DefinitionDeps(
             connection_manager=self._connection_manager,
@@ -465,17 +504,26 @@ class DefinitionBot(Bot):
     ) -> DefinitionPayload:
         """Assemble DefinitionPayload from the LLM's DefinitionOutput.
 
-        When status is not ok or spec_draft_token is None, returns an empty payload.
-        Otherwise retrieves the validated YAML from the store, re-parses it, and
-        populates the appropriate spec field.
+        When status is not ok or spec_draft_token is None, returns a payload with
+        only the committed_* fields set (if any) — a delete_spec-only turn has no
+        draft to re-parse. Otherwise also retrieves the validated YAML from the
+        store, re-parses it, and populates the appropriate spec field.
         """
+        committed_kwargs: dict[str, Any] = {}
+        if output.status == Status.ok and output.committed_action is not None:
+            committed_kwargs = {
+                "committed_spec_type": output.committed_spec_type,
+                "committed_spec_name": output.committed_spec_name,
+                "committed_action": output.committed_action,
+            }
+
         if output.status != Status.ok or output.spec_draft_token is None:
-            return DefinitionPayload()
+            return DefinitionPayload(**committed_kwargs)
 
         try:
             entry = store.get_text(output.spec_draft_token)
         except Exception:
-            return DefinitionPayload()
+            return DefinitionPayload(**committed_kwargs)
 
         yaml_string = entry.text
         metadata = entry.metadata
@@ -524,6 +572,7 @@ class DefinitionBot(Bot):
             metric_spec=metric_spec,
             slice_spec=slice_spec,
             segment_spec=segment_spec,
+            **committed_kwargs,
         )
 
     @staticmethod

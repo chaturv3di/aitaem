@@ -163,7 +163,7 @@ def _full_flow_model(yaml_string: str) -> FunctionModel:
         if "describe_table" not in returns:
             return ModelResponse(parts=[ToolCallPart(
                 tool_name="describe_table",
-                args=json.dumps({"table_name": "transactions", "backend_type": "duckdb"}),
+                args=json.dumps({"source": "duckdb://analytics.db/transactions"}),
                 tool_call_id="tc-3",
             )])
         if "draft_spec" not in returns:

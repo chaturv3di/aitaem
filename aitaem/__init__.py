@@ -26,7 +26,6 @@ from aitaem.utils.exceptions import (
     SpecNotFoundError,
     SpecValidationError,
     TableNotFoundError,
-    TableOutOfScopeError,
     UnsupportedBackendError,
 )
 
@@ -55,7 +54,6 @@ __all__ = [
     "AitaemConnectionError",
     "ConnectionNotFoundError",
     "TableNotFoundError",
-    "TableOutOfScopeError",
     "ConfigurationError",
     "InvalidURIError",
     "UnsupportedBackendError",

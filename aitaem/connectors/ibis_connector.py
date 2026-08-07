@@ -13,10 +13,8 @@ from aitaem.connectors.backend_specs import validate_backend_config
 from aitaem.utils.exceptions import (
     AitaemConnectionError,
     ConfigurationError,
-    InvalidURIError,
     QueryExecutionError,
     TableNotFoundError as AitaemTableNotFoundError,
-    TableOutOfScopeError,
     UnsupportedBackendError,
 )
 
@@ -56,6 +54,8 @@ class IbisConnector:
         self.connection: ibis.BaseBackend | None = None
         self._bq_project_id: str | None = None
         self._bq_dataset_id: str | None = None
+        self._duckdb_database: str | None = None
+        self._pg_schema: str | None = None
 
     def connect(self, connection_string: str | None = None, **kwargs: Any) -> None:
         """Establish connection to the backend.
@@ -97,6 +97,7 @@ class IbisConnector:
 
         try:
             self.connection = ibis.duckdb.connect(database=database, **kwargs)
+            self._duckdb_database = database
         except Exception as e:
             raise AitaemConnectionError(
                 f"DuckDB connection failed for database '{database}': {str(e)}"
@@ -154,6 +155,8 @@ class IbisConnector:
                 user=cfg.user,
                 password=cfg.password,
             )
+            cursor = self.connection.raw_sql("SELECT current_schema()")
+            self._pg_schema = cursor.fetchone()[0]
         except Exception as e:
             raise AitaemConnectionError(f"PostgreSQL connection failed: {str(e)}") from e
 
@@ -173,16 +176,45 @@ class IbisConnector:
         assert self.connection is not None
         return self.connection.list_tables()
 
-    def get_table(self, table_name: str) -> ibis.expr.types.Table:
+    def build_source_uri(self, table_name: str) -> str | None:
+        """Build a ready-to-use source: URI for a bare table name on this connection.
+
+        Returns None when the connection can't unambiguously locate the
+        table: not connected, or BigQuery with no default dataset configured
+        (see Plan 35 §1 — not reachable via list_tables() today, since a
+        project-only-scoped BigQuery connection's list_tables() call already
+        fails for the whole backend before any name is returned).
+
+        Args:
+            table_name: Bare table name, as returned by list_tables().
+
+        Returns:
+            A source: URI (e.g. 'duckdb://analytics.db/events'), or None.
+        """
+        if self.connection is None:
+            return None
+        if self.backend_type == "duckdb":
+            return f"duckdb://{self._duckdb_database}/{table_name}"
+        if self.backend_type == "postgres":
+            if self._pg_schema is None:
+                return None
+            return f"postgres://{self._pg_schema}/{table_name}"
+        if self.backend_type == "bigquery":
+            if self._bq_dataset_id is None:
+                return None
+            return f"bigquery://{self._bq_project_id}/{self._bq_dataset_id}.{table_name}"
+        return None
+
+    def get_table(
+        self, table_name: str, database: str | None = None
+    ) -> ibis.expr.types.Table:
         """Get a table reference from the backend.
 
         Args:
-            table_name: Name of the table
-                - DuckDB: simple table name (e.g., 'events')
-                - BigQuery: 'table', 'dataset.table', or 'project.dataset.table'.
-                  A bare or dataset-qualified name is resolved against the
-                  connection's configured project (and dataset, if one was
-                  configured) — see _resolve_bigquery_table_name.
+            table_name: Bare table name.
+            database: Database/schema location, when the backend needs one to
+                resolve the table — BigQuery: 'dataset' or 'project.dataset';
+                Postgres: schema. None for DuckDB.
 
         Returns:
             Ibis table expression
@@ -190,9 +222,6 @@ class IbisConnector:
         Raises:
             AitaemConnectionError: If not connected
             AitaemTableNotFoundError: If table doesn't exist
-            InvalidURIError: If BigQuery table name format is invalid
-            TableOutOfScopeError: If the BigQuery table names a project or
-                dataset outside the connection's configured scope
         """
         if not self.is_connected:
             raise AitaemConnectionError(
@@ -200,11 +229,9 @@ class IbisConnector:
             )
 
         try:
-            # For BigQuery, validate table name against the connection's scope
-            if self.backend_type == "bigquery":
-                table_name = self._resolve_bigquery_table_name(table_name)
-
             assert self.connection is not None
+            if database is not None:
+                return self.connection.table(table_name, database=database)
             return self.connection.table(table_name)
         except IbisError as e:
             # Check if it's a table not found error
@@ -232,66 +259,6 @@ class IbisConnector:
                     f"Table '{table_name}' not found in {self.backend_type} backend"
                 ) from e
             raise
-
-    def _resolve_bigquery_table_name(self, table_name: str) -> str:
-        """Validate a BigQuery table name against the connection's configured scope.
-
-        A connection configured with only `project_id` may access any dataset
-        within that project — the table name must then be dataset-qualified
-        (bare names are ambiguous with no default dataset to fall back on). A
-        connection configured with both `project_id` and `dataset_id` is
-        confined to that single dataset; a name that specifies a different
-        project or dataset is rejected.
-
-        This method only validates — it does not rewrite the name. Ibis's
-        BigQuery backend already resolves 'table', 'dataset.table', and
-        'project.dataset.table' correctly against the connection's own
-        defaults, so a name that passes validation is returned unchanged.
-
-        Args:
-            table_name: 'table', 'dataset.table', or 'project.dataset.table'
-
-        Returns:
-            table_name, unchanged
-
-        Raises:
-            InvalidURIError: If no dataset can be determined (bare name, no
-                default dataset configured on this connection)
-            TableOutOfScopeError: If the name specifies a project or dataset
-                outside this connection's configured scope
-        """
-        parts = table_name.split(".")
-        if len(parts) == 1:
-            given_project, given_dataset = None, None
-        elif len(parts) == 2:
-            given_project, given_dataset = None, parts[0]
-        else:
-            given_project, given_dataset = parts[0], ".".join(parts[1:-1])
-
-        if given_project is not None and given_project != self._bq_project_id:
-            raise TableOutOfScopeError(
-                f"connection is scoped to project '{self._bq_project_id}'; "
-                f"cannot access project '{given_project}' "
-                f"(requested table: '{table_name}')"
-            )
-
-        if self._bq_dataset_id is not None:
-            if given_dataset is not None and given_dataset != self._bq_dataset_id:
-                raise TableOutOfScopeError(
-                    f"connection is scoped to '{self._bq_project_id}.{self._bq_dataset_id}'; "
-                    f"cannot access dataset '{given_dataset}' "
-                    f"(requested table: '{table_name}')"
-                )
-        elif given_dataset is None:
-            raise InvalidURIError(
-                f"BigQuery table name must include a dataset — this connection has no "
-                f"default dataset configured: {table_name}\n\n"
-                "Valid formats:\n"
-                "  dataset.table\n"
-                "  project.dataset.table"
-            )
-
-        return table_name
 
     def execute(
         self, expr: ibis.expr.types.Expr, output_format: str = "pandas"

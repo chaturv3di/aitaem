@@ -271,8 +271,8 @@ class ConnectionManager:
             - 'duckdb:///abs/path/db/events' → ('duckdb', '/abs/path/db', 'events')
 
         BigQuery Examples:
-            - 'bigquery://my-project.dataset.table' → ('bigquery', 'my-project', 'dataset.table')
             - 'bigquery://project/dataset.table' → ('bigquery', 'project', 'dataset.table')
+            - 'bigquery://my-project.dataset.table' → ('bigquery', 'my-project', 'dataset.table')
 
         Args:
             uri: Source URI
@@ -293,7 +293,7 @@ class ConnectionManager:
                 f"Missing backend type in URI: '{uri}'\n\n"
                 "URI must start with backend type:\n"
                 "  duckdb://analytics.db/events\n"
-                "  bigquery://project.dataset.table"
+                "  bigquery://project/dataset.table"
             )
 
         # Combine netloc and path
@@ -324,6 +324,35 @@ class ConnectionManager:
                     f"Empty table name in URI: '{uri}'\n\nURI must include table name."
                 )
             return (backend_type, database, table)
+
+    @staticmethod
+    def resolve_table_reference(source_uri: str) -> tuple[str, str | None]:
+        """Resolve a source URI into (table_name, database) for IbisConnector.get_table().
+
+        Returns the bare table name and, when the backend needs one to
+        resolve it, the database/schema location — as a separate value,
+        never joined into table_name. This mirrors get_table()'s own
+        two-parameter shape, so a Postgres quoted identifier containing a
+        literal '.' can never be misread as a schema/table boundary.
+
+        Args:
+            source_uri: Source URI (e.g. 'postgres://public/events')
+
+        Returns:
+            BigQuery: (table, 'project.dataset').
+            Postgres: (table, schema) if schema else (table, None).
+            DuckDB:   (table, None).
+
+        Raises:
+            InvalidURIError: If source_uri is malformed
+        """
+        backend_type, database, table = ConnectionManager.parse_source_uri(source_uri)
+        if backend_type == "bigquery":
+            dataset, bare_table = table.split(".", 1)
+            return bare_table, f"{database}.{dataset}"
+        if backend_type == "postgres":
+            return table, database if database else None
+        return table, None
 
     @staticmethod
     def _parse_duckdb_uri(uri: str, full_path: str) -> tuple[str, str, str]:
@@ -382,10 +411,10 @@ class ConnectionManager:
 
         if len(parts) < 3:
             raise InvalidURIError(
-                f"BigQuery URI must have at least 3 parts (project.dataset.table): '{uri}'\n\n"
+                f"BigQuery URI must have at least 3 parts (project/dataset.table): '{uri}'\n\n"
                 "Valid formats:\n"
-                "  bigquery://project.dataset.table\n"
-                "  bigquery://project/dataset.table"
+                "  bigquery://project/dataset.table\n"
+                "  bigquery://project.dataset.table"
             )
 
         # Extract project (first part) and table (everything else as dataset.table)

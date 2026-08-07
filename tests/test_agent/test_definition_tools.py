@@ -9,6 +9,8 @@ from aitaem.agent.definition_types import (
     DefinitionIntent,
 )
 from aitaem.agent.definition_tools import (
+    commit_spec,
+    delete_spec,
     describe_table,
     draft_spec,
     list_tables,
@@ -187,6 +189,7 @@ def test_list_tables_single_backend_success():
     mock_cm.backend_types = ["duckdb"]
     mock_connector = MagicMock()
     mock_connector.list_tables.return_value = ["events", "users"]
+    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://db.duckdb/{name}"
     mock_cm.get_connection.return_value = mock_connector
 
     deps = _make_deps(connection_manager=mock_cm)
@@ -195,8 +198,28 @@ def test_list_tables_single_backend_success():
     result = list_tables(ctx)
 
     assert "duckdb" in result.tables
-    assert result.tables["duckdb"] == ["events", "users"]
+    assert result.tables["duckdb"] == ["duckdb://db.duckdb/events", "duckdb://db.duckdb/users"]
     assert result.errors == {}
+
+
+def test_list_tables_omits_names_with_no_resolvable_uri():
+    """build_source_uri() returning None (e.g. ambiguous bare BigQuery name) is
+    filtered out, not passed through as a bare name."""
+    mock_cm = MagicMock()
+    mock_cm.backend_types = ["bigquery"]
+    mock_connector = MagicMock()
+    mock_connector.list_tables.return_value = ["good_table", "ambiguous_table"]
+    mock_connector.build_source_uri.side_effect = lambda name: (
+        "bigquery://proj/ds.good_table" if name == "good_table" else None
+    )
+    mock_cm.get_connection.return_value = mock_connector
+
+    deps = _make_deps(connection_manager=mock_cm)
+    ctx = _make_ctx(deps)
+
+    result = list_tables(ctx)
+
+    assert result.tables["bigquery"] == ["bigquery://proj/ds.good_table"]
 
 
 def test_list_tables_all_backends_succeed():
@@ -206,6 +229,7 @@ def test_list_tables_all_backends_succeed():
     def get_conn(bt):
         conn = MagicMock()
         conn.list_tables.return_value = [f"{bt}_table"]
+        conn.build_source_uri.side_effect = lambda name, bt=bt: f"{bt}://db/{name}"
         return conn
 
     mock_cm.get_connection.side_effect = get_conn
@@ -228,6 +252,7 @@ def test_list_tables_one_backend_fails():
             raise AitaemConnectionError("BQ auth failed")
         conn = MagicMock()
         conn.list_tables.return_value = ["events"]
+        conn.build_source_uri.side_effect = lambda name: f"duckdb://db.duckdb/{name}"
         return conn
 
     mock_cm.get_connection.side_effect = get_conn
@@ -292,16 +317,18 @@ def test_describe_table_returns_column_info():
         [("user_id", "int64"), ("event_ts", "timestamp"), ("amount", "float64")]
     )
     mock_cm = MagicMock()
+    mock_cm.parse_source_uri.return_value = ("duckdb", "analytics.db", "events")
+    mock_cm.resolve_table_reference.return_value = ("events", None)
     mock_cm.get_connection.return_value = mock_connector
 
     deps = _make_deps(connection_manager=mock_cm)
     ctx = _make_ctx(deps)
 
-    result = describe_table(ctx, table_name="events", backend_type="duckdb")
+    result = describe_table(ctx, source="duckdb://analytics.db/events")
 
     assert result.error is None
-    assert result.table_name == "events"
-    assert result.backend_type == "duckdb"
+    assert result.source == "duckdb://analytics.db/events"
+    mock_connector.get_table.assert_called_once_with("events", database=None)
     col_names = [c.name for c in result.columns]
     assert "user_id" in col_names
     assert "event_ts" in col_names
@@ -314,12 +341,14 @@ def test_describe_table_table_not_found():
     mock_connector = MagicMock()
     mock_connector.get_table.side_effect = TableNotFoundError("Table 'foo' not found")
     mock_cm = MagicMock()
+    mock_cm.parse_source_uri.return_value = ("duckdb", "analytics.db", "foo")
+    mock_cm.resolve_table_reference.return_value = ("foo", None)
     mock_cm.get_connection.return_value = mock_connector
 
     deps = _make_deps(connection_manager=mock_cm)
     ctx = _make_ctx(deps)
 
-    result = describe_table(ctx, table_name="foo", backend_type="duckdb")
+    result = describe_table(ctx, source="duckdb://analytics.db/foo")
 
     assert result.error is not None
     assert result.columns == []
@@ -327,15 +356,32 @@ def test_describe_table_table_not_found():
 
 def test_describe_table_unknown_backend():
     mock_cm = MagicMock()
+    mock_cm.parse_source_uri.return_value = ("xyz", "db", "t")
     mock_cm.get_connection.side_effect = ConnectionNotFoundError("No backend 'xyz'")
 
     deps = _make_deps(connection_manager=mock_cm)
     ctx = _make_ctx(deps)
 
-    result = describe_table(ctx, table_name="t", backend_type="xyz")
+    result = describe_table(ctx, source="xyz://db/t")
 
     assert result.error is not None
     assert "xyz" in result.error
+    assert result.columns == []
+
+
+def test_describe_table_invalid_uri():
+    mock_cm = MagicMock()
+    from aitaem.utils.exceptions import InvalidURIError
+
+    mock_cm.parse_source_uri.side_effect = InvalidURIError("Missing backend type")
+
+    deps = _make_deps(connection_manager=mock_cm)
+    ctx = _make_ctx(deps)
+
+    result = describe_table(ctx, source="not-a-uri")
+
+    assert result.error is not None
+    assert result.source == "not-a-uri"
     assert result.columns == []
 
 
@@ -519,7 +565,9 @@ def test_validate_spec_composite_slice_missing_cross_ref():
 
 
 def test_validate_spec_composite_slice_all_refs_present():
-    sc = _make_spec_cache(slices={"by_country": MagicMock(), "by_device": MagicMock()})
+    by_country = MagicMock(is_composite=False)
+    by_device = MagicMock(is_composite=False)
+    sc = _make_spec_cache(slices={"by_country": by_country, "by_device": by_device})
     deps = _make_deps(spec_cache=sc)
     draft_id = _store_draft(deps, "slice", _VALID_COMPOSITE_SLICE_YAML)
     ctx = _make_ctx(deps)
@@ -531,6 +579,21 @@ def test_validate_spec_composite_slice_all_refs_present():
     assert result.spec_draft_token is not None
 
 
+def test_validate_spec_composite_slice_already_composite_ref_rejected():
+    by_country = MagicMock(is_composite=False)
+    by_device = MagicMock(is_composite=True)  # already composite — nesting not allowed
+    sc = _make_spec_cache(slices={"by_country": by_country, "by_device": by_device})
+    deps = _make_deps(spec_cache=sc)
+    draft_id = _store_draft(deps, "slice", _VALID_COMPOSITE_SLICE_YAML)
+    ctx = _make_ctx(deps)
+
+    result = validate_spec(ctx, draft_id=draft_id)
+
+    assert result.spec_draft_token is None
+    assert any("cross_product" in e.field for e in result.errors)
+    assert any("by_device" in e.message for e in result.errors)
+
+
 def test_validate_spec_column_not_in_schema_populates_column_errors():
     mock_connector = MagicMock()
     mock_ibis = MagicMock()
@@ -539,7 +602,7 @@ def test_validate_spec_column_not_in_schema_populates_column_errors():
     mock_connector.get_table.return_value = mock_ibis
     mock_cm = MagicMock()
     mock_cm.get_connection_for_source.return_value = mock_connector
-    mock_cm.parse_source_uri.return_value = ("duckdb", "analytics.db", "transactions")
+    mock_cm.resolve_table_reference.return_value = ("transactions", None)
 
     deps = _make_deps(connection_manager=mock_cm)
     draft_id = _store_draft(deps, "metric", _VALID_METRIC_YAML)
@@ -549,6 +612,7 @@ def test_validate_spec_column_not_in_schema_populates_column_errors():
 
     assert len(result.column_errors) > 0
     assert result.spec_draft_token is None
+    mock_connector.get_table.assert_called_once_with("transactions", database=None)
 
 
 def test_validate_spec_connection_failure_during_column_check_adds_warning():
@@ -566,3 +630,317 @@ def test_validate_spec_connection_failure_during_column_check_adds_warning():
     assert result.spec_draft_token is not None
     assert len(result.warnings) > 0
     assert result.column_errors == []
+
+
+def test_validate_spec_table_not_found_during_column_check_blocks(mocker):
+    """SF-6 (Plan 35): AitaemTableNotFoundError blocks via column_errors instead
+    of degrading to a warning — this is the exception a fabricated/wrong
+    source: surfaces as."""
+    from aitaem.utils.exceptions import TableNotFoundError as AitaemTableNotFoundError
+
+    mock_connector = mocker.MagicMock()
+    mock_connector.get_table.side_effect = AitaemTableNotFoundError(
+        "Table 'transactions' not found in duckdb backend"
+    )
+    mock_cm = mocker.MagicMock()
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_cm.resolve_table_reference.return_value = ("transactions", None)
+
+    deps = _make_deps(connection_manager=mock_cm)
+    draft_id = _store_draft(deps, "metric", _VALID_METRIC_YAML)
+    ctx = _make_ctx(deps)
+
+    result = validate_spec(ctx, draft_id=draft_id)
+
+    assert result.spec_draft_token is None
+    assert len(result.column_errors) == 1
+    assert result.column_errors[0].field == "source"
+    assert "not found" in result.column_errors[0].message.lower()
+
+
+# ---------------------------------------------------------------------------
+# Plan 34 SF-5: BigQuery source URI normalizer
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_bigquery_source_uri_all_slash_to_canonical():
+    from aitaem.agent.definition_tools import _normalize_bigquery_source_uri
+
+    assert (
+        _normalize_bigquery_source_uri("bigquery://project/dataset/table")
+        == "bigquery://project/dataset.table"
+    )
+
+
+def test_normalize_bigquery_source_uri_noop_non_bigquery_scheme():
+    from aitaem.agent.definition_tools import _normalize_bigquery_source_uri
+
+    uri = "duckdb://analytics.db/events"
+    assert _normalize_bigquery_source_uri(uri) == uri
+
+
+def test_normalize_bigquery_source_uri_noop_already_canonical():
+    from aitaem.agent.definition_tools import _normalize_bigquery_source_uri
+
+    uri = "bigquery://project/dataset.table"
+    assert _normalize_bigquery_source_uri(uri) == uri
+
+
+def test_normalize_bigquery_source_uri_noop_unrecognized_shape():
+    from aitaem.agent.definition_tools import _normalize_bigquery_source_uri
+
+    # Fully-dotted: _parse_bigquery_uri already accepts it unchanged.
+    uri = "bigquery://project.dataset.table"
+    assert _normalize_bigquery_source_uri(uri) == uri
+
+
+def test_normalize_source_in_yaml_rewrites_source():
+    from aitaem.agent.definition_tools import _normalize_source_in_yaml
+
+    yaml_text = (
+        "metric:\n"
+        "  name: revenue\n"
+        "  source: bigquery://myproject/ds/sales\n"
+        "  numerator: \"SUM(amount)\"\n"
+        "  timestamp_col: ts\n"
+    )
+    result = _normalize_source_in_yaml(yaml_text)
+    import yaml as pyyaml
+
+    data = pyyaml.safe_load(result)
+    assert data["metric"]["source"] == "bigquery://myproject/ds.sales"
+
+
+def test_normalize_source_in_yaml_noop_malformed_yaml():
+    from aitaem.agent.definition_tools import _normalize_source_in_yaml
+
+    bad_yaml = "metric:\n  name: [unclosed"
+    assert _normalize_source_in_yaml(bad_yaml) == bad_yaml
+
+
+def test_normalize_source_in_yaml_noop_missing_source_key():
+    from aitaem.agent.definition_tools import _normalize_source_in_yaml
+
+    yaml_text = "slice:\n  name: by_country\n  values:\n    - name: US\n      where: \"country = 'US'\"\n"
+    assert _normalize_source_in_yaml(yaml_text) == yaml_text
+
+
+def test_normalize_source_in_yaml_noop_already_canonical_uri():
+    from aitaem.agent.definition_tools import _normalize_source_in_yaml
+
+    yaml_text = "metric:\n  name: revenue\n  source: bigquery://project/dataset.table\n"
+    assert _normalize_source_in_yaml(yaml_text) == yaml_text
+
+
+def test_validate_spec_normalizes_bigquery_source_in_stored_draft():
+    yaml_text = (
+        "metric:\n"
+        "  name: revenue\n"
+        "  source: bigquery://myproject/ds/sales\n"
+        "  numerator: \"SUM(amount)\"\n"
+        "  timestamp_col: transaction_date\n"
+    )
+    deps = _make_deps()
+    draft_id = _store_draft(deps, "metric", yaml_text)
+    ctx = _make_ctx(deps)
+
+    result = validate_spec(ctx, draft_id=draft_id)
+
+    assert result.spec_draft_token is not None, f"validate_spec failed: {result.errors}"
+    entry = deps.store.get_text(result.spec_draft_token)
+    assert "bigquery://myproject/ds.sales" in entry.text
+    assert "bigquery://myproject/ds/sales" not in entry.text
+
+
+# ---------------------------------------------------------------------------
+# SF-2: commit_spec
+# ---------------------------------------------------------------------------
+
+
+def _validated_token(deps, spec_type, yaml_string):
+    """Helper: draft + validate a spec, returning its spec_draft_token."""
+    ctx = MagicMock()
+    ctx.deps = deps
+    draft_id = draft_spec(ctx, spec_type=spec_type, yaml_string=yaml_string).draft_id
+    result = validate_spec(ctx, draft_id=draft_id)
+    assert result.spec_draft_token is not None, f"validate_spec failed: {result.errors}"
+    return result.spec_draft_token
+
+
+def test_commit_spec_add_path():
+    from aitaem.specs.loader import SpecCache
+
+    deps = _make_deps(spec_cache=SpecCache())
+    token = _validated_token(deps, "metric", _VALID_METRIC_YAML)
+    ctx = _make_ctx(deps)
+
+    result = commit_spec(ctx, spec_draft_token=token)
+
+    assert result.error is None
+    assert result.action == "added"
+    assert result.spec_type == "metric"
+    assert result.spec_name == "revenue"
+    assert deps.spec_cache.get_metric("revenue").name == "revenue"
+    assert deps.spec_cache.version == 1
+
+
+def test_commit_spec_update_path():
+    from aitaem.specs.loader import SpecCache
+    from aitaem.specs.metric import MetricSpec
+
+    cache = SpecCache()
+    cache.add(
+        MetricSpec(name="revenue", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
+    )
+    deps = _make_deps(spec_cache=cache)
+    deps.definition_intent = DefinitionIntent(
+        spec_type="metric", description="Update revenue", is_update=True, original_name="revenue"
+    )
+    token = _validated_token(deps, "metric", _VALID_METRIC_YAML)
+    ctx = _make_ctx(deps)
+
+    result = commit_spec(ctx, spec_draft_token=token)
+
+    assert result.action == "updated"
+    assert cache.get_metric("revenue").source == "duckdb://analytics.db/transactions"
+    assert cache.version == 2  # 1 from the initial add(), 1 from this update()
+
+
+def test_commit_spec_unknown_token_returns_error():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+
+    result = commit_spec(ctx, spec_draft_token="does-not-exist")
+
+    assert result.error is not None
+    assert result.action is None
+
+
+def test_commit_spec_wrong_kind_token_returns_error():
+    deps = _make_deps()
+    tabular_id = deps.store.store_tabular(arrow=None, ibis_ref=None)
+    ctx = _make_ctx(deps)
+
+    result = commit_spec(ctx, spec_draft_token=tabular_id)
+
+    assert result.error is not None
+    assert result.action is None
+
+
+def test_commit_spec_drift_validated_new_but_now_exists_routes_to_update():
+    """Validated as new, but the name now exists at commit time -> routes to update()."""
+    from aitaem.specs.loader import SpecCache
+    from aitaem.specs.metric import MetricSpec
+
+    cache = SpecCache()
+    deps = _make_deps(spec_cache=cache)
+    token = _validated_token(deps, "metric", _VALID_METRIC_YAML)  # validated while cache was empty
+    # A concurrent commit adds "revenue" before this commit runs.
+    cache.add(
+        MetricSpec(
+            name="revenue", source="duckdb://db/other", numerator="SUM(y)", timestamp_col="ts2"
+        )
+    )
+    ctx = _make_ctx(deps)
+
+    result = commit_spec(ctx, spec_draft_token=token)
+
+    assert result.action == "updated"
+    assert result.error is None
+
+
+def test_commit_spec_drift_validated_update_but_target_deleted_routes_to_add():
+    """Validated as an update, but the target was deleted before commit -> routes to add()."""
+    from aitaem.specs.loader import SpecCache
+    from aitaem.specs.metric import MetricSpec
+
+    cache = SpecCache()
+    cache.add(
+        MetricSpec(name="revenue", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
+    )
+    deps = _make_deps(spec_cache=cache)
+    deps.definition_intent = DefinitionIntent(
+        spec_type="metric", description="Update revenue", is_update=True, original_name="revenue"
+    )
+    token = _validated_token(deps, "metric", _VALID_METRIC_YAML)
+    cache.remove("metric", "revenue")  # deleted before commit
+    ctx = _make_ctx(deps)
+
+    result = commit_spec(ctx, spec_draft_token=token)
+
+    assert result.action == "added"
+    assert result.error is None
+
+
+def test_commit_spec_cache_consistency_conflict_surfaces_as_error():
+    """A nested-composite conflict introduced since validate_spec ran surfaces as an error."""
+    from aitaem.specs.loader import SpecCache
+    from aitaem.specs.slice import SliceSpec, SliceValue
+
+    cache = SpecCache()
+    cache.add(SliceSpec(name="by_country", values=(SliceValue(name="US", where="country='US'"),)))
+    cache.add(SliceSpec(name="by_device", values=(SliceValue(name="mobile", where="d='mobile'"),)))
+    deps = _make_deps(spec_cache=cache)
+    token = _validated_token(deps, "slice", _VALID_COMPOSITE_SLICE_YAML)
+    # Promote by_device into a composite after validation, before commit.
+    cache.update(SliceSpec(name="by_device", cross_product=("by_country",)))
+    ctx = _make_ctx(deps)
+
+    result = commit_spec(ctx, spec_draft_token=token)
+
+    assert result.error is not None
+    assert result.action is None
+
+
+# ---------------------------------------------------------------------------
+# SF-3: delete_spec
+# ---------------------------------------------------------------------------
+
+
+def test_delete_spec_success():
+    from aitaem.specs.loader import SpecCache
+    from aitaem.specs.metric import MetricSpec
+
+    cache = SpecCache()
+    cache.add(
+        MetricSpec(name="revenue", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
+    )
+    deps = _make_deps(spec_cache=cache)
+    ctx = _make_ctx(deps)
+
+    result = delete_spec(ctx, spec_type="metric", name="revenue")
+
+    assert result.deleted is True
+    assert result.error is None
+    assert "revenue" not in cache.metrics
+
+
+def test_delete_spec_unknown_name_returns_error():
+    from aitaem.specs.loader import SpecCache
+
+    deps = _make_deps(spec_cache=SpecCache())
+    ctx = _make_ctx(deps)
+
+    result = delete_spec(ctx, spec_type="metric", name="ghost")
+
+    assert result.deleted is False
+    assert result.error is not None
+
+
+def test_delete_spec_blocked_by_dependent_composite():
+    from aitaem.specs.loader import SpecCache
+    from aitaem.specs.slice import SliceSpec, SliceValue
+
+    cache = SpecCache()
+    cache.add(SliceSpec(name="geo", values=(SliceValue(name="US", where="country='US'"),)))
+    cache.add(SliceSpec(name="device", values=(SliceValue(name="mobile", where="d='mobile'"),)))
+    cache.add(SliceSpec(name="geo_x_device", cross_product=("geo", "device")))
+    deps = _make_deps(spec_cache=cache)
+    ctx = _make_ctx(deps)
+
+    result = delete_spec(ctx, spec_type="slice", name="geo")
+
+    assert result.deleted is False
+    assert result.error is not None
+    assert "geo_x_device" in result.error
+    assert "geo" in cache.slices

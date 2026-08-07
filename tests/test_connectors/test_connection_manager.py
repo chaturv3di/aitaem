@@ -303,6 +303,22 @@ class TestURIParsing:
         assert project == "proj"
         assert table == "ds.tbl.extra"
 
+    def test_parse_bigquery_uri_all_shapes_equivalent(self):
+        """All four separator arrangements parse to the identical triple.
+
+        Plan 34 SF-4: core parsing is unchanged/permissive by design — no
+        shape is rejected, since BigQuery identifiers can never legally
+        contain '.' or '/' internally, so none is ambiguous with another.
+        """
+        shapes = [
+            "bigquery://project.dataset.table",
+            "bigquery://project/dataset.table",
+            "bigquery://project.dataset/table",
+            "bigquery://project/dataset/table",
+        ]
+        results = [ConnectionManager.parse_source_uri(uri) for uri in shapes]
+        assert all(r == ("bigquery", "project", "dataset.table") for r in results)
+
     def test_missing_scheme(self):
         """Test that URI without scheme raises InvalidURIError."""
         with pytest.raises(InvalidURIError) as exc_info:
@@ -356,6 +372,53 @@ class TestURIParsing:
     def test_parse_postgres_uri_no_separator_raises(self):
         with pytest.raises(InvalidURIError, match="table separator"):
             ConnectionManager.parse_source_uri("postgres://events")
+
+    def test_resolve_table_reference_duckdb(self):
+        """DuckDB: (table, None) — no database kwarg needed for get_table()."""
+        table_name, database = ConnectionManager.resolve_table_reference(
+            "duckdb://analytics.db/events"
+        )
+        assert table_name == "events"
+        assert database is None
+
+    def test_resolve_table_reference_postgres_with_schema(self):
+        table_name, database = ConnectionManager.resolve_table_reference(
+            "postgres://public/events"
+        )
+        assert table_name == "events"
+        assert database == "public"
+
+    def test_resolve_table_reference_postgres_no_schema(self):
+        """Empty-string schema (postgres:///table) normalizes to None, not ''."""
+        table_name, database = ConnectionManager.resolve_table_reference("postgres:///events")
+        assert table_name == "events"
+        assert database is None
+
+    def test_resolve_table_reference_postgres_table_name_with_literal_dot(self):
+        """Regression (Gap B): a quoted Postgres identifier containing a literal
+        '.' is never split — table_name comes back intact, schema separate."""
+        table_name, database = ConnectionManager.resolve_table_reference(
+            "postgres://public/my.weird.table"
+        )
+        assert table_name == "my.weird.table"
+        assert database == "public"
+
+    def test_resolve_table_reference_bigquery_carries_project(self):
+        """Regression (Gap C): the project is carried in `database`, not dropped —
+        the old _parse_table_name_from_uri returned only ('dataset.table'), losing
+        the project entirely."""
+        table_name, database = ConnectionManager.resolve_table_reference(
+            "bigquery://my-project/dataset.table"
+        )
+        assert table_name == "table"
+        assert database == "my-project.dataset"
+
+    def test_resolve_table_reference_bigquery_dot_format(self):
+        table_name, database = ConnectionManager.resolve_table_reference(
+            "bigquery://my-project.dataset.table"
+        )
+        assert table_name == "table"
+        assert database == "my-project.dataset"
 
 
 class TestPostgresConnectionManagement:

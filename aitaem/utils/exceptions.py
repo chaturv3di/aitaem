@@ -77,23 +77,6 @@ class UnsupportedBackendError(AitaemError):
     pass
 
 
-class TableOutOfScopeError(AitaemError):
-    """Raised when a requested table names a project or dataset outside the
-    connection's configured scope.
-
-    A connection configured with only `project_id` may access any dataset
-    within that project. A connection configured with both `project_id` and
-    `dataset_id` is confined to that single dataset.
-
-    Example:
-        TableOutOfScopeError: connection is scoped to project 'my-project';
-        cannot access project 'other-project' (requested table:
-        'other-project.some_dataset.some_table')
-    """
-
-    pass
-
-
 class QueryBuildError(AitaemError):
     """Raised when query construction fails due to invalid or incompatible specs."""
 

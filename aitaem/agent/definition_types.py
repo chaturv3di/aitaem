@@ -74,6 +74,12 @@ class DefinitionOutput(BaseModel):
     spec_draft_token: str | None = None
     # Populated on status=refused or status=error.
     reason: str | None = None
+    # Set only when commit_spec/delete_spec succeeded during this run.
+    # spec_draft_token keeps its existing meaning (drafted-and-validated, not
+    # necessarily committed) regardless of whether these are set.
+    committed_spec_type: Literal["metric", "slice", "segment"] | None = None
+    committed_spec_name: str | None = None
+    committed_action: Literal["added", "updated", "deleted"] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +103,11 @@ class DefinitionPayload(BaseModel):
     metric_spec: Any | None = None
     slice_spec: Any | None = None
     segment_spec: Any | None = None
+    # Mirrors DefinitionOutput's committed_* fields — set only when
+    # commit_spec/delete_spec succeeded during this run.
+    committed_spec_type: Literal["metric", "slice", "segment"] | None = None
+    committed_spec_name: str | None = None
+    committed_action: Literal["added", "updated", "deleted"] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -132,8 +143,7 @@ class ListTablesResult(BaseModel):
 class DescribeTableResult(BaseModel):
     """Returned by describe_table."""
 
-    table_name: str
-    backend_type: str
+    source: str
     columns: list[ColumnInfo] = []
     # Set on unknown backend or table-not-found; columns will be empty.
     error: str | None = None
@@ -181,3 +191,24 @@ class ValidateSpecResult(BaseModel):
     def spec_draft_token(self) -> str | None:
         """LLM-facing token. The LLM must copy this verbatim into DefinitionOutput.spec_draft_token."""
         return self.result_id or None
+
+
+class CommitSpecResult(BaseModel):
+    """Returned by commit_spec. action distinguishes add-vs-update, derived from live cache state."""
+
+    spec_type: Literal["metric", "slice", "segment"] | None = None
+    spec_name: str | None = None
+    action: Literal["added", "updated"] | None = None
+    # Set on an invalid/unknown token or a cache-consistency rejection (e.g. a
+    # nested-composite conflict introduced since validate_spec ran).
+    error: str | None = None
+
+
+class DeleteSpecResult(BaseModel):
+    """Returned by delete_spec."""
+
+    spec_type: Literal["metric", "slice", "segment"]
+    spec_name: str
+    deleted: bool
+    # Set when the spec was not found, or removal was blocked by a dependent composite.
+    error: str | None = None

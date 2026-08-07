@@ -17,7 +17,6 @@ import ibis
 import pandas as pd
 
 from aitaem.connectors.connection import ConnectionManager
-from aitaem.connectors.ibis_connector import IbisConnector
 from aitaem.query.builder import QueryGroup
 from aitaem.utils.exceptions import ConnectionNotFoundError, QueryExecutionError
 
@@ -64,7 +63,7 @@ class QueryExecutor:
                 logger.warning("Skipping query group for source '%s': %s", group.source, e)
                 continue
 
-            table = self._union_queries(group.sql_queries, connector)
+            table = self._union_queries(group.expressions)
             if table is not None:
                 tables.append(table)
                 assert connector.connection is not None
@@ -99,15 +98,12 @@ class QueryExecutor:
 
     def _union_queries(
         self,
-        sql_queries: list[str],
-        connector: IbisConnector,
+        expressions: list[ibis.Table],
     ) -> ibis.Table | None:
-        """Combine SQL strings into a single lazy ibis.Table via ibis union."""
-        assert connector.connection is not None
-        if not sql_queries:
+        """Combine already-built ibis.Table expressions into one lazy union."""
+        if not expressions:
             return None
-        tables = [connector.connection.sql(q) for q in sql_queries]
-        result = tables[0]
-        for t in tables[1:]:
+        result = expressions[0]
+        for t in expressions[1:]:
             result = result.union(t)
         return result

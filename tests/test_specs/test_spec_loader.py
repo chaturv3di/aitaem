@@ -11,7 +11,7 @@ from aitaem.specs.loader import (
 from aitaem.specs.metric import MetricSpec
 from aitaem.specs.segment import SegmentSpec
 from aitaem.specs.slice import SliceSpec
-from aitaem.utils.exceptions import SpecNotFoundError
+from aitaem.utils.exceptions import SpecNotFoundError, SpecValidationError
 from tests.test_specs.conftest import (
     VALID_METRIC_RATIO_YAML,
     VALID_METRIC_SUM_YAML,
@@ -437,6 +437,231 @@ slice:
             "composite" in e.message.lower() or "nested" in e.message.lower()
             for e in exc_info.value.errors
         )
+
+
+class TestSpecCacheUpdate:
+    """Tests for SpecCache.update()."""
+
+    def test_update_overwrites_existing_metric(self):
+        cache = SpecCache()
+        original = MetricSpec(
+            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
+        )
+        cache.add(original)
+        replacement = MetricSpec(
+            name="m", source="duckdb://db/t2", numerator="SUM(y)", timestamp_col="ts2"
+        )
+        cache.update(replacement)
+        assert cache.get_metric("m") is replacement
+
+    def test_update_missing_name_raises_spec_not_found(self):
+        cache = SpecCache()
+        spec = MetricSpec(
+            name="ghost", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
+        )
+        with pytest.raises(SpecNotFoundError) as exc_info:
+            cache.update(spec)
+        assert exc_info.value.spec_type == "metric"
+        assert exc_info.value.name == "ghost"
+
+    def test_update_composite_slice_rejects_missing_ref(self):
+        from aitaem.specs.slice import SliceSpec as SS, SliceValue as SV
+
+        cache = SpecCache()
+        cache.add(SS(name="geo", values=(SV(name="USA", where="country='USA'"),)))
+        cache.add(SS(name="device", values=(SV(name="mobile", where="d='mobile'"),)))
+        composite = SS(name="composite", cross_product=("geo", "device"))
+        cache.add(composite)
+        pre_state = dict(cache._slices)
+        replacement = SS(name="composite", cross_product=("geo", "missing"))
+        with pytest.raises(SpecValidationError) as exc_info:
+            cache.update(replacement)
+        assert "missing" in str(exc_info.value)
+        assert cache._slices == pre_state
+        assert cache._slices["composite"] is composite
+
+    def test_update_composite_slice_rejects_already_composite_ref(self):
+        from aitaem.specs.slice import SliceSpec as SS, SliceValue as SV
+
+        cache = SpecCache()
+        cache.add(SS(name="leaf1", values=(SV(name="a", where="x=1"),)))
+        cache.add(SS(name="leaf2", values=(SV(name="b", where="x=2"),)))
+        cache.add(SS(name="nested_candidate", cross_product=("leaf1", "leaf2")))
+        cache.add(SS(name="target", cross_product=("leaf1", "leaf2")))
+        pre_state = dict(cache._slices)
+        replacement = SS(name="target", cross_product=("leaf1", "nested_candidate"))
+        with pytest.raises(SpecValidationError) as exc_info:
+            cache.update(replacement)
+        assert "nested_candidate" in str(exc_info.value)
+        assert cache._slices == pre_state
+
+    def test_update_rejects_self_reference(self):
+        from aitaem.specs.slice import SliceSpec as SS, SliceValue as SV
+
+        cache = SpecCache()
+        cache.add(SS(name="leaf", values=(SV(name="a", where="x=1"),)))
+        cache.add(SS(name="other", values=(SV(name="b", where="x=2"),)))
+        cache.add(SS(name="self_ref", cross_product=("leaf", "other")))
+        pre_state = dict(cache._slices)
+        # Update self_ref to reference itself — self_ref is composite, so this
+        # is rejected as "references an already-composite slice".
+        replacement = SS(name="self_ref", cross_product=("leaf", "self_ref"))
+        with pytest.raises(SpecValidationError) as exc_info:
+            cache.update(replacement)
+        assert "self_ref" in str(exc_info.value)
+        assert cache._slices == pre_state
+
+    def test_update_leaf_into_composite_rejected_when_referenced_by_existing_composite(self):
+        from aitaem.specs.slice import SliceSpec as SS, SliceValue as SV
+
+        cache = SpecCache()
+        cache.add(SS(name="leaf", values=(SV(name="a", where="x=1"),)))
+        cache.add(SS(name="other_leaf", values=(SV(name="b", where="x=2"),)))
+        cache.add(SS(name="referrer", cross_product=("leaf", "other_leaf")))
+        pre_state = dict(cache._slices)
+        # Turn "leaf" into a composite itself — "referrer" now nests a composite.
+        promoted = SS(name="leaf", cross_product=("other_leaf",))
+        with pytest.raises(SpecValidationError) as exc_info:
+            cache.update(promoted)
+        assert "referrer" in str(exc_info.value)
+        assert cache._slices == pre_state
+
+
+class TestSpecCacheRemove:
+    """Tests for SpecCache.remove()."""
+
+    def test_remove_metric_success(self):
+        cache = SpecCache()
+        spec = MetricSpec(
+            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
+        )
+        cache.add(spec)
+        cache.remove("metric", "m")
+        with pytest.raises(SpecNotFoundError):
+            cache.get_metric("m")
+
+    def test_remove_missing_name_raises_spec_not_found(self):
+        cache = SpecCache()
+        with pytest.raises(SpecNotFoundError) as exc_info:
+            cache.remove("metric", "ghost")
+        assert exc_info.value.spec_type == "metric"
+        assert exc_info.value.name == "ghost"
+
+    def test_remove_blocked_by_dependent_composite(self):
+        from aitaem.specs.slice import SliceSpec as SS, SliceValue as SV
+
+        cache = SpecCache()
+        cache.add(SS(name="geo", values=(SV(name="USA", where="country='USA'"),)))
+        cache.add(SS(name="device", values=(SV(name="mobile", where="d='mobile'"),)))
+        cache.add(SS(name="geo_x_device", cross_product=("geo", "device")))
+        pre_state = dict(cache._slices)
+        with pytest.raises(SpecValidationError) as exc_info:
+            cache.remove("slice", "geo")
+        assert "geo_x_device" in str(exc_info.value)
+        assert cache._slices == pre_state
+        assert "geo" in cache._slices
+
+
+class TestSpecCacheAddCompositeValidation:
+    """Tests for add()'s cross-reference validation on composite slices."""
+
+    def test_add_composite_slice_rejects_missing_ref(self):
+        from aitaem.specs.slice import SliceSpec as SS, SliceValue as SV
+
+        cache = SpecCache()
+        cache.add(SS(name="geo", values=(SV(name="USA", where="country='USA'"),)))
+        pre_state = dict(cache._slices)
+        with pytest.raises(SpecValidationError) as exc_info:
+            cache.add(SS(name="composite", cross_product=("geo", "missing")))
+        assert "missing" in str(exc_info.value)
+        assert cache._slices == pre_state
+        assert "composite" not in cache._slices
+
+    def test_add_composite_slice_rejects_already_composite_ref(self):
+        from aitaem.specs.slice import SliceSpec as SS, SliceValue as SV
+
+        cache = SpecCache()
+        cache.add(SS(name="leaf1", values=(SV(name="a", where="x=1"),)))
+        cache.add(SS(name="leaf2", values=(SV(name="b", where="x=2"),)))
+        cache.add(SS(name="nested", cross_product=("leaf1", "leaf2")))
+        pre_state = dict(cache._slices)
+        with pytest.raises(SpecValidationError) as exc_info:
+            cache.add(SS(name="outer", cross_product=("leaf1", "nested")))
+        assert "nested" in str(exc_info.value)
+        assert cache._slices == pre_state
+        assert "outer" not in cache._slices
+
+
+class TestSpecCacheVersion:
+    """Tests for SpecCache.version — the monotonic mutation-signal counter."""
+
+    def test_version_starts_at_zero(self):
+        assert SpecCache().version == 0
+
+    def test_version_increments_on_add(self):
+        cache = SpecCache()
+        spec = MetricSpec(
+            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
+        )
+        cache.add(spec)
+        assert cache.version == 1
+
+    def test_version_increments_on_update(self):
+        cache = SpecCache()
+        spec = MetricSpec(
+            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
+        )
+        cache.add(spec)
+        cache.update(spec)
+        assert cache.version == 2
+
+    def test_version_increments_on_remove(self):
+        cache = SpecCache()
+        spec = MetricSpec(
+            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
+        )
+        cache.add(spec)
+        cache.remove("metric", "m")
+        assert cache.version == 2
+
+    def test_version_increments_on_clear(self):
+        cache = SpecCache()
+        cache.clear()
+        assert cache.version == 1
+
+    def test_version_does_not_increment_on_add_duplicate_rejection(self):
+        cache = SpecCache()
+        spec = MetricSpec(
+            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
+        )
+        cache.add(spec)
+        version_after_add = cache.version
+        with pytest.raises(SpecValidationError):
+            cache.add(spec)
+        assert cache.version == version_after_add
+
+    def test_version_does_not_increment_on_update_rollback(self):
+        from aitaem.specs.slice import SliceSpec as SS, SliceValue as SV
+
+        cache = SpecCache()
+        cache.add(SS(name="leaf", values=(SV(name="a", where="x=1"),)))
+        cache.add(SS(name="composite", cross_product=("leaf", "leaf")))
+        version_before = cache.version
+        with pytest.raises(SpecValidationError):
+            cache.update(SS(name="composite", cross_product=("leaf", "missing")))
+        assert cache.version == version_before
+
+    def test_version_does_not_increment_on_remove_rollback(self):
+        from aitaem.specs.slice import SliceSpec as SS, SliceValue as SV
+
+        cache = SpecCache()
+        cache.add(SS(name="geo", values=(SV(name="USA", where="country='USA'"),)))
+        cache.add(SS(name="device", values=(SV(name="mobile", where="d='mobile'"),)))
+        cache.add(SS(name="geo_x_device", cross_product=("geo", "device")))
+        version_before = cache.version
+        with pytest.raises(SpecValidationError):
+            cache.remove("slice", "geo")
+        assert cache.version == version_before
 
 
 class TestSpecNameIdentifierValidation:
