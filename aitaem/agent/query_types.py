@@ -27,6 +27,7 @@ class MetricIntent:
     period_type: str = "all_time"
     time_window: tuple[str, str] | None = None   # (start_iso, end_iso)
     by_entity: str | None = None
+    column_distribution_result_id: str | None = None  # source of a derived time_window
 
 
 # ── Server-side resolution types (LLM never sees these) ─────────────────────
@@ -79,10 +80,14 @@ class NearMiss(BaseModel):
         "scope_mismatch", "wrong_dimension_kind",
         "unknown_slice", "unknown_segment",
         "unsupported_by_entity", "unsupported_period_type",
+        "column_distribution_metric_mismatch",
     ]
     suggestions: list[str] = []
-    """Catalog names close to `name`. Non-empty only when why_not='unknown_metric'.
-    Populated via difflib.get_close_matches (cutoff=0.75) for typo correction.
+    """Populated for two why_not reasons, each for a different purpose:
+    - 'unknown_metric': catalog names close to `name`, via difflib.get_close_matches
+      (cutoff=0.75), for typo correction.
+    - 'column_distribution_metric_mismatch': the single metric name the referenced
+      column_distribution result was actually computed against.
     Empty for all other why_not reasons."""
 
 
@@ -98,7 +103,11 @@ class SpecMatchResult(BaseModel):
 
 class RecordIntentResult(BaseModel):
     """Returned by record_intent. The intent_id is used in the resolve_intent call."""
-    intent_id: int
+    intent_id: int | None
+    error: str | None = None
+    """Set (with intent_id=None, no intent recorded) when both time_window and
+    column_distribution_result_id are given, or column_distribution_result_id is
+    invalid/unresolvable."""
 
 
 class ResolveIntentResult(BaseModel):
@@ -229,23 +238,39 @@ class FilterByThresholdResult(ToolResult):
     predicate: str                  # human-readable: "metric_value > 100.0"
 
 
-class MetricDistribution(BaseModel):
-    """Per-metric distribution statistics."""
-    metric_name: str
+class ColumnDistribution(BaseModel):
+    """Distribution statistics for one group_by combination (distribution_summary)
+    or for one raw source-table column (column_distribution).
+
+    Numeric columns populate mean/std/percentiles; non-numeric columns populate
+    distinct_count instead. min_val/max_val are always stringified (see the
+    'min_val/max_val stringification' key decision in Plan 36) — ISO-8601 for
+    temporal values, str() otherwise.
+    """
+    group_key: dict[str, str]
     count: int
+    null_count: int | None = None
     mean: float | None = None
     std: float | None = None
-    min_val: float | None = None
+    min_val: str | None = None
     p25: float | None = None
     median: float | None = None
     p75: float | None = None
-    max_val: float | None = None
+    max_val: str | None = None
+    distinct_count: int | None = None
 
 
 class DistributionSummaryResult(ToolResult):
-    """Summary returned by distribution_summary. One entry per unique metric_name."""
+    """Summary returned by distribution_summary. One entry per group_by combination."""
     result_id: str
-    distributions: list[MetricDistribution]
+    group_by: list[str]
+    distributions: list[ColumnDistribution]
+
+
+class ColumnDistributionResult(ToolResult):
+    """Summary returned by column_distribution."""
+    result_id: str
+    distribution: ColumnDistribution | None = None
 
 
 class PeriodOverPeriodResult(ToolResult):

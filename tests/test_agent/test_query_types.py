@@ -10,6 +10,9 @@ from aitaem.agent.query_types import (
     ResolveIntentResult,
     QueryDeps,
     ComputeMetricsResult,
+    ColumnDistribution,
+    DistributionSummaryResult,
+    ColumnDistributionResult,
 )
 from aitaem.agent.store import ResultStore
 
@@ -120,3 +123,51 @@ def test_resolve_intent_result_no_match():
     )
     assert r.exact_match is None
     assert len(r.near_misses) == 1
+
+
+def test_metric_intent_column_distribution_result_id_default_none():
+    intent = MetricIntent(metric_concept="revenue", scope="overall")
+    assert intent.column_distribution_result_id is None
+
+
+def test_record_intent_result_error_default_none():
+    r = RecordIntentResult(intent_id=0)
+    assert r.error is None
+
+
+def test_record_intent_result_error_with_no_intent_id():
+    r = RecordIntentResult(intent_id=None, error="both given")
+    assert r.intent_id is None
+    assert r.error == "both given"
+
+
+def test_near_miss_column_distribution_metric_mismatch():
+    nm = NearMiss(
+        name="sales_volume", why_not="column_distribution_metric_mismatch",
+        suggestions=["daily_sales"],
+    )
+    assert nm.suggestions == ["daily_sales"]
+
+
+def test_column_distribution_field_shape():
+    d = ColumnDistribution(group_key={"metric_name": "revenue"}, count=10)
+    assert d.null_count is None
+    assert d.min_val is None
+    assert d.distinct_count is None
+
+
+def test_column_distribution_min_max_are_strings():
+    d = ColumnDistribution(group_key={}, count=1, min_val="2024-01-01T00:00:00", max_val="2024-12-31T00:00:00")
+    assert isinstance(d.min_val, str)
+    assert isinstance(d.max_val, str)
+
+
+def test_distribution_summary_result_has_group_by():
+    r = DistributionSummaryResult(result_id="r1", group_by=["metric_name"], distributions=[])
+    assert r.group_by == ["metric_name"]
+
+
+def test_column_distribution_result_defaults():
+    r = ColumnDistributionResult(result_id="r1")
+    assert r.distribution is None
+    assert r.error is None

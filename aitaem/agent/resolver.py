@@ -4,6 +4,7 @@ import difflib
 from typing import Any
 
 from aitaem.agent.query_types import ExactMatch, MetricIntent, NearMiss, SpecMatchResult
+from aitaem.specs.metric import MetricSpec
 
 
 class SpecResolver:
@@ -12,6 +13,24 @@ class SpecResolver:
     v0 → v1 swap point: the interface (resolve method signature and return type) is
     stable. Only the body changes in v1 (dict lookup → RAG retrieval + deterministic filter).
     """
+
+    @staticmethod
+    def resolve_metric_name(
+        name: str, spec_cache: Any
+    ) -> tuple[MetricSpec | None, list[str]]:
+        """Look up a canonical metric name in the catalog.
+
+        Returns (spec, []) on success, (None, suggestions) on failure — suggestions
+        are fuzzy-matched catalog names (difflib.get_close_matches, cutoff=0.75).
+        Callable directly, without a MetricIntent.
+        """
+        spec = spec_cache.metrics.get(name)
+        if spec is not None:
+            return spec, []
+        suggestions = difflib.get_close_matches(
+            name, spec_cache.metrics.keys(), n=3, cutoff=0.75
+        )
+        return None, suggestions
 
     def resolve(
         self,
@@ -36,13 +55,9 @@ class SpecResolver:
         # if a future MetricSpec field marks scope explicitly.
 
         # ── 1. Validate metric name ──────────────────────────────────────────
-        metric_spec = spec_cache.metrics.get(proposed_metric_name)
+        metric_spec, suggestions = self.resolve_metric_name(proposed_metric_name, spec_cache)
         if metric_spec is None:
             # Unknown metric — can't validate slices/segment without the spec, so return early.
-            # Populate suggestions via fuzzy match to help the LLM surface typo corrections.
-            suggestions = difflib.get_close_matches(
-                proposed_metric_name, spec_cache.metrics.keys(), n=3, cutoff=0.75
-            )
             return SpecMatchResult(
                 exact_match=None,
                 near_misses=near_misses + [

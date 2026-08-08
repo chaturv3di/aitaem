@@ -185,6 +185,19 @@ def test_system_prompt_layer_a_contains_analysis_tools():
     assert "filter_by_threshold" in layer_a
 
 
+def test_system_prompt_layer_a_contains_column_distribution():
+    layer_a = _build_layer_a()
+    assert "column_distribution" in layer_a
+    assert "column_distribution_result_id" in layer_a
+    assert "column_distribution_metric_mismatch" in layer_a
+    assert "before record_intent" in layer_a
+
+
+def test_system_prompt_layer_a_contains_distribution_summary_group_by():
+    layer_a = _build_layer_a()
+    assert "group_by" in layer_a
+
+
 def test_system_prompt_layer_b_contains_catalog():
     layer_b = _build_layer_b(_make_spec_cache())
     assert "revenue" in layer_b
@@ -267,6 +280,7 @@ def test_build_agent_has_record_resolve_compute():
     assert "record_intent" in all_tool_names
     assert "resolve_intent" in all_tool_names
     assert "compute_metrics" in all_tool_names
+    assert "column_distribution" in all_tool_names
 
 
 # ---------------------------------------------------------------------------
@@ -312,7 +326,7 @@ def test_constructor_tools_registered_alongside_defaults():
     expected_defaults = {
         "record_intent", "resolve_intent", "compute_metrics",
         "rank_by_value", "filter_by_threshold", "distribution_summary",
-        "period_over_period", "contribution_share",
+        "column_distribution", "period_over_period", "contribution_share",
     }
     assert "custom_tool_sync" in bot._toolset.tools
     assert expected_defaults.issubset(bot._toolset.tools.keys())
