@@ -1124,6 +1124,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#breaking-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Breaking changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#fixed" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1163,7 +1174,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#breaking-changes" class="md-nav__link">
+  <a href="#breaking-changes_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Breaking changes
@@ -1224,7 +1235,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#breaking-changes_1" class="md-nav__link">
+  <a href="#breaking-changes_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Breaking changes
@@ -1630,6 +1641,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#breaking-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Breaking changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#fixed" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1669,7 +1691,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#breaking-changes" class="md-nav__link">
+  <a href="#breaking-changes_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Breaking changes
@@ -1730,7 +1752,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#breaking-changes_1" class="md-nav__link">
+  <a href="#breaking-changes_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Breaking changes
@@ -2084,6 +2106,27 @@
 
 <h1 id="changelog">Changelog</h1>
 <h2 id="unreleased">Unreleased</h2>
+<h3 id="breaking-changes">Breaking changes</h3>
+<ul>
+<li><strong><code>distribution_summary</code>'s return shape changes: <code>DistributionSummaryResult.distributions</code>
+  is now <code>list[ColumnDistribution]</code>, not <code>list[MetricDistribution]</code>.</strong> Call signature stays
+  compatible (<code>distribution_summary(result_id)</code> still works — the new <code>group_by</code> parameter is
+  optional and defaults to today's <code>["metric_name"]</code> grouping), but <code>metric_name: str</code> is
+  replaced by <code>group_key: dict[str, str]</code>, and <code>min_val</code>/<code>max_val</code> change from <code>float | None</code>
+  to <code>str | None</code> (ISO-8601 for temporal values, <code>str()</code> otherwise):</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Before</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">distributions</span><span class="p">:</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">metric_name</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">min_val</span><span class="p">)</span>  <span class="c1"># min_val: float</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># After</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">distributions</span><span class="p">:</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">group_key</span><span class="p">[</span><span class="s2">&quot;metric_name&quot;</span><span class="p">],</span> <span class="n">d</span><span class="o">.</span><span class="n">min_val</span><span class="p">)</span>  <span class="c1"># min_val: str</span>
+</code></pre></div>
+<p><code>distribution_summary</code> also now pushes aggregation down to the backend via
+  <code>group_by().aggregate()</code> instead of materializing the prior result to pandas first —
+  transparent for correct usage, but any caller relying on client-side pandas execution
+  (e.g. via mocking) needs to account for the new query path.</p>
 <h3 id="fixed">Fixed</h3>
 <ul>
 <li><strong><code>compute()</code> without <code>by_entity</code> no longer fails against BigQuery with
@@ -2174,6 +2217,24 @@
   <code>SpecCache</code>'s existing cross-reference validator, leaving the cache
   untouched on a rejected mutation. <code>SpecCache.version</code> is a new monotonic
   counter, incremented on every successful mutation (including <code>clear()</code>).</li>
+<li><strong><code>QueryBot.column_distribution</code> tool.</strong> Summarizes a metric's raw
+  source-table column (count, null_count, min/max, and — for numeric columns —
+  mean/std/p25/median/p75, or — for non-numeric columns — distinct_count)
+  directly against the source table, before <code>compute_metrics</code> and with no
+  <code>spec_token</code> gate. Added to let the LLM discover a metric's real column
+  bounds (e.g. its actual timestamp range) instead of fabricating a
+  <code>time_window</code> — confirmed live to otherwise produce either too narrow a
+  window or a catastrophically wide one (<code>['1900-01-01', '2026-08-06']</code>)
+  against BigQuery, the latter triggering a 10+ minute query. Accepts an
+  optional <code>filter</code> (a plain SQL boolean predicate against the source table's
+  own columns, e.g. <code>"order_value &gt; 1000"</code>); rejects any filter containing a
+  subquery.</li>
+<li><strong><code>record_intent</code> gains <code>column_distribution_result_id</code></strong>, an alternative to
+  <code>time_window</code>: when set, <code>time_window</code> is derived server-side from a prior
+  <code>column_distribution</code> result's real column bounds. <code>resolve_intent</code> then
+  validates the referenced result was computed against the same metric being
+  resolved — a mismatch surfaces as a new <code>NearMiss.why_not</code> value,
+  <code>"column_distribution_metric_mismatch"</code>.</li>
 </ul>
 <h2 id="v100-2026-07-23">v1.0.0 — 2026-07-23</h2>
 <p>This release bundles the last breaking changes expected before v1.0's stability
@@ -2181,27 +2242,27 @@ guarantees take effect (see Breaking changes below), alongside <code>aitaem[agen
 <a href="../agent/stability/">stability declaration</a> — from this release forward, convenience bot
 constructors, primitives base classes, default tool schemas, and <code>RunTrace</code>/
 <code>BotResponse</code> field shapes are semver-stable; default prompt content is explicitly not.</p>
-<h3 id="breaking-changes">Breaking changes</h3>
+<h3 id="breaking-changes_1">Breaking changes</h3>
 <ul>
 <li><strong><code>MetricCompute.__init__</code> <code>tmp_dir</code> parameter removed.</strong> Pass <code>tmp_dir</code> to
   <code>ConnectionManager()</code> or <code>ConnectionManager.from_yaml()</code> instead:</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Before</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">mc</span> <span class="o">=</span> <span class="n">MetricCompute</span><span class="p">(</span><span class="n">cache</span><span class="p">,</span> <span class="n">conn</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="o">=</span><span class="s2">&quot;/data/tmp&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># After</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">(</span><span class="n">tmp_dir</span><span class="o">=</span><span class="s2">&quot;/data/tmp&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">mc</span> <span class="o">=</span> <span class="n">MetricCompute</span><span class="p">(</span><span class="n">cache</span><span class="p">,</span> <span class="n">conn</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Before</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">mc</span> <span class="o">=</span> <span class="n">MetricCompute</span><span class="p">(</span><span class="n">cache</span><span class="p">,</span> <span class="n">conn</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="o">=</span><span class="s2">&quot;/data/tmp&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># After</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">(</span><span class="n">tmp_dir</span><span class="o">=</span><span class="s2">&quot;/data/tmp&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">mc</span> <span class="o">=</span> <span class="n">MetricCompute</span><span class="p">(</span><span class="n">cache</span><span class="p">,</span> <span class="n">conn</span><span class="p">)</span>
 </code></pre></div>
 <ul>
 <li><strong><code>ValidateSpecResult.spec_draft_token</code> is no longer a constructor argument</strong> —
   it's a read-only property derived from the new <code>result_id</code> field:</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Before</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">ValidateSpecResult</span><span class="p">(</span><span class="n">spec_draft_token</span><span class="o">=</span><span class="s2">&quot;dd_abc123&quot;</span><span class="p">)</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># After</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">ValidateSpecResult</span><span class="p">(</span><span class="n">result_id</span><span class="o">=</span><span class="s2">&quot;dd_abc123&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Before</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">ValidateSpecResult</span><span class="p">(</span><span class="n">spec_draft_token</span><span class="o">=</span><span class="s2">&quot;dd_abc123&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># After</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">ValidateSpecResult</span><span class="p">(</span><span class="n">result_id</span><span class="o">=</span><span class="s2">&quot;dd_abc123&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p><code>ValidateSpecResult</code> now also rejects unknown constructor arguments
   (<code>extra="forbid"</code>), so the old call raises <code>ValidationError</code> rather than
@@ -2292,7 +2353,7 @@ constructors, primitives base classes, default tool schemas, and <code>RunTrace<
   changes to the existing three examples beyond the rename.</li>
 </ul>
 <h2 id="v040-2026-06-26">v0.4.0 — 2026-06-26</h2>
-<h3 id="breaking-changes_1">Breaking changes</h3>
+<h3 id="breaking-changes_2">Breaking changes</h3>
 <ul>
 <li><strong><code>MetricCompute.compute()</code> returns <code>ibis.Table</code></strong> instead of <code>pd.DataFrame</code>.
   Call <code>.to_pandas()</code> on the result to materialise. When all metrics share the
@@ -2301,12 +2362,12 @@ constructors, primitives base classes, default tool schemas, and <code>RunTrace<
   are materialised internally and re-exposed as a Table backed by a temporary
   DuckDB database managed by the <code>MetricCompute</code> instance.</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Before (v0.3.x)</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># After (v0.4.0)</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>   <span class="c1"># lazy ibis.Table</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">df</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>      <span class="c1"># materialise when needed</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Before (v0.3.x)</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">df</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># After (v0.4.0)</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="s2">&quot;ctr&quot;</span><span class="p">)</span>   <span class="c1"># lazy ibis.Table</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">df</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>      <span class="c1"># materialise when needed</span>
 </code></pre></div>
 <ul>
 <li><strong><code>MetricCompute.compute()</code> <code>output_format</code> parameter removed.</strong> The parameter
