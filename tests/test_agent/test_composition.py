@@ -114,7 +114,7 @@ _QUERY_SPEC = _BotSpec(
     default_tool_names=frozenset({
         "record_intent", "resolve_intent", "compute_metrics",
         "rank_by_value", "filter_by_threshold", "distribution_summary",
-        "period_over_period", "contribution_share",
+        "column_distribution", "period_over_period", "contribution_share",
     }),
     colliding_tool_factory=_make_compute_metrics_collider,
 )

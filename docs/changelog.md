@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- **`distribution_summary`'s return shape changes: `DistributionSummaryResult.distributions`
+  is now `list[ColumnDistribution]`, not `list[MetricDistribution]`.** Call signature stays
+  compatible (`distribution_summary(result_id)` still works — the new `group_by` parameter is
+  optional and defaults to today's `["metric_name"]` grouping), but `metric_name: str` is
+  replaced by `group_key: dict[str, str]`, and `min_val`/`max_val` change from `float | None`
+  to `str | None` (ISO-8601 for temporal values, `str()` otherwise):
+
+  ```python
+  # Before
+  for d in result.distributions:
+      print(d.metric_name, d.min_val)  # min_val: float
+
+  # After
+  for d in result.distributions:
+      print(d.group_key["metric_name"], d.min_val)  # min_val: str
+  ```
+
+  `distribution_summary` also now pushes aggregation down to the backend via
+  `group_by().aggregate()` instead of materializing the prior result to pandas first —
+  transparent for correct usage, but any caller relying on client-side pandas execution
+  (e.g. via mocking) needs to account for the new query path.
+
 ### Fixed
 
 - **`compute()` without `by_entity` no longer fails against BigQuery with
@@ -92,6 +116,24 @@
   `SpecCache`'s existing cross-reference validator, leaving the cache
   untouched on a rejected mutation. `SpecCache.version` is a new monotonic
   counter, incremented on every successful mutation (including `clear()`).
+- **`QueryBot.column_distribution` tool.** Summarizes a metric's raw
+  source-table column (count, null_count, min/max, and — for numeric columns —
+  mean/std/p25/median/p75, or — for non-numeric columns — distinct_count)
+  directly against the source table, before `compute_metrics` and with no
+  `spec_token` gate. Added to let the LLM discover a metric's real column
+  bounds (e.g. its actual timestamp range) instead of fabricating a
+  `time_window` — confirmed live to otherwise produce either too narrow a
+  window or a catastrophically wide one (`['1900-01-01', '2026-08-06']`)
+  against BigQuery, the latter triggering a 10+ minute query. Accepts an
+  optional `filter` (a plain SQL boolean predicate against the source table's
+  own columns, e.g. `"order_value > 1000"`); rejects any filter containing a
+  subquery.
+- **`record_intent` gains `column_distribution_result_id`**, an alternative to
+  `time_window`: when set, `time_window` is derived server-side from a prior
+  `column_distribution` result's real column bounds. `resolve_intent` then
+  validates the referenced result was computed against the same metric being
+  resolved — a mismatch surfaces as a new `NearMiss.why_not` value,
+  `"column_distribution_metric_mismatch"`.
 ## v1.0.0 — 2026-07-23
 
 This release bundles the last breaking changes expected before v1.0's stability

@@ -4,6 +4,7 @@ import datetime
 import gc
 from pathlib import Path
 
+import pandas as pd
 import pyarrow as pa
 import pytest
 from unittest.mock import MagicMock, patch
@@ -17,9 +18,10 @@ from aitaem.agent.query_types import (
     RankByValueResult,
     FilterByThresholdResult,
     DistributionSummaryResult,
+    ColumnDistributionResult,
     PeriodOverPeriodResult,
     ContributionShareResult,
-    MetricDistribution,
+    ColumnDistribution,
     ToolResult,
 )
 from aitaem.agent.query_tools import (
@@ -29,10 +31,16 @@ from aitaem.agent.query_tools import (
     rank_by_value,
     filter_by_threshold,
     distribution_summary,
+    column_distribution,
+    _build_distribution_agg,
+    _stringify_bound,
+    _row_val_or_none,
+    _reject_unsafe_filter,
     period_over_period,
     contribution_share,
 )
 from aitaem.agent.trace import Status
+import ibis
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +146,7 @@ def test_compute_metrics_result_is_tool_result():
 
 def test_all_result_models_are_tool_results():
     for cls in [RankByValueResult, FilterByThresholdResult, DistributionSummaryResult,
-                PeriodOverPeriodResult, ContributionShareResult]:
+                ColumnDistributionResult, PeriodOverPeriodResult, ContributionShareResult]:
         assert issubclass(cls, ToolResult), f"{cls.__name__} must inherit ToolResult"
 
 
@@ -155,8 +163,8 @@ def test_query_output_refused_has_reason():
     assert out.result_ids == []
 
 
-def test_metric_distribution_optional_stats():
-    d = MetricDistribution(metric_name="ctr", count=0)
+def test_column_distribution_optional_stats():
+    d = ColumnDistribution(group_key={"metric_name": "ctr"}, count=0)
     assert d.mean is None
 
 
@@ -439,13 +447,351 @@ def test_distribution_summary_stats():
     deps, rid = _make_deps_with_table(_multi_row_table())
     ctx = _make_ctx(deps)
     result = distribution_summary(ctx, result_id=rid)
+    assert result.group_by == ["metric_name"]
     assert len(result.distributions) == 1
     dist = result.distributions[0]
-    assert dist.metric_name == "revenue"
+    assert dist.group_key == {"metric_name": "revenue"}
     assert dist.count == 5
-    assert dist.min_val == pytest.approx(50.0)
-    assert dist.max_val == pytest.approx(300.0)
+    assert dist.min_val == "50.0"
+    assert dist.max_val == "300.0"
     assert result.result_id in deps.store.ids()
+
+
+def test_distribution_summary_custom_group_by():
+    table = pa.table({
+        "metric_name": ["revenue"] * 4,
+        "metric_value": [100.0, 300.0, 50.0, 200.0],
+        "slice_value": ["US", "US", "IN", "IN"],
+    })
+    deps, rid = _make_deps_with_table(table)
+    ctx = _make_ctx(deps)
+    result = distribution_summary(ctx, result_id=rid, group_by=["metric_name", "slice_value"])
+    assert result.group_by == ["metric_name", "slice_value"]
+    assert len(result.distributions) == 2
+    group_keys = {tuple(sorted(d.group_key.items())) for d in result.distributions}
+    assert (("metric_name", "revenue"), ("slice_value", "IN")) in group_keys
+    assert (("metric_name", "revenue"), ("slice_value", "US")) in group_keys
+
+
+def test_distribution_summary_retains_ibis_ref():
+    deps, rid = _make_deps_with_table(_multi_row_table())
+    ctx = _make_ctx(deps)
+    result = distribution_summary(ctx, result_id=rid)
+    entry = deps.store.get_tabular(result.result_id)
+    assert entry.ibis_ref is not None
+
+
+# ---------------------------------------------------------------------------
+# SF-1: _build_distribution_agg
+# ---------------------------------------------------------------------------
+
+def test_build_distribution_agg_numeric_ungrouped():
+    t = ibis.memtable(pa.table({"v": [1.0, 2.0, 3.0, None]}))
+    agg = _build_distribution_agg(t, "v", None)
+    row = agg.to_pandas().iloc[0]
+    assert row["count"] == 3
+    assert row["null_count"] == 1
+    assert row["mean"] == pytest.approx(2.0)
+    assert "distinct_count" not in agg.columns
+
+
+def test_build_distribution_agg_non_numeric_ungrouped():
+    t = ibis.memtable(pa.table({"v": ["a", "b", "a", None]}))
+    agg = _build_distribution_agg(t, "v", None)
+    row = agg.to_pandas().iloc[0]
+    assert row["count"] == 3
+    assert row["distinct_count"] == 2
+    assert "mean" not in agg.columns
+
+
+def test_build_distribution_agg_grouped():
+    t = ibis.memtable(pa.table({"g": ["a", "a", "b"], "v": [1.0, 2.0, 3.0]}))
+    agg = _build_distribution_agg(t, "v", ["g"])
+    df = agg.to_pandas().sort_values("g").reset_index(drop=True)
+    assert list(df["g"]) == ["a", "b"]
+    assert list(df["count"]) == [2, 1]
+
+
+def test_build_distribution_agg_uses_approx_quantile_on_bigquery():
+    """Regression test: exact quantile()/describe() are unimplemented for BigQuery."""
+    t = ibis.memtable(pa.table({"v": [1.0, 2.0, 3.0]}))
+    agg = _build_distribution_agg(t, "v", None)
+    sql = ibis.to_sql(agg, dialect="bigquery").upper()
+    assert "APPROX_QUANTILES" in sql
+    assert "QUANTILE(" not in sql
+
+
+def test_stringify_bound_none_returns_none():
+    assert _stringify_bound(None) is None
+
+
+def test_stringify_bound_non_temporal_uses_str():
+    assert _stringify_bound(42) == "42"
+
+
+def test_row_val_or_none_missing_key_returns_none():
+    row = pd.Series({"count": 5})
+    assert _row_val_or_none(row, "mean", float) is None
+
+
+def test_row_val_or_none_nan_value_returns_none():
+    row = pd.Series({"count": 5, "mean": float("nan")})
+    assert _row_val_or_none(row, "mean", float) is None
+
+
+def test_min_val_max_val_iso8601_not_backend_cast(ad_campaigns_connection_manager):
+    """Regression test: backend-native CAST(... AS STRING) is not portable —
+    min_val/max_val must be Python-side .isoformat(), not a SQL cast."""
+    connector = ad_campaigns_connection_manager.get_connection("duckdb")
+    table = connector.get_table("ad_campaigns")
+    agg = _build_distribution_agg(table, "date", None)
+    row = agg.to_pandas().iloc[0]
+    from aitaem.agent.query_tools import _stringify_bound
+    min_val = _stringify_bound(row["min_val"])
+    datetime.datetime.fromisoformat(min_val)  # must not raise
+    assert "T" in min_val  # ISO-8601 separator; DuckDB's own CAST uses a space
+
+
+# ---------------------------------------------------------------------------
+# SF-4: column_distribution + _reject_unsafe_filter
+# ---------------------------------------------------------------------------
+
+def _make_column_distribution_deps(ad_campaigns_connection_manager):
+    sc = MagicMock()
+    rev = MagicMock()
+    rev.source = "duckdb://ad_campaigns.duckdb/ad_campaigns"
+    rev.timestamp_col = "date"
+    sc.metrics = {"total_revenue": rev}
+    return QueryDeps(spec_cache=sc, connection_manager=ad_campaigns_connection_manager, store=ResultStore())
+
+
+def test_column_distribution_default_column_is_timestamp_col(ad_campaigns_connection_manager):
+    deps = _make_column_distribution_deps(ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+    result = column_distribution(ctx, metric_name="total_revenue")
+    assert result.error is None
+    assert result.distribution.group_key["column"] == "date"
+    assert result.distribution.count == 1800
+
+
+def test_column_distribution_explicit_column(ad_campaigns_connection_manager):
+    deps = _make_column_distribution_deps(ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+    result = column_distribution(ctx, metric_name="total_revenue", column="revenue")
+    assert result.error is None
+    assert result.distribution.mean is not None
+    assert result.distribution.distinct_count is None  # numeric branch
+
+
+def test_column_distribution_unknown_metric(ad_campaigns_connection_manager):
+    deps = _make_column_distribution_deps(ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+    result = column_distribution(ctx, metric_name="bogus_metric")
+    assert result.error is not None
+    assert result.distribution is None
+    assert result.result_id == ""
+
+
+def test_column_distribution_unknown_column(ad_campaigns_connection_manager):
+    deps = _make_column_distribution_deps(ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+    result = column_distribution(ctx, metric_name="total_revenue", column="bogus_col")
+    assert result.error is not None
+    assert "bogus_col" in result.error
+
+
+def test_column_distribution_filter_narrows_results(ad_campaigns_connection_manager):
+    deps = _make_column_distribution_deps(ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+    unfiltered = column_distribution(ctx, metric_name="total_revenue", column="revenue")
+    filtered = column_distribution(
+        ctx, metric_name="total_revenue", column="revenue", filter="revenue > 1000"
+    )
+    assert filtered.error is None
+    assert filtered.distribution.count < unfiltered.distribution.count
+
+
+def test_column_distribution_malformed_filter_returns_error_not_raised(ad_campaigns_connection_manager):
+    deps = _make_column_distribution_deps(ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+    result = column_distribution(ctx, metric_name="total_revenue", filter="x IN (SELECT y FROM dim_platforms)")
+    assert result.error is not None
+    assert result.result_id == ""
+
+
+def test_column_distribution_no_column_no_timestamp_col_errors(ad_campaigns_connection_manager):
+    sc = MagicMock()
+    rev = MagicMock()
+    rev.source = "duckdb://ad_campaigns.duckdb/ad_campaigns"
+    rev.timestamp_col = ""
+    sc.metrics = {"total_revenue": rev}
+    deps = QueryDeps(spec_cache=sc, connection_manager=ad_campaigns_connection_manager, store=ResultStore())
+    ctx = _make_ctx(deps)
+    result = column_distribution(ctx, metric_name="total_revenue")
+    assert result.error is not None
+    assert "timestamp_col" in result.error
+
+
+def test_column_distribution_connection_resolution_failure_returns_error(ad_campaigns_connection_manager):
+    sc = MagicMock()
+    rev = MagicMock()
+    rev.source = "bigquery://no-such-project/no_such_dataset.no_such_table"
+    rev.timestamp_col = "date"
+    sc.metrics = {"total_revenue": rev}
+    deps = QueryDeps(spec_cache=sc, connection_manager=ad_campaigns_connection_manager, store=ResultStore())
+    ctx = _make_ctx(deps)
+    result = column_distribution(ctx, metric_name="total_revenue")
+    assert result.error is not None
+    assert result.result_id == ""
+
+
+def test_column_distribution_filter_references_unknown_column_returns_error(ad_campaigns_connection_manager):
+    """The filter parses as valid SQL but fails at execution (unknown column) — caught, not raised."""
+    deps = _make_column_distribution_deps(ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+    result = column_distribution(
+        ctx, metric_name="total_revenue", column="revenue", filter="nonexistent_col > 5"
+    )
+    assert result.error is not None
+    assert result.result_id == ""
+
+
+def test_column_distribution_aggregate_execution_failure_returns_error(ad_campaigns_connection_manager):
+    deps = _make_column_distribution_deps(ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+    with patch("aitaem.agent.query_tools._build_distribution_agg", side_effect=RuntimeError("boom")):
+        result = column_distribution(ctx, metric_name="total_revenue")
+    assert result.error is not None
+    assert "boom" in result.error
+    assert result.result_id == ""
+
+
+def test_column_distribution_stores_min_max_metadata(ad_campaigns_connection_manager):
+    deps = _make_column_distribution_deps(ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+    result = column_distribution(ctx, metric_name="total_revenue")
+    entry = deps.store.get_tabular(result.result_id)
+    assert entry.metadata["metric_name"] == "total_revenue"
+    assert entry.metadata["min_val"] == result.distribution.min_val
+    assert entry.metadata["max_val"] == result.distribution.max_val
+
+
+@pytest.mark.parametrize("dialect", ["duckdb", "bigquery", "postgres"])
+@pytest.mark.parametrize("bad_filter", [
+    "x IN (SELECT y FROM other)",
+    "EXISTS (SELECT 1 FROM other WHERE other.id = t.id)",
+    "x > (SELECT MAX(y) FROM other)",
+])
+def test_reject_unsafe_filter_rejects_subqueries(dialect, bad_filter):
+    with pytest.raises(ValueError, match="subquer"):
+        _reject_unsafe_filter(bad_filter, dialect)
+
+
+def test_reject_unsafe_filter_rejects_statement_stacking():
+    with pytest.raises(ValueError):
+        _reject_unsafe_filter("1=1; DROP TABLE x", "duckdb")
+
+
+def test_reject_unsafe_filter_rejects_paren_breakout():
+    with pytest.raises(ValueError):
+        _reject_unsafe_filter("1=1) UNION SELECT * FROM x --", "duckdb")
+
+
+def test_reject_unsafe_filter_accepts_legitimate_multi_condition_filter():
+    result = _reject_unsafe_filter("order_value > 1000 AND (country = 'US' OR country = 'IN')", "duckdb")
+    assert "1000" in result
+    assert "US" in result
+
+
+def test_reject_unsafe_filter_neutralizes_comment_truncation():
+    """The returned (regenerated) SQL, not the raw input, must be spliced —
+    only the regenerated form re-serializes the trailing text as an inert
+    block comment."""
+    result = _reject_unsafe_filter("1=1 -- ' AND x", "duckdb")
+    assert "/*" in result and "*/" in result
+
+
+# ---------------------------------------------------------------------------
+# SF-6: record_intent / resolve_intent — column_distribution_result_id
+# ---------------------------------------------------------------------------
+
+def test_record_intent_both_time_window_and_column_distribution_result_id_errors():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    result = record_intent(
+        ctx, metric_concept="revenue", scope="overall",
+        time_window=("2024-01-01", "2024-02-01"), column_distribution_result_id="r1",
+    )
+    assert result.intent_id is None
+    assert result.error is not None
+    assert deps.intents == []
+
+
+def test_record_intent_derives_time_window_from_column_distribution_result():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    rid = deps.store.store_tabular(
+        None, None,
+        metadata={"metric_name": "revenue", "min_val": "2024-01-01T00:00:00", "max_val": "2024-12-31T00:00:00"},
+    )
+    result = record_intent(ctx, metric_concept="revenue", scope="overall", column_distribution_result_id=rid)
+    assert result.error is None
+    intent = deps.intents[result.intent_id]
+    assert intent.time_window == ("2024-01-01T00:00:00", "2024-12-31T00:00:00")
+    assert intent.column_distribution_result_id == rid
+
+
+def test_record_intent_unknown_column_distribution_result_id_errors():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    result = record_intent(ctx, metric_concept="revenue", scope="overall", column_distribution_result_id="bogus")
+    assert result.intent_id is None
+    assert result.error is not None
+    assert deps.intents == []
+
+
+def test_record_intent_column_distribution_result_id_missing_metadata_errors():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    rid = deps.store.store_tabular(None, None, metadata={"metric_name": "revenue"})
+    result = record_intent(ctx, metric_concept="revenue", scope="overall", column_distribution_result_id=rid)
+    assert result.intent_id is None
+    assert result.error is not None
+
+
+def test_resolve_intent_column_distribution_metric_match_resolves():
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    rid = deps.store.store_tabular(
+        None, None,
+        metadata={"metric_name": "revenue", "min_val": "2024-01-01", "max_val": "2024-12-31"},
+    )
+    record_intent(ctx, metric_concept="revenue", scope="overall", column_distribution_result_id=rid)
+    result = resolve_intent(ctx, intent_id=0, metric_name="revenue")
+    assert result.exact_match is not None
+    assert result.near_misses == []
+
+
+def test_resolve_intent_column_distribution_metric_mismatch_blocks():
+    """Regression test: daily_sales's column_distribution result must not silently
+    ground a resolve_intent call for a different metric (sales_volume)."""
+    deps = _make_deps()
+    sc = deps.spec_cache
+    other = MagicMock()
+    other.entities = ["user_id"]
+    other.timestamp_col = "ts"
+    sc.metrics["sales_volume"] = other
+    ctx = _make_ctx(deps)
+    rid = deps.store.store_tabular(
+        None, None,
+        metadata={"metric_name": "daily_sales", "min_val": "2024-01-01", "max_val": "2024-12-31"},
+    )
+    record_intent(ctx, metric_concept="sales", scope="overall", column_distribution_result_id=rid)
+    result = resolve_intent(ctx, intent_id=0, metric_name="sales_volume")
+    assert result.exact_match is None
+    assert any(nm.why_not == "column_distribution_metric_mismatch" for nm in result.near_misses)
+    mismatch = next(nm for nm in result.near_misses if nm.why_not == "column_distribution_metric_mismatch")
+    assert mismatch.suggestions == ["daily_sales"]
 
 
 def _time_series_table():

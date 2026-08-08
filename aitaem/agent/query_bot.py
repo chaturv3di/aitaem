@@ -14,6 +14,7 @@ from aitaem.agent.query_tools import (
     rank_by_value,
     filter_by_threshold,
     distribution_summary,
+    column_distribution,
     period_over_period,
     contribution_share,
 )
@@ -53,6 +54,24 @@ invent values; every number must come from a tool call.
 
 ## Workflow — three required steps, in order
 
+### Optional pre-step — column_distribution
+Call `column_distribution(metric_name, column=None, filter=None)` *before*
+Step 1 when a non-"all_time" period_type is implied but the user gave no
+explicit dates ("overall, weekly sales" with no date range) — it returns the
+metric's real column bounds (count, min/max, mean/std/percentiles for numeric
+columns; count/min/max/distinct_count for non-numeric). Never fabricate a
+placeholder time_window (e.g. guessing a start date, or spanning "all of
+history") — call column_distribution and derive it instead. `column` defaults
+to the metric's timestamp column; pass a different column for other
+distribution questions. `filter` is a plain SQL boolean predicate against the
+source table's own columns (e.g. "order_value > 1000") — not a slice name. A
+temporal column has no mean/std/percentiles (only count/min/max/distinct_count) —
+don't ask it for the median of a date column.
+
+Call this before record_intent, not after: record_intent's
+column_distribution_result_id (below) reads an already-stored result, so
+calling record_intent first leaves nothing to reference.
+
 ### Step 1 — record_intent
 Call `record_intent` once per metric the user is asking about. Fields:
 - metric_concept: free-text name (e.g. "click-through rate")
@@ -62,10 +81,14 @@ Call `record_intent` once per metric the user is asking about. Fields:
 - period_type: "all_time" | "hourly" | "daily" | "weekly" | "monthly" | "yearly"
   (default: all_time). Non-"all_time" requires time_window.
 - time_window: [start, end] ISO dates. Hourly uses YYYY-MM-DDTHH:MM:SS,
-  floored to the hour.
+  floored to the hour. Mutually exclusive with column_distribution_result_id.
 - by_entity: only for entity-level questions ("which user", "top 10 advertisers").
+- column_distribution_result_id: result_id from a prior column_distribution
+  call, in place of time_window — time_window is derived server-side from
+  that result's real column bounds.
 
-Returns: intent_id (integer).
+Returns: intent_id (integer). On failure (e.g. both time_window and
+column_distribution_result_id given), intent_id is null and error explains why.
 
 ### Step 2 — resolve_intent
 Call `resolve_intent` with the intent_id and your proposed canonical names
@@ -75,6 +98,10 @@ Returns:
 - exact_match: {spec_token, metric_name, slices, segment} if the proposal is
   valid — proceed to Step 3.
 - near_misses: [{name, why_not}] — specs that came close but did not match.
+  why_not="column_distribution_metric_mismatch" means the intent's
+  column_distribution_result_id was computed against a different metric than
+  metric_name — call column_distribution again for the correct metric rather
+  than reusing that result_id.
 
 If exact_match is null: STOP. Do not call compute_metrics. Set status="refused"
 and cite near_misses in the reason. See Metric Precision Rule below.
@@ -107,6 +134,9 @@ Rules:
 - Time-series questions (period_type ≠ all_time) always narrate from compute_metrics.
 - For "which entities are above/below the median": call distribution_summary
   to get p50, then call filter_by_threshold with that value.
+- distribution_summary takes an optional group_by (list of STANDARD_COLUMNS
+  field names, e.g. ["metric_name", "slice_value"]) — defaults to
+  ["metric_name"]. Use it for "distribution by X" questions.
 
 ## Metric Precision Rule (CRITICAL)
 
@@ -303,6 +333,7 @@ class QueryBot(Bot):
             toolset.add_function(rank_by_value)
             toolset.add_function(filter_by_threshold)
             toolset.add_function(distribution_summary)
+            toolset.add_function(column_distribution)
             toolset.add_function(period_over_period)
             toolset.add_function(contribution_share)
 

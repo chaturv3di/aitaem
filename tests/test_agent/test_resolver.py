@@ -173,3 +173,35 @@ def test_unknown_metric_early_return_no_slice_validation():
     assert result.exact_match is None
     assert len(result.near_misses) == 1
     assert result.near_misses[0].why_not == "unknown_metric"
+
+
+# ---------------------------------------------------------------------------
+# SF-5: SpecResolver.resolve_metric_name (extracted, callable without a MetricIntent)
+# ---------------------------------------------------------------------------
+
+def test_resolve_metric_name_success():
+    sc = _make_cache()
+    spec, suggestions = SpecResolver.resolve_metric_name("revenue", sc)
+    assert spec is not None
+    assert suggestions == []
+
+
+def test_resolve_metric_name_unknown_returns_none_and_suggestions():
+    sc = _make_cache(metrics=("revenue_gross",))
+    spec, suggestions = SpecResolver.resolve_metric_name("revenue_gros", sc)
+    assert spec is None
+    assert "revenue_gross" in suggestions
+
+
+def test_resolve_metric_name_unknown_no_close_match_empty_suggestions():
+    sc = _make_cache()
+    spec, suggestions = SpecResolver.resolve_metric_name("xyz_completely_different", sc)
+    assert spec is None
+    assert suggestions == []
+
+
+def test_resolve_metric_name_callable_without_metric_intent():
+    """The whole point of extracting this method: no MetricIntent required."""
+    sc = _make_cache()
+    spec, _ = SpecResolver.resolve_metric_name("revenue", sc)
+    assert spec is sc.metrics["revenue"]
