@@ -1,146 +1,52 @@
 from __future__ import annotations
 
 import operator
-import threading
 import uuid
-from contextlib import nullcontext
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import ibis
-import pandas as pd
 import pyarrow as pa
-import sqlglot
 from pydantic_ai import RunContext
 
-from aitaem.query.builder import PeriodType
 from aitaem.agent.query_types import (
     QueryDeps,
     MetricIntent,
     ResolvedSpec,
-    ExactMatch,
     NearMiss,
     RecordIntentResult,
     ResolveIntentResult,
-    ComputeMetricsResult,
+    Q_ComputeMetricsResult,
     RankByValueResult,
     FilterByThresholdResult,
-    DistributionSummaryResult,
-    ColumnDistribution,
-    ColumnDistributionResult,
     PeriodOverPeriodResult,
     ContributionShareResult,
 )
 from aitaem.agent.resolver import SpecResolver
-from aitaem.agent.store import TabularEntry
-from aitaem import MetricCompute
+from aitaem.agent.common_tools import (
+    _execute_metric_compute,
+    _get_ibis_table,
+    _sample_arrow,
+    column_distribution,
+    distribution_summary,
+)
 
-# DuckDB's ibis backend is not thread-safe. pydantic-ai dispatches parallel
-# tool calls via asyncio.to_thread(), so two compute_metrics calls for a
-# multi-metric question run in separate threads and race on the same connection.
-# This lock serializes all compute_metrics executions within a process.
-_COMPUTE_LOCK = threading.Lock()
+__all__ = [
+    "record_intent",
+    "resolve_intent",
+    "compute_metrics",
+    "rank_by_value",
+    "filter_by_threshold",
+    "distribution_summary",
+    "column_distribution",
+    "period_over_period",
+    "contribution_share",
+]
 
 _FILTER_OPS: dict[str, Any] = {
     ">": operator.gt, ">=": operator.ge,
     "<": operator.lt, "<=": operator.le,
     "==": operator.eq, "!=": operator.ne,
 }
-
-
-def _get_ibis_table(entry: TabularEntry) -> ibis.Table:
-    """Return an ibis.Table: lazy from ibis_ref if alive, else memtable over Arrow."""
-    if entry.ibis_ref is not None:
-        return entry.ibis_ref
-    if entry.arrow is not None:
-        return ibis.memtable(entry.arrow)
-    raise ValueError(f"Result entry {entry.result_id!r} has no data.")
-
-
-def _build_distribution_agg(
-    table: ibis.Table, value_column: str, group_by: list[str] | None
-) -> ibis.Table:
-    """Build a dtype-aware distribution aggregate over value_column, one query.
-
-    Numeric columns get count/null_count/mean/std/min/max/p25/median/p75
-    (percentiles via approx_quantile — exact quantile() is unimplemented for
-    BigQuery). Non-numeric columns get count/null_count/min/max/distinct_count.
-    min/max keep the column's native dtype here; callers stringify after
-    materializing (see the "min_val/max_val stringification" key decision).
-    """
-    col = table[value_column]
-    is_numeric = col.type().is_numeric()
-
-    aggs: dict[str, Any] = {
-        "count": col.count(),
-        "null_count": col.isnull().sum(),
-        "min_val": col.min(),
-        "max_val": col.max(),
-    }
-    if is_numeric:
-        aggs.update({
-            "mean": col.mean(),
-            "std": col.std(),
-            "p25": col.approx_quantile(0.25),
-            "median": col.approx_quantile(0.5),
-            "p75": col.approx_quantile(0.75),
-        })
-    else:
-        aggs["distinct_count"] = col.nunique()
-
-    if group_by:
-        return table.group_by(group_by).aggregate(**aggs)
-    return table.aggregate(**aggs)
-
-
-def _stringify_bound(value: Any) -> str | None:
-    """Format a min_val/max_val for ColumnDistribution: ISO-8601 for temporal
-    values (via .isoformat()), str() otherwise. Never a backend-native cast."""
-    if value is None or pd.isna(value):
-        return None
-    if hasattr(value, "isoformat"):
-        return value.isoformat()
-    return str(value)
-
-
-def _row_val_or_none(row: pd.Series, key: str, caster: Any) -> Any:
-    """row[key] cast via caster, or None if the key is absent or the value is NA."""
-    if key not in row.index:
-        return None
-    value = row[key]
-    if pd.isna(value):
-        return None
-    return caster(value)
-
-
-def _row_to_distribution(row: pd.Series, group_key: dict[str, str]) -> ColumnDistribution:
-    """Build a ColumnDistribution from one row of a _build_distribution_agg result."""
-    return ColumnDistribution(
-        group_key=group_key,
-        count=int(row["count"]),
-        null_count=_row_val_or_none(row, "null_count", int),
-        mean=_row_val_or_none(row, "mean", float),
-        std=_row_val_or_none(row, "std", float),
-        min_val=_stringify_bound(row.get("min_val")),
-        p25=_row_val_or_none(row, "p25", float),
-        median=_row_val_or_none(row, "median", float),
-        p75=_row_val_or_none(row, "p75", float),
-        max_val=_stringify_bound(row.get("max_val")),
-        distinct_count=_row_val_or_none(row, "distinct_count", int),
-    )
-
-
-def _sample_arrow(table: pa.Table, n: int = 5) -> list[dict[str, Any]]:
-    """Return up to n rows as a list of dicts with Python-native values."""
-    sliced = table.slice(0, n)
-    if sliced.num_rows == 0:
-        return []
-    return [
-        {
-            col: (v.as_py() if hasattr(v, "as_py") else v)
-            for col, v in zip(sliced.column_names, row)
-        }
-        for row in zip(*[sliced.column(c) for c in sliced.column_names])
-    ]
 
 
 # ── Step 1: record_intent ────────────────────────────────────────────────────
@@ -281,14 +187,20 @@ def resolve_intent(
     if match_result.exact_match is None:
         return ResolveIntentResult(exact_match=None, near_misses=match_result.near_misses)
 
+    # Read metric_name/slices/segment off the validated exact_match rather than
+    # the raw arguments — resolver.py's own contract (09-querybot-v0.2-design.md
+    # §4.2): resolve() may one day normalize a proposal (alias expansion, slice
+    # dedup/reorder); reading from the raw args would silently skip that.
+    matched = match_result.exact_match
+
     if intent.column_distribution_result_id is not None:
         source_entry = ctx.deps.store.get_tabular(intent.column_distribution_result_id)
         source_metric = source_entry.metadata.get("metric_name")
-        if source_metric != metric_name:
+        if source_metric != matched.metric_name:
             return ResolveIntentResult(
                 exact_match=None,
                 near_misses=[NearMiss(
-                    name=metric_name,
+                    name=matched.metric_name,
                     why_not="column_distribution_metric_mismatch",
                     suggestions=[source_metric] if source_metric else [],
                 )],
@@ -296,9 +208,9 @@ def resolve_intent(
 
     spec_token = f"sm_{uuid.uuid4().hex}"
     resolved = ResolvedSpec(
-        metric_name=metric_name,
-        slice_specs=slices or [],
-        segment_spec=segment,
+        metric_name=matched.metric_name,
+        slice_specs=matched.slices,
+        segment_spec=matched.segment,
         period_type=intent.period_type,
         time_window=intent.time_window,
         by_entity=intent.by_entity,
@@ -307,12 +219,7 @@ def resolve_intent(
     )
     ctx.deps.spec_registry[spec_token] = resolved
 
-    exact = ExactMatch(
-        spec_token=spec_token,
-        metric_name=metric_name,
-        slices=slices or [],
-        segment=segment,
-    )
+    exact = matched.model_copy(update={"spec_token": spec_token})
     return ResolveIntentResult(exact_match=exact, near_misses=[])
 
 
@@ -321,7 +228,7 @@ def resolve_intent(
 def compute_metrics(
     ctx: RunContext[QueryDeps],
     spec_token: str,
-) -> ComputeMetricsResult:
+) -> Q_ComputeMetricsResult:
     """Execute a resolved metric spec and store the result.
 
     Call this only after resolve_intent returns an exact_match. Pass
@@ -331,7 +238,7 @@ def compute_metrics(
         spec_token: Opaque handle returned by resolve_intent.exact_match.spec_token.
 
     Returns:
-        ComputeMetricsResult with result_id pointing to the stored artifact.
+        Q_ComputeMetricsResult with result_id pointing to the stored artifact.
         On failure, result_id is "" and error contains the exception message.
     """
     # Pop on consume: single-use by design. With Anthropic parallel tool calls the LLM
@@ -346,7 +253,7 @@ def compute_metrics(
     # resolved" guarantee this relies on.
     resolved = ctx.deps.spec_registry.pop(spec_token, None)
     if resolved is None:
-        return ComputeMetricsResult(
+        return Q_ComputeMetricsResult(
             spec_token=spec_token,
             result_id="", row_count=0, sample=[], columns=[],
             format_hints={},
@@ -354,33 +261,23 @@ def compute_metrics(
         )
 
     try:
-        lock = _COMPUTE_LOCK if ctx.deps.connection_manager.requires_compute_lock else nullcontext()
-        with lock:
-            mc = MetricCompute(ctx.deps.spec_cache, ctx.deps.connection_manager)
-            ibis_table = mc.compute(
-                metrics=[resolved.metric_name],
-                slices=resolved.slice_specs or None,
-                segments=resolved.segment_spec,
-                time_window=resolved.time_window,
-                period_type=cast(PeriodType, resolved.period_type),
-                by_entity=resolved.by_entity,
-            )
-            arrow_table = ibis_table.to_pyarrow()
-
-        result_id = ctx.deps.store.store_tabular(arrow_table, ibis_table)
-
-        format_hints: dict[str, str] = {}
-        spec = ctx.deps.spec_cache.metrics.get(resolved.metric_name)
-        if spec and spec.format:
-            format_hints[resolved.metric_name] = spec.format
-
-        sample = _sample_arrow(arrow_table)
-        return ComputeMetricsResult(
+        result_id, row_count, sample, columns, format_hints = _execute_metric_compute(
+            ctx.deps.spec_cache,
+            ctx.deps.connection_manager,
+            ctx.deps.store,
+            resolved.metric_name,
+            resolved.slice_specs,
+            resolved.segment_spec,
+            resolved.by_entity,
+            resolved.period_type,
+            resolved.time_window,
+        )
+        return Q_ComputeMetricsResult(
             spec_token=spec_token,
             result_id=result_id,
-            row_count=len(arrow_table),
+            row_count=row_count,
             sample=sample,
-            columns=arrow_table.schema.names,
+            columns=columns,
             format_hints=format_hints,
             payload_summary={
                 "result_id": result_id,
@@ -401,7 +298,7 @@ def compute_metrics(
         # failure, never after success, so this can't reopen the double-execution
         # risk the pop above exists to prevent.
         ctx.deps.spec_registry[spec_token] = resolved
-        return ComputeMetricsResult(
+        return Q_ComputeMetricsResult(
             spec_token=spec_token,
             result_id="", row_count=0, sample=[], columns=[],
             format_hints={},
@@ -489,162 +386,6 @@ def filter_by_threshold(
         sample=_sample_arrow(result_arrow),
         predicate=f"{column} {op} {threshold}",
     )
-
-
-def distribution_summary(
-    ctx: RunContext[QueryDeps],
-    result_id: str,
-    group_by: list[str] | None = None,
-) -> DistributionSummaryResult:
-    """Compute distribution statistics (mean, std, percentiles) over metric_value.
-
-    Pushed down to the backend as a single group_by().aggregate() query — the
-    prior result is never materialized to pandas before aggregating.
-
-    Args:
-        result_id: ID of the result store entry to summarize.
-        group_by: STANDARD_COLUMNS field names to group by (e.g.
-            ["metric_name", "slice_value"]). Defaults to ["metric_name"].
-
-    Returns:
-        DistributionSummaryResult with one entry per group_by combination.
-    """
-    effective_group_by = group_by if group_by is not None else ["metric_name"]
-    entry = ctx.deps.store.get_tabular(result_id)
-    table = _get_ibis_table(entry)
-    agg = _build_distribution_agg(table, "metric_value", effective_group_by)
-    df = agg.to_pandas()
-
-    distributions = [
-        _row_to_distribution(row, {k: str(row[k]) for k in effective_group_by})
-        for _, row in df.iterrows()
-    ]
-
-    stats_rows = [d.model_dump() for d in distributions]
-    stats_arrow = pa.Table.from_pylist(stats_rows) if stats_rows else pa.table({})
-    # ibis_ref is deliberately retained here, unlike its four sibling analysis
-    # tools (rank_by_value, filter_by_threshold, period_over_period,
-    # contribution_share): this result is bounded by construction — one row
-    # per group_by combination, regardless of source size — so retaining a
-    # live ref costs nothing and can't reintroduce the expensive-re-query
-    # problem this redesign exists to fix.
-    new_id = ctx.deps.store.store_tabular(stats_arrow, agg)
-
-    return DistributionSummaryResult(
-        result_id=new_id, group_by=effective_group_by, distributions=distributions
-    )
-
-
-def _reject_unsafe_filter(filter_sql: str, dialect: str) -> str:
-    """Validate a column_distribution filter is a single boolean predicate with
-    no subquery, and return the sqlglot-regenerated SQL to splice.
-
-    This is a table-scope safety check, not general SQL-correctness validation:
-    the resolved source table is pinned by the metric's own spec, but a
-    subquery inside filter_sql could still read an arbitrary other table under
-    the connection's credentials. Parsing into the bounded exp.Condition
-    grammar also rejects statement-stacking and paren-breakout as a side
-    effect (both fail to parse). The *regenerated* SQL — not the raw input —
-    must be spliced by the caller: it neutralizes trailing-comment-truncation
-    attempts by re-serializing them as an inert block comment.
-
-    Raises:
-        ValueError: filter_sql fails to parse, or its parse tree contains a
-            Subquery/Select node.
-    """
-    try:
-        parsed = sqlglot.parse_one(filter_sql, into=sqlglot.exp.Condition, dialect=dialect)
-    except Exception as exc:
-        raise ValueError(f"filter is not a valid SQL predicate: {exc}") from exc
-    if list(parsed.find_all(sqlglot.exp.Subquery, sqlglot.exp.Select)):
-        raise ValueError("filter must not contain subqueries")
-    return parsed.sql(dialect=dialect)
-
-
-def column_distribution(
-    ctx: RunContext[QueryDeps],
-    metric_name: str,
-    column: str | None = None,
-    filter: str | None = None,
-) -> ColumnDistributionResult:
-    """Summarize a metric's raw source-table column — e.g. its real timestamp range.
-
-    Runs directly against the metric's source table, before compute_metrics and
-    with no spec_token gate. Use this to discover real column bounds (so
-    time_window is never fabricated) or other distribution stats before
-    resolving an intent. Must be called before record_intent when its result
-    will feed record_intent's column_distribution_result_id — that param reads
-    an already-stored result, so nothing exists to reference if record_intent
-    runs first.
-
-    Args:
-        metric_name: Canonical catalog metric name; its source table is used.
-        column: Column to summarize. Defaults to the metric's timestamp_col.
-        filter: Optional SQL boolean predicate (e.g. "order_value > 1000"),
-            applied as a WHERE clause on the source table — plain SQL
-            referencing the source table's own columns, not a slice name.
-
-    Returns:
-        ColumnDistributionResult with distribution stats, or error set on failure.
-    """
-    spec, suggestions = SpecResolver.resolve_metric_name(metric_name, ctx.deps.spec_cache)
-    if spec is None:
-        detail = f" Did you mean: {suggestions}?" if suggestions else ""
-        return ColumnDistributionResult(result_id="", error=f"Unknown metric {metric_name!r}.{detail}")
-
-    resolved_column = column or spec.timestamp_col
-    if not resolved_column:
-        return ColumnDistributionResult(
-            result_id="",
-            error="No column specified and metric has no timestamp_col; pass an explicit column.",
-        )
-
-    try:
-        connector = ctx.deps.connection_manager.get_connection_for_source(spec.source)
-        table_name, database = ctx.deps.connection_manager.resolve_table_reference(spec.source)
-        ibis_table = connector.get_table(table_name, database=database)
-    except Exception as exc:
-        return ColumnDistributionResult(result_id="", error=f"{type(exc).__name__}: {exc}")
-
-    if resolved_column not in ibis_table.columns:
-        return ColumnDistributionResult(
-            result_id="",
-            error=f"Column {resolved_column!r} not found. Available columns: {ibis_table.columns}",
-        )
-
-    filtered_table = ibis_table
-    if filter is not None:
-        try:
-            safe_filter = _reject_unsafe_filter(filter, connector.backend_type)
-        except ValueError as exc:
-            return ColumnDistributionResult(result_id="", error=str(exc))
-        try:
-            alias = f"_col_dist_src_{uuid.uuid4().hex[:8]}"
-            t_src = ibis_table.alias(alias)
-            filtered_table = t_src.sql(f"SELECT * FROM {alias} WHERE {safe_filter}")
-        except Exception as exc:
-            return ColumnDistributionResult(result_id="", error=f"{type(exc).__name__}: {exc}")
-
-    try:
-        agg = _build_distribution_agg(filtered_table, resolved_column, group_by=None)
-        df = agg.to_pandas()
-    except Exception as exc:
-        return ColumnDistributionResult(result_id="", error=f"{type(exc).__name__}: {exc}")
-
-    distribution = _row_to_distribution(
-        df.iloc[0], {"metric_name": metric_name, "column": resolved_column}
-    )
-    result_id = ctx.deps.store.store_tabular(
-        pa.Table.from_pylist([distribution.model_dump()]),
-        agg,
-        metadata={
-            "metric_name": metric_name,
-            "column": resolved_column,
-            "min_val": distribution.min_val,
-            "max_val": distribution.max_val,
-        },
-    )
-    return ColumnDistributionResult(result_id=result_id, distribution=distribution)
 
 
 def period_over_period(

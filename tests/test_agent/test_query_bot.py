@@ -163,7 +163,7 @@ def _make_refused_model():
 
 @pytest.fixture(autouse=True)
 def patch_metric_compute():
-    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_revenue_mock_mc()):
+    with patch("aitaem.agent.common_tools.MetricCompute", return_value=_revenue_mock_mc()):
         yield
 
 
@@ -856,12 +856,12 @@ def test_compute_metrics_restores_token_on_failure_for_retry():
     ctx = _make_ctx(deps)
     token = _mint_token(ctx)
 
-    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_mock_mc_raising(RuntimeError("boom"))):
+    with patch("aitaem.agent.common_tools.MetricCompute", return_value=_mock_mc_raising(RuntimeError("boom"))):
         first = compute_metrics(ctx, spec_token=token)
     assert first.result_id == ""
     assert first.error is not None
 
-    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_revenue_mock_mc()):
+    with patch("aitaem.agent.common_tools.MetricCompute", return_value=_revenue_mock_mc()):
         second = compute_metrics(ctx, spec_token=token)
     assert second.error is None
     assert second.result_id != ""
@@ -873,7 +873,7 @@ def test_compute_metrics_success_still_consumes_token():
     ctx = _make_ctx(deps)
     token = _mint_token(ctx)
 
-    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_revenue_mock_mc()):
+    with patch("aitaem.agent.common_tools.MetricCompute", return_value=_revenue_mock_mc()):
         first = compute_metrics(ctx, spec_token=token)
     assert first.error is None
 
@@ -952,7 +952,7 @@ def test_compute_metrics_concurrent_race_never_double_executes():
             if r.error is None:
                 break
 
-    with patch("aitaem.agent.query_tools.MetricCompute", side_effect=mc_factory):
+    with patch("aitaem.agent.common_tools.MetricCompute", side_effect=mc_factory):
         t_fail = threading.Thread(target=call_once)
         t_poll1 = threading.Thread(target=poller)
         t_poll2 = threading.Thread(target=poller)

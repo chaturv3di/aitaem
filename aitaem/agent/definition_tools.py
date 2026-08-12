@@ -1,8 +1,9 @@
 """DefinitionBot tools.
 
-Seven tools. Tools 1-5 form the 4-step gate order; tools 6-7 are callable any
+Nine tools. Tools 1-5 form the 4-step gate order; tools 6-9 are callable any
 time after validate_spec mints a token (delete_spec is standalone — no token
-needed):
+needed; date_range/compute_metrics/column_distribution are optional grounding
+tools, callable any time before draft_spec):
   1. record_definition_intent — capture spec type, description, optional existing YAML
   2. list_tables              — enumerate tables across backends
   3. describe_table           — schema for one table
@@ -10,6 +11,13 @@ needed):
   5. validate_spec            — 5-check anti-hallucination gate; mints spec_draft_token
   6. commit_spec               — save a validated draft to SpecCache (add or update)
   7. delete_spec               — remove a spec from SpecCache
+  8. date_range                 — bounds of a temporal column on any raw table
+  9. compute_metrics            — validate + execute a catalog metric, for
+                                   distribution_summary-derived thresholds
+
+column_distribution and distribution_summary (percentile-capable grounding
+tools) are also registered on DefinitionBot but live in common_tools.py,
+shared verbatim with QueryBot.
 """
 
 from __future__ import annotations
@@ -18,6 +26,8 @@ import json
 import uuid
 from typing import TYPE_CHECKING, Literal, Union, cast
 
+import ibis
+import pyarrow as pa
 import yaml
 
 if TYPE_CHECKING:
@@ -32,6 +42,8 @@ from pydantic_ai import RunContext
 from aitaem.agent.definition_types import (
     ColumnInfo,
     CommitSpecResult,
+    D_ComputeMetricsResult,
+    DateRangeResult,
     DefinitionDeps,
     DefinitionIntent,
     DeleteSpecResult,
@@ -43,6 +55,9 @@ from aitaem.agent.definition_types import (
     ValidateSpecResult,
     ValidationIssue,
 )
+from aitaem.agent.common_tools import _execute_metric_compute, _reject_unsafe_filter, _stringify_bound
+from aitaem.agent.resolver import MetricIntent, SpecResolver
+from aitaem.utils.exceptions import AitaemError
 
 _DRAFT_ID_PREFIX = "dd_"
 _YAML_PREVIEW_MAX = 800
@@ -590,6 +605,216 @@ def delete_spec(
         )
 
     return DeleteSpecResult(spec_type=spec_type, spec_name=name, deleted=True)
+
+
+# ── Step 8: date_range ───────────────────────────────────────────────────────
+
+
+def _build_bounds_agg(table: ibis.Table, column: str) -> ibis.Table:
+    """Build a bounds-only aggregate over column: count/null_count/min/max/distinct_count.
+
+    Unlike common_tools._build_distribution_agg, there is no numeric branch in
+    this function's code at all — no code path here can ever produce a
+    percentile, mean, or std, regardless of the input column's dtype. This is
+    what makes date_range structurally (not just conventionally) incapable of
+    percentile-adjacent grounding.
+    """
+    col = table[column]
+    return table.aggregate(
+        count=col.count(),
+        null_count=col.isnull().sum(),
+        min_val=col.min(),
+        max_val=col.max(),
+        distinct_count=col.nunique(),
+    )
+
+
+def date_range(
+    ctx: RunContext[DefinitionDeps],
+    source: str,
+    date_column: str,
+    filter: str | None = None,
+) -> DateRangeResult:
+    """Summarize the real bounds of a temporal column on any raw table.
+
+    Use this to ground a cohort/window boundary (e.g. "signups since March")
+    in real data instead of inventing a date. Unlike column_distribution, this
+    accepts any raw source: URI (as returned by list_tables()/describe_table())
+    — not just a metric name — but is bounds-only: it never computes a
+    percentile, mean, or std, and rejects non-temporal columns outright. For a
+    value-based threshold (e.g. "75th percentile of revenue"), use
+    column_distribution or compute_metrics + distribution_summary instead.
+
+    Args:
+        source: Source URI identifying the table, exactly as returned by a
+            prior list_tables()/describe_table() call. Reuse it verbatim.
+        date_column: Temporal column to summarize (e.g. a timestamp or date column).
+        filter: Optional SQL boolean predicate (e.g. "country = 'US'"), applied
+            as a WHERE clause on the source table.
+
+    Returns:
+        DateRangeResult with count/null_count/min_val/max_val/distinct_count,
+        or error set on failure (including a non-temporal date_column).
+    """
+    try:
+        connector = ctx.deps.connection_manager.get_connection_for_source(source)
+        table_name, database = ctx.deps.connection_manager.resolve_table_reference(source)
+        ibis_table = connector.get_table(table_name, database=database)
+    except AitaemError as exc:
+        return DateRangeResult(result_id="", error=f"{type(exc).__name__}: {exc}")
+    except Exception as exc:
+        return DateRangeResult(result_id="", error=f"Unexpected error: {type(exc).__name__}: {exc}")
+
+    if date_column not in ibis_table.columns:
+        return DateRangeResult(
+            result_id="",
+            error=f"Column {date_column!r} not found. Available columns: {ibis_table.columns}",
+        )
+
+    if not ibis_table[date_column].type().is_temporal():
+        return DateRangeResult(
+            result_id="",
+            error=(
+                f"Column {date_column!r} has dtype {ibis_table[date_column].type()!r}, "
+                "which is not temporal. date_range only summarizes temporal columns — "
+                "use column_distribution for a value-based threshold instead."
+            ),
+        )
+
+    filtered_table = ibis_table
+    if filter is not None:
+        try:
+            safe_filter = _reject_unsafe_filter(filter, connector.backend_type)
+        except ValueError as exc:
+            return DateRangeResult(result_id="", error=str(exc))
+        try:
+            alias = f"_date_range_src_{uuid.uuid4().hex[:8]}"
+            t_src = ibis_table.alias(alias)
+            filtered_table = t_src.sql(f"SELECT * FROM {alias} WHERE {safe_filter}")
+        except AitaemError as exc:
+            return DateRangeResult(result_id="", error=f"{type(exc).__name__}: {exc}")
+        except Exception as exc:
+            return DateRangeResult(result_id="", error=f"Unexpected error: {type(exc).__name__}: {exc}")
+
+    try:
+        agg = _build_bounds_agg(filtered_table, date_column)
+        row = agg.to_pandas().iloc[0]
+    except AitaemError as exc:
+        return DateRangeResult(result_id="", error=f"{type(exc).__name__}: {exc}")
+    except Exception as exc:
+        return DateRangeResult(result_id="", error=f"Unexpected error: {type(exc).__name__}: {exc}")
+
+    min_val = _stringify_bound(row.get("min_val"))
+    max_val = _stringify_bound(row.get("max_val"))
+    result_id = ctx.deps.store.store_tabular(
+        pa.Table.from_pylist([{
+            "count": int(row["count"]),
+            "null_count": int(row["null_count"]),
+            "min_val": min_val,
+            "max_val": max_val,
+            "distinct_count": int(row["distinct_count"]),
+        }]),
+        agg,
+        metadata={"source": source, "column": date_column, "min_val": min_val, "max_val": max_val},
+    )
+
+    return DateRangeResult(
+        result_id=result_id,
+        min_val=min_val,
+        max_val=max_val,
+        count=int(row["count"]),
+        null_count=int(row["null_count"]),
+        distinct_count=int(row["distinct_count"]),
+    )
+
+
+# ── Step 9: compute_metrics ──────────────────────────────────────────────────
+
+
+def compute_metrics(
+    ctx: RunContext[DefinitionDeps],
+    metric_name: str,
+    slices: list[str] | None = None,
+    segment: str | None = None,
+    by_entity: str | None = None,
+    period_type: str = "all_time",
+    time_window: tuple[str, str] | None = None,
+) -> D_ComputeMetricsResult:
+    """Validate and execute a catalog metric in one call, for aggregated-value
+    thresholds (e.g. "p99 of per-store revenue" — a threshold over a computed
+    metric_value, not a raw column). Feed the result_id to distribution_summary.
+
+    Unlike QueryBot's compute_metrics, there is no spec_token indirection —
+    this validates via SpecResolver.resolve() and executes immediately, since
+    neither concern that split solves for QueryBot (anti-double-execution on
+    parallel tool calls, a preceding record_intent NL-capture step) applies here.
+
+    Args:
+        metric_name: Proposed canonical metric name (must exactly match catalog).
+        slices: Proposed slice spec names (for breakdowns). Defaults to no slices.
+        segment: Proposed segment spec name. Defaults to no segment.
+        by_entity: Entity column for entity-level grouping (e.g. per-store revenue).
+        period_type: "all_time" | "hourly" | "daily" | "weekly" | "monthly" | "yearly".
+        time_window: [start_iso, end_iso]. Required when period_type != "all_time".
+
+    Returns:
+        D_ComputeMetricsResult with result_id pointing to the stored artifact.
+        near_misses is set (with no compute attempted) when metric_name/slices/
+        segment/by_entity/period_type don't validate against the catalog.
+    """
+    intent = MetricIntent(
+        metric_concept=metric_name,
+        scope="subset" if (slices or segment) else "overall",
+        period_type=period_type,
+        time_window=time_window,
+        by_entity=by_entity,
+    )
+    match_result = SpecResolver().resolve(
+        intent=intent,
+        proposed_metric_name=metric_name,
+        proposed_slices=slices or [],
+        proposed_segment=segment,
+        spec_cache=ctx.deps.spec_cache,
+    )
+
+    if match_result.exact_match is None:
+        return D_ComputeMetricsResult(
+            result_id="", row_count=0, sample=[], columns=[],
+            near_misses=match_result.near_misses,
+            error="No exact catalog match — see near_misses.",
+        )
+
+    exact_match = match_result.exact_match
+    try:
+        result_id, row_count, sample, columns, _format_hints = _execute_metric_compute(
+            ctx.deps.spec_cache,
+            ctx.deps.connection_manager,
+            ctx.deps.store,
+            exact_match.metric_name,
+            exact_match.slices,
+            exact_match.segment,
+            by_entity,
+            period_type,
+            time_window,
+        )
+    except AitaemError as exc:
+        return D_ComputeMetricsResult(
+            result_id="", row_count=0, sample=[], columns=[],
+            error=f"{type(exc).__name__}: {exc}",
+        )
+    except Exception as exc:
+        return D_ComputeMetricsResult(
+            result_id="", row_count=0, sample=[], columns=[],
+            error=f"Unexpected error: {type(exc).__name__}: {exc}",
+        )
+
+    dependent_metrics = ctx.deps.dependent_metrics
+    if exact_match.metric_name not in dependent_metrics:
+        dependent_metrics.append(exact_match.metric_name)
+
+    return D_ComputeMetricsResult(
+        result_id=result_id, row_count=row_count, sample=sample, columns=columns,
+    )
 
 
 # ---------------------------------------------------------------------------

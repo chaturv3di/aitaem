@@ -24,8 +24,11 @@ from aitaem.agent.definition_tools import (
     validate_spec,
     commit_spec,
     delete_spec,
+    date_range,
+    compute_metrics,
     _parse_yaml_to_spec,
 )
+from aitaem.agent.common_tools import column_distribution, distribution_summary
 from aitaem.agent.store import ResultStore
 from aitaem.agent.trace import Status
 
@@ -92,6 +95,32 @@ Always call describe_table on the primary source table before drafting. Reuse
 the exact source: URI string from list_tables()/describe_table() verbatim as
 the source: field in the drafted spec — never reconstruct one from
 project/dataset/schema parts you recall separately.
+
+### Grounding thresholds and date ranges in real data (optional)
+When a spec's `where:` predicate needs a numeric threshold or a date boundary
+(e.g. "high value = 75th percentile of invoices" or "cohort of signups since
+March"), call one of these before draft_spec — never invent the number or date:
+
+- `date_range(source, date_column, filter=None)` — bounds of a temporal column
+  on any raw table (from list_tables()/describe_table()). Use for cohort/window
+  boundaries. Temporal columns only — rejects a non-temporal date_column.
+- `column_distribution(metric_name, column=None, filter=None)` — row-level
+  distribution stats (mean/std/percentiles for numeric columns) on an existing
+  catalog metric's source table. Use for a value-based threshold (e.g. "75th
+  percentile of invoice amount"). Requires an existing metric — it never
+  accepts a raw source: URI, only a metric_name.
+- `compute_metrics(metric_name, slices=None, segment=None, by_entity=None,
+  period_type="all_time", time_window=None)` + `distribution_summary(result_id)`
+  — threshold over an *aggregated* metric value (e.g. "p99 of per-store
+  revenue"). Validates metric_name/slices/segment/by_entity/period_type against
+  the catalog the same way QueryBot's resolve_intent does; on no exact match,
+  returns near_misses with nothing computed.
+
+If no catalog metric matches the concept the threshold needs, do not invent a
+number and do not fall back to date_range or a raw column read. Set
+status="refused", and in narrative/reason name the missing concept and
+recommend the user first define a metric for it (a separate ask()/chat() call)
+before retrying this request.
 
 ### Step 3 — draft_spec
 Call with the YAML string you intend to validate. No validation occurs here.
@@ -372,6 +401,10 @@ class DefinitionBot(Bot):
             toolset.add_function(validate_spec)             # Step 4
             toolset.add_function(commit_spec)                # Step 6
             toolset.add_function(delete_spec)                 # Step 7
+            toolset.add_function(date_range)                  # Step 8 (optional grounding)
+            toolset.add_function(compute_metrics)             # Step 9 (optional grounding)
+            toolset.add_function(column_distribution)         # optional grounding
+            toolset.add_function(distribution_summary)        # optional grounding
 
             for tool in self._tools:
                 _register_tool(toolset, tool)
@@ -439,7 +472,7 @@ class DefinitionBot(Bot):
             output = cast(DefinitionOutput, result.output)
             trace = assemble_trace(result, run_start)
             self._conversation_id = trace.conversation_id
-            payload = DefinitionBot._assemble_payload(output, self._store)
+            payload = DefinitionBot._assemble_payload(output, self._store, deps.dependent_metrics)
             return DefinitionResponse(
                 status=output.status,
                 narrative=output.narrative,
@@ -487,7 +520,7 @@ class DefinitionBot(Bot):
             output = cast(DefinitionOutput, result.output)
             trace = assemble_trace(result, run_start)
             self._conversation_id = trace.conversation_id
-            payload = DefinitionBot._assemble_payload(output, self._store)
+            payload = DefinitionBot._assemble_payload(output, self._store, deps.dependent_metrics)
             return DefinitionResponse(
                 status=output.status,
                 narrative=output.narrative,
@@ -500,30 +533,35 @@ class DefinitionBot(Bot):
 
     @staticmethod
     def _assemble_payload(
-        output: DefinitionOutput, store: ResultStore
+        output: DefinitionOutput,
+        store: ResultStore,
+        dependent_metrics: list[str] | None = None,
     ) -> DefinitionPayload:
         """Assemble DefinitionPayload from the LLM's DefinitionOutput.
 
         When status is not ok or spec_draft_token is None, returns a payload with
-        only the committed_* fields set (if any) — a delete_spec-only turn has no
-        draft to re-parse. Otherwise also retrieves the validated YAML from the
-        store, re-parses it, and populates the appropriate spec field.
+        only the committed_*/dependent_metrics fields set (if any) — a
+        delete_spec-only turn has no draft to re-parse. Otherwise also retrieves
+        the validated YAML from the store, re-parses it, and populates the
+        appropriate spec field.
         """
-        committed_kwargs: dict[str, Any] = {}
+        payload_kwargs: dict[str, Any] = {}
         if output.status == Status.ok and output.committed_action is not None:
-            committed_kwargs = {
+            payload_kwargs = {
                 "committed_spec_type": output.committed_spec_type,
                 "committed_spec_name": output.committed_spec_name,
                 "committed_action": output.committed_action,
             }
+        if dependent_metrics:
+            payload_kwargs["dependent_metrics"] = dependent_metrics
 
         if output.status != Status.ok or output.spec_draft_token is None:
-            return DefinitionPayload(**committed_kwargs)
+            return DefinitionPayload(**payload_kwargs)
 
         try:
             entry = store.get_text(output.spec_draft_token)
         except Exception:
-            return DefinitionPayload(**committed_kwargs)
+            return DefinitionPayload(**payload_kwargs)
 
         yaml_string = entry.text
         metadata = entry.metadata
@@ -572,7 +610,7 @@ class DefinitionBot(Bot):
             metric_spec=metric_spec,
             slice_spec=slice_spec,
             segment_spec=segment_spec,
-            **committed_kwargs,
+            **payload_kwargs,
         )
 
     @staticmethod

@@ -1,10 +1,74 @@
 from __future__ import annotations
 
 import difflib
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal
 
-from aitaem.agent.query_types import ExactMatch, MetricIntent, NearMiss, SpecMatchResult
+from pydantic import BaseModel
+
 from aitaem.specs.metric import MetricSpec
+
+
+# ── Intent types (LLM-produced) ─────────────────────────────────────────────
+
+@dataclass
+class MetricIntent:
+    """Structured interpretation of one metric the user is asking about.
+
+    Produced by record_intent and stored in QueryDeps.intents.
+    One intent per metric; multi-metric questions produce multiple intents.
+    """
+    metric_concept: str                          # free-text LLM interpretation
+    scope: Literal["overall", "subset"]
+    subset_description: str | None = None        # prose description of the subset
+    slice_type: str | None = None                # proposed slice spec name (breakdown)
+    slice_value: str | None = None                # specific filter value, e.g. "US"
+    segment_name: str | None = None               # proposed segment spec name
+    segment_value: str | None = None              # specific segment filter value
+    period_type: str = "all_time"
+    time_window: tuple[str, str] | None = None    # (start_iso, end_iso)
+    by_entity: str | None = None
+    column_distribution_result_id: str | None = None  # source of a derived time_window
+
+
+# ── Resolution result types (LLM-facing tool returns) ───────────────────────
+
+class ExactMatch(BaseModel):
+    """Minted only when SpecResolver confirms a valid proposal."""
+    spec_token: str
+    metric_name: str
+    slices: list[str]
+    segment: str | None
+
+
+class NearMiss(BaseModel):
+    """A catalog entry that resolve_intent considered but rejected, with the reason why."""
+
+    name: str
+    why_not: Literal[
+        "unknown_metric",
+        "scope_mismatch", "wrong_dimension_kind",
+        "unknown_slice", "unknown_segment",
+        "unsupported_by_entity", "unsupported_period_type",
+        "column_distribution_metric_mismatch",
+    ]
+    suggestions: list[str] = []
+    """Populated for two why_not reasons, each for a different purpose:
+    - 'unknown_metric': catalog names close to `name`, via difflib.get_close_matches
+      (cutoff=0.75), for typo correction.
+    - 'column_distribution_metric_mismatch': the single metric name the referenced
+      column_distribution result was actually computed against.
+    Empty for all other why_not reasons."""
+
+
+class SpecMatchResult(BaseModel):
+    """Returned to the LLM by resolve_intent.
+
+    If exact_match is not None: the LLM proceeds to compute_metrics(spec_token).
+    If exact_match is None: the LLM must produce status=refused and cite near_misses.
+    """
+    exact_match: ExactMatch | None
+    near_misses: list[NearMiss]
 
 
 class SpecResolver:

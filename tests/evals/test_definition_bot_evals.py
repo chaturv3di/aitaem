@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from typing import Any
 
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
@@ -21,7 +22,7 @@ from aitaem.agent.definition_bot import DefinitionBot, DefinitionResponse
 from aitaem.agent.definition_types import DefinitionOutput
 from aitaem.agent.trace import Status
 
-from ._fixtures import make_definition_bot_fixture
+from ._fixtures import make_definition_bot_fixture, make_definition_bot_grounding_fixture
 
 _VALID_METRIC_YAML = """\
 metric:
@@ -49,6 +50,11 @@ metric:
 class DefinitionEvalInput:
     description: str
     model: FunctionModel
+    # Defaults to the empty-catalog fixture (existing cases below). SF-10's
+    # grounding case swaps in make_definition_bot_grounding_fixture, which
+    # has a `revenue` metric already in the catalog and a real ibis.memtable
+    # table, so column_distribution executes real aggregation logic.
+    bot_builder: Any = make_definition_bot_fixture
 
 
 @dataclass
@@ -58,7 +64,7 @@ class DefinitionEvalOutput:
 
 
 async def definition_bot_task(inputs: DefinitionEvalInput) -> DefinitionEvalOutput:
-    bot = make_definition_bot_fixture(inputs.model)
+    bot = inputs.bot_builder(inputs.model)
     response = await bot.ask(inputs.description)
     return DefinitionEvalOutput(response=response, bot=bot)
 
@@ -112,6 +118,32 @@ class SpecDraftTokenIsNone(Evaluator[DefinitionEvalInput, DefinitionEvalOutput, 
     def evaluate(self, ctx: EvaluatorContext[DefinitionEvalInput, DefinitionEvalOutput, None]) -> bool:
         payload = ctx.output.response.payload
         return payload is None or payload.spec_draft_token is None
+
+
+@dataclass
+class DependentMetricsContains(Evaluator[DefinitionEvalInput, DefinitionEvalOutput, None]):
+    """Asserts payload.dependent_metrics contains the given metric name (Plan 37, SF-10)."""
+
+    metric_name: str
+
+    def evaluate(self, ctx: EvaluatorContext[DefinitionEvalInput, DefinitionEvalOutput, None]) -> bool:
+        payload = ctx.output.response.payload
+        return payload is not None and self.metric_name in payload.dependent_metrics
+
+
+@dataclass
+class ToolCallHasResultId(Evaluator[DefinitionEvalInput, DefinitionEvalOutput, None]):
+    """Asserts the named tool call's RunTrace entry has a non-empty result_id —
+    proof the new tools' result types flow through assemble_trace() correctly
+    (Plan 37, SF-10)."""
+
+    tool_name: str
+
+    def evaluate(self, ctx: EvaluatorContext[DefinitionEvalInput, DefinitionEvalOutput, None]) -> bool:
+        tc = next(
+            (t for t in ctx.output.response.trace.tool_calls if t.name == self.tool_name), None
+        )
+        return tc is not None and bool(tc.result_id)
 
 
 # ---------------------------------------------------------------------------
@@ -193,6 +225,65 @@ def _full_flow_model(yaml_string: str) -> FunctionModel:
     return FunctionModel(fn)
 
 
+_HIGH_VALUE_SLICE_YAML = """\
+slice:
+  name: high_value_transactions
+  values:
+    - name: high
+      where: "amount > 1000"
+    - name: low
+      where: "amount <= 1000"
+"""
+
+
+def _grounding_flow_model() -> FunctionModel:
+    """Drives record_definition_intent -> column_distribution -> draft_spec ->
+    validate_spec -> DefinitionOutput. Proves column_distribution's result
+    (Plan 37, SF-2/SF-6) flows through RunTrace and DefinitionDeps.dependent_metrics
+    into DefinitionPayload, alongside the pre-existing 4-step gate.
+    """
+
+    def fn(messages: list, info: AgentInfo) -> ModelResponse:
+        returns = _collect_tool_returns(messages)
+
+        if "record_definition_intent" not in returns:
+            return ModelResponse(parts=[ToolCallPart(
+                tool_name="record_definition_intent",
+                args=json.dumps({"spec_type": "slice", "description": "High-value transactions"}),
+                tool_call_id="tc-1",
+            )])
+        if "column_distribution" not in returns:
+            return ModelResponse(parts=[ToolCallPart(
+                tool_name="column_distribution",
+                args=json.dumps({"metric_name": "revenue", "column": "amount"}),
+                tool_call_id="tc-2",
+            )])
+        if "draft_spec" not in returns:
+            return ModelResponse(parts=[ToolCallPart(
+                tool_name="draft_spec",
+                args=json.dumps({"spec_type": "slice", "yaml_string": _HIGH_VALUE_SLICE_YAML}),
+                tool_call_id="tc-3",
+            )])
+        if "validate_spec" not in returns:
+            draft_id = returns["draft_spec"].get("draft_id", "")
+            return ModelResponse(parts=[ToolCallPart(
+                tool_name="validate_spec",
+                args=json.dumps({"draft_id": draft_id}),
+                tool_call_id="tc-4",
+            )])
+
+        validate_data = returns["validate_spec"]
+        token = validate_data.get("spec_draft_token")
+        output = DefinitionOutput(
+            status=Status.ok if token else Status.error,
+            narrative="High-value slice grounded in real data." if token else "Validation failed.",
+            spec_draft_token=token,
+        )
+        return ModelResponse(parts=[TextPart(content=output.model_dump_json())])
+
+    return FunctionModel(fn)
+
+
 # ---------------------------------------------------------------------------
 # Dataset
 # ---------------------------------------------------------------------------
@@ -216,6 +307,20 @@ dataset: Dataset[DefinitionEvalInput, DefinitionEvalOutput, None] = Dataset(
                 model=_full_flow_model(_AMBIGUOUS_METRIC_YAML),
             ),
             evaluators=(StatusIsNot(not_expected=Status.ok), SpecDraftTokenIsNone()),
+        ),
+        Case(
+            name="grounding_tools_wiring",
+            inputs=DefinitionEvalInput(
+                description="Define a slice for high-value transactions using column_distribution",
+                model=_grounding_flow_model(),
+                bot_builder=make_definition_bot_grounding_fixture,
+            ),
+            evaluators=(
+                StatusIs(expected=Status.ok),
+                MintedSpecDraftToken(),
+                DependentMetricsContains(metric_name="revenue"),
+                ToolCallHasResultId(tool_name="column_distribution"),
+            ),
         ),
     ],
 )

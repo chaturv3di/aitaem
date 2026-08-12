@@ -1,33 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from aitaem.agent.trace import Status
-
-
-# ── Intent types (LLM-produced) ─────────────────────────────────────────────
-
-@dataclass
-class MetricIntent:
-    """Structured interpretation of one metric the user is asking about.
-
-    Produced by record_intent and stored in QueryDeps.intents.
-    One intent per metric; multi-metric questions produce multiple intents.
-    """
-    metric_concept: str                          # free-text LLM interpretation
-    scope: Literal["overall", "subset"]
-    subset_description: str | None = None        # prose description of the subset
-    slice_type: str | None = None                # proposed slice spec name (breakdown)
-    slice_value: str | None = None               # specific filter value, e.g. "US"
-    segment_name: str | None = None              # proposed segment spec name
-    segment_value: str | None = None             # specific segment filter value
-    period_type: str = "all_time"
-    time_window: tuple[str, str] | None = None   # (start_iso, end_iso)
-    by_entity: str | None = None
-    column_distribution_result_id: str | None = None  # source of a derived time_window
+# Moved to resolver.py (SF-1); re-exported here since query_tools.py and
+# existing callers import these from query_types.
+from aitaem.agent.resolver import ExactMatch, MetricIntent, NearMiss, SpecMatchResult  # noqa: F401
+# Moved to common_tools.py (SF-2); re-exported here for the same reason.
+from aitaem.agent.common_tools import (  # noqa: F401
+    ToolResult,
+    ColumnDistribution,
+    ColumnDistributionResult,
+    DistributionSummaryResult,
+)
 
 
 # ── Server-side resolution types (LLM never sees these) ─────────────────────
@@ -62,44 +50,7 @@ class QueryDeps:
 
 
 # ── Resolution result types (LLM-facing tool returns) ───────────────────────
-
-class ExactMatch(BaseModel):
-    """Minted only when SpecResolver confirms a valid proposal."""
-    spec_token: str
-    metric_name: str
-    slices: list[str]
-    segment: str | None
-
-
-class NearMiss(BaseModel):
-    """A catalog entry that resolve_intent considered but rejected, with the reason why."""
-
-    name: str
-    why_not: Literal[
-        "unknown_metric",
-        "scope_mismatch", "wrong_dimension_kind",
-        "unknown_slice", "unknown_segment",
-        "unsupported_by_entity", "unsupported_period_type",
-        "column_distribution_metric_mismatch",
-    ]
-    suggestions: list[str] = []
-    """Populated for two why_not reasons, each for a different purpose:
-    - 'unknown_metric': catalog names close to `name`, via difflib.get_close_matches
-      (cutoff=0.75), for typo correction.
-    - 'column_distribution_metric_mismatch': the single metric name the referenced
-      column_distribution result was actually computed against.
-    Empty for all other why_not reasons."""
-
-
-class SpecMatchResult(BaseModel):
-    """Returned to the LLM by resolve_intent.
-
-    If exact_match is not None: the LLM proceeds to compute_metrics(spec_token).
-    If exact_match is None: the LLM must produce status=refused and cite near_misses.
-    """
-    exact_match: ExactMatch | None
-    near_misses: list[NearMiss]
-
+# ExactMatch, NearMiss, SpecMatchResult moved to resolver.py (SF-1); imported above.
 
 class RecordIntentResult(BaseModel):
     """Returned by record_intent. The intent_id is used in the resolve_intent call."""
@@ -181,32 +132,10 @@ class QueryPayload(BaseModel):
 
 
 # ── Tool result models (LLM reads these after each tool call) ────────────────
+# ToolResult, ColumnDistribution, ColumnDistributionResult, DistributionSummaryResult
+# moved to common_tools.py (SF-2); imported above.
 
-class ToolResult(BaseModel):
-    """Base for all tool result models returned to the LLM.
-
-    If this tool contributes to QueryPayload, populate payload_summary with
-    any of the standard keys (all optional — omit inapplicable ones):
-      metrics_used : list[str]             — metric names computed this call
-      slices_used  : list[str]             — slice names applied
-      segment_used : str | None            — segment name applied
-      period_type  : str                   — granularity ("all_time", "monthly", …)
-      time_window  : list[str] | None      — [start, end] ISO-8601 dates
-      by_entity    : str | None            — entity grouping column
-      format_hints : dict[str, str]        — metric_name → format string (e.g. "percentage")
-
-    Leave payload_summary=None if the tool contributes nothing to the payload
-    (analysis tools that only transform a prior result should do this).
-
-    Aggregation when multiple tool calls contribute in one turn:
-      - list fields  : union with deduplication, order of first appearance
-      - scalar fields: first-write wins (first call that sets a field governs)
-    """
-    payload_summary: dict[str, Any] | None = None
-    error: str | None = None   # populated on failure; result_id will be "" when set
-
-
-class ComputeMetricsResult(ToolResult):
+class Q_ComputeMetricsResult(ToolResult):
     """Summary returned by compute_metrics(spec_token). Full data is in ResultStore."""
     spec_token: str = Field(
         description=(
@@ -236,41 +165,6 @@ class FilterByThresholdResult(ToolResult):
     total_rows: int
     sample: list[dict[str, Any]]    # up to 5 matching rows
     predicate: str                  # human-readable: "metric_value > 100.0"
-
-
-class ColumnDistribution(BaseModel):
-    """Distribution statistics for one group_by combination (distribution_summary)
-    or for one raw source-table column (column_distribution).
-
-    Numeric columns populate mean/std/percentiles; non-numeric columns populate
-    distinct_count instead. min_val/max_val are always stringified (see the
-    'min_val/max_val stringification' key decision in Plan 36) — ISO-8601 for
-    temporal values, str() otherwise.
-    """
-    group_key: dict[str, str]
-    count: int
-    null_count: int | None = None
-    mean: float | None = None
-    std: float | None = None
-    min_val: str | None = None
-    p25: float | None = None
-    median: float | None = None
-    p75: float | None = None
-    max_val: str | None = None
-    distinct_count: int | None = None
-
-
-class DistributionSummaryResult(ToolResult):
-    """Summary returned by distribution_summary. One entry per group_by combination."""
-    result_id: str
-    group_by: list[str]
-    distributions: list[ColumnDistribution]
-
-
-class ColumnDistributionResult(ToolResult):
-    """Summary returned by column_distribution."""
-    result_id: str
-    distribution: ColumnDistribution | None = None
 
 
 class PeriodOverPeriodResult(ToolResult):

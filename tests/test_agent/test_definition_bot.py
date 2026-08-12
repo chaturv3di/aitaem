@@ -141,6 +141,24 @@ def test_layer_a_contains_spec_precision_rule():
 
 
 # ---------------------------------------------------------------------------
+# Plan 37, SF-7: grounding tools prompt section
+# ---------------------------------------------------------------------------
+
+
+def test_layer_a_contains_grounding_section():
+    layer_a = _build_layer_a_definition()
+    assert "Grounding thresholds and date ranges" in layer_a
+    for tool in ["date_range", "column_distribution", "compute_metrics", "distribution_summary"]:
+        assert tool in layer_a, f"Tool {tool!r} missing from grounding section"
+
+
+def test_layer_a_grounding_section_documents_refusal_guidance():
+    layer_a = _build_layer_a_definition()
+    assert "status=\"refused\"" in layer_a or "status='refused'" in layer_a
+    assert "define a metric" in layer_a.lower()
+
+
+# ---------------------------------------------------------------------------
 # SF-7: _build_layer_b_definition
 # ---------------------------------------------------------------------------
 
@@ -1087,6 +1105,31 @@ def test_definition_bot_agent_has_seven_tools():
     assert expected.issubset(tool_names)
 
 
+# ---------------------------------------------------------------------------
+# Plan 37, SF-6: date_range / compute_metrics / column_distribution /
+# distribution_summary registration
+# ---------------------------------------------------------------------------
+
+
+def test_definition_bot_agent_has_nine_tools():
+    bot = _make_bot()
+    tool_names = set(bot._toolset.tools.keys())
+    expected = {
+        "record_definition_intent",
+        "list_tables",
+        "describe_table",
+        "draft_spec",
+        "validate_spec",
+        "commit_spec",
+        "delete_spec",
+        "date_range",
+        "compute_metrics",
+        "column_distribution",
+        "distribution_summary",
+    }
+    assert expected == tool_names
+
+
 def test_assemble_payload_surfaces_committed_fields_without_spec_draft_token():
     """A delete_spec-only turn has no draft to re-parse, but committed_* must still surface."""
     store = ResultStore()
@@ -1323,3 +1366,57 @@ def test_multi_turn_commit_using_spec_draft_token():
     assert turn2.payload.committed_action == "added"
     assert turn2.payload.committed_spec_name == "revenue"
     assert "revenue" in cache.metrics
+
+
+# ---------------------------------------------------------------------------
+# Plan 37, SF-6: dependent_metrics threaded into DefinitionPayload
+# ---------------------------------------------------------------------------
+
+
+def _make_grounding_flow_model():
+    """FunctionModel: record_definition_intent -> column_distribution -> status=ok.
+
+    Real (non-mocked) column_distribution execution against the ad_campaigns
+    DuckDB fixture — a MagicMock ibis table wouldn't exercise the actual
+    dependent_metrics append path this test verifies.
+    """
+
+    def fn(messages: list, info: AgentInfo) -> ModelResponse:
+        returns = _collect_tool_returns(messages)
+
+        if "record_definition_intent" not in returns:
+            return ModelResponse(parts=[ToolCallPart(
+                tool_name="record_definition_intent",
+                args=json.dumps({"spec_type": "slice", "description": "high value transactions"}),
+                tool_call_id="tc-1",
+            )])
+
+        if "column_distribution" not in returns:
+            return ModelResponse(parts=[ToolCallPart(
+                tool_name="column_distribution",
+                args=json.dumps({"metric_name": "total_revenue"}),
+                tool_call_id="tc-2",
+            )])
+
+        output = DefinitionOutput(status=Status.ok, narrative="Grounded in real data.")
+        return ModelResponse(parts=[TextPart(content=output.model_dump_json())])
+
+    return FunctionModel(fn)
+
+
+def test_dependent_metrics_surfaced_in_payload(ad_campaigns_connection_manager):
+    rev = MagicMock()
+    rev.source = "duckdb://ad_campaigns.duckdb/ad_campaigns"
+    rev.timestamp_col = "date"
+    sc = _make_spec_cache(metrics={"total_revenue": rev})
+
+    bot = DefinitionBot(
+        model=_make_grounding_flow_model(),
+        spec_cache=sc,
+        connection_manager=ad_campaigns_connection_manager,
+    )
+
+    response = asyncio.run(bot.ask("Define a slice for high-value transactions"))
+
+    assert response.status == Status.ok
+    assert response.payload.dependent_metrics == ["total_revenue"]
