@@ -72,6 +72,40 @@ print([tc.name for tc in response.trace.tool_calls])
 Swap `TestModel()` for a real model string (e.g. `"anthropic:claude-haiku-4-5-20251001"`)
 once you've installed the matching provider SDK.
 
+### Rebuilding the agent when your catalog changes
+
+`EchoBot` above builds its toolset unconditionally — fine for a bot with no
+`SpecCache`-derived prompt content. If your bot's instructions embed anything from a
+`SpecCache` (a metric/slice/segment catalog, as `QueryBot` and `DefinitionBot` both do),
+guard the toolset construction so a later `_build_agent()` call — triggered when you
+detect `self._spec_cache.version` has moved — refreshes the catalog without discarding
+tools added at runtime via `add_tool()` (which mutates `self._toolset` in place, so a
+fresh `FunctionToolset()` on every call would silently drop them):
+
+```python
+def _build_agent(self) -> Agent:
+    if self._toolset is None:
+        toolset = FunctionToolset()
+        toolset.add_function(word_count)
+        for tool in self._tools:
+            _register_tool(toolset, tool)
+        self._toolset = toolset  # built once; add_tool() mutates it afterward
+
+    # ... rebuild the Agent (instructions, deps_type, etc.) every call ...
+    return Agent(model=self._model, toolsets=[self._toolset], instructions=self._catalog_instructions())
+
+async def ask(self, message: str, ...) -> BotResponse:
+    if self._spec_cache.version != self._catalog_version:
+        self._agent = self._build_agent()
+        self._catalog_version = self._spec_cache.version
+    ...
+```
+
+This is exactly the pattern `QueryBot`/`DefinitionBot` use to stay current when a
+`DefinitionBot` commits, updates, or deletes a spec in a `SpecCache` another bot shares —
+without a per-turn rebuild, that other bot's catalog would go stale for the rest of its
+session.
+
 ## `BotResponse`, `Status`, `RunTrace`, `ResultStore`
 
 Every bot method returns a `BotResponse[PayloadT]` — a frozen Pydantic model with

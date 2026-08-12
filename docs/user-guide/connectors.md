@@ -49,6 +49,12 @@ bigquery:
 | `project_id` | Yes | — | GCP project ID that owns the BigQuery datasets |
 | `dataset_id` | No | `null` | Default dataset used when a table name is not fully-qualified |
 
+`project_id`/`dataset_id` are resolution defaults, not an access boundary: a spec whose
+`source:` URI names a different project is still queried under that project, not silently
+rewritten to the connection's own. aitaem does not restrict which project or dataset a
+connection can reach — the connection's own ADC/service-account credentials are the only
+real boundary, the same as querying BigQuery directly.
+
 **Authentication** uses Application Default Credentials (ADC). Before connecting, run:
 
 ```bash
@@ -178,8 +184,12 @@ bigquery://project.dataset.table
 |-----|---------|-------|
 | `bigquery://my-project.analytics.events` | `my-project` | `analytics.events` |
 | `bigquery://my-project/analytics.events` | `my-project` | `analytics.events` |
+| `bigquery://my-project/analytics/events` | `my-project` | `analytics.events` |
 
-BigQuery URIs must contain at least three dot-separated parts (project, dataset, table).
+Every `/` after the backend prefix is normalized to a `.` before parsing, so slash- and
+dot-separated forms are interchangeable — the resulting URI must contain at least three
+dot-separated parts (project, dataset, table) once normalized. `bigquery://project/dataset/table`
+(all-slash) is the form `DefinitionBot` uses when drafting a spec's `source:` field.
 
 ### PostgreSQL
 

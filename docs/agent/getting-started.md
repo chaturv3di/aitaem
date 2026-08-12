@@ -2,7 +2,8 @@
 
 `aitaem.agent` is an optional install that ships two LLM-facing convenience bots on top
 of the deterministic compute layer: `QueryBot` (answer questions against your metric
-catalog) and `DefinitionBot` (draft and validate new specs from natural language).
+catalog) and `DefinitionBot` (draft, validate, and commit or delete specs from natural
+language).
 
 ## Installation
 
@@ -84,7 +85,7 @@ runnable scripts and notebooks, numbered in a suggested reading order:
 
 | # | Example | What it covers |
 |---|---------|-----------------|
-| 01 | `definition_bot_example` | The four-step spec-definition workflow, direct YAML parsing and LLM-assisted drafting |
+| 01 | `definition_bot_example` | The five-step spec-definition workflow, direct YAML parsing and LLM-assisted drafting |
 | 02 | `query_bot_example` | A multi-turn `QueryBot` conversation |
 | 03 | `intent_resolution_example` | A deep dive into `QueryBot`'s intent → resolve → compute gate |
 | 04 | `evaluating_agents_example` | Writing `pydantic_evals` evaluations against a live model |
