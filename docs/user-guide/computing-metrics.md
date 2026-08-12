@@ -207,7 +207,7 @@ expression method (`.filter()`, `.select()`, `.aggregate()`, etc.) directly on t
 | Column | Type | Description |
 |--------|------|-------------|
 | `period_type` | `str` | `"all_time"`, `"daily"`, `"weekly"`, `"monthly"`, `"yearly"`, or `"hourly"` |
-| `period_start_date` | `str \| None` | ISO date string (`"YYYY-MM-DD HH:MM:SS"`) for non-`all_time`, or `None` |
+| `period_start_date` | `str \| None` | Timestamp cast to string (typically `"YYYY-MM-DD HH:MM:SS"`) for non-`all_time`, or `None`. The exact rendering is the target backend's own `TIMESTAMP → STRING` cast, so it can vary across DuckDB/BigQuery/Postgres — parse with a tolerant timestamp parser rather than a fixed format string |
 | `period_end_date` | `str \| None` | Same format as `period_start_date` (exclusive end of the period) |
 | `entity_id` | `str \| None` | Value of the entity column (e.g. a `user_id`), or `None` when `by_entity` is not set |
 | `metric_name` | `str` | Name of the metric |
