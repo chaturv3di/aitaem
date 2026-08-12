@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from aitaem.agent.definition_types import (
     DefinitionDeps,
@@ -16,6 +16,9 @@ from aitaem.agent.definition_tools import (
     list_tables,
     record_definition_intent,
     validate_spec,
+    date_range,
+    compute_metrics as definition_compute_metrics,
+    _build_bounds_agg,
 )
 from aitaem.agent.store import ResultStore, TextEntry
 from aitaem.utils.exceptions import AitaemConnectionError, ConnectionNotFoundError
@@ -944,3 +947,320 @@ def test_delete_spec_blocked_by_dependent_composite():
     assert result.error is not None
     assert "geo_x_device" in result.error
     assert "geo" in cache.slices
+
+
+# ---------------------------------------------------------------------------
+# Plan 37, SF-4: date_range / _build_bounds_agg
+# ---------------------------------------------------------------------------
+
+_AD_CAMPAIGNS_SOURCE = "duckdb://ad_campaigns.duckdb/ad_campaigns"
+
+
+def test_date_range_success(ad_campaigns_connection_manager):
+    deps = _make_deps(connection_manager=ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+
+    result = date_range(ctx, source=_AD_CAMPAIGNS_SOURCE, date_column="date")
+
+    assert result.error is None
+    assert result.count == 1800
+    assert result.min_val is not None
+    assert result.max_val is not None
+    assert result.distinct_count is not None
+
+
+def test_date_range_non_temporal_column_rejected(ad_campaigns_connection_manager):
+    deps = _make_deps(connection_manager=ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+
+    result = date_range(ctx, source=_AD_CAMPAIGNS_SOURCE, date_column="revenue")
+
+    assert result.error is not None
+    assert "not temporal" in result.error
+    assert result.result_id == ""
+
+
+def test_date_range_unknown_column_errors(ad_campaigns_connection_manager):
+    deps = _make_deps(connection_manager=ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+
+    result = date_range(ctx, source=_AD_CAMPAIGNS_SOURCE, date_column="bogus_col")
+
+    assert result.error is not None
+    assert "bogus_col" in result.error
+
+
+def test_date_range_unknown_source_returns_error_not_raised(ad_campaigns_connection_manager):
+    deps = _make_deps(connection_manager=ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+
+    result = date_range(ctx, source="bigquery://no-such-project/no_such_dataset.no_such_table", date_column="date")
+
+    assert result.error is not None
+    assert result.result_id == ""
+
+
+def test_date_range_filter_narrows_results(ad_campaigns_connection_manager):
+    deps = _make_deps(connection_manager=ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+
+    unfiltered = date_range(ctx, source=_AD_CAMPAIGNS_SOURCE, date_column="date")
+    filtered = date_range(ctx, source=_AD_CAMPAIGNS_SOURCE, date_column="date", filter="revenue > 1000")
+
+    assert filtered.error is None
+    assert filtered.count < unfiltered.count
+
+
+def test_date_range_malformed_filter_returns_error_not_raised(ad_campaigns_connection_manager):
+    deps = _make_deps(connection_manager=ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+
+    result = date_range(
+        ctx, source=_AD_CAMPAIGNS_SOURCE, date_column="date",
+        filter="x IN (SELECT y FROM dim_platforms)",
+    )
+
+    assert result.error is not None
+    assert result.result_id == ""
+
+
+def test_date_range_filter_execution_failure_returns_error_not_raised(ad_campaigns_connection_manager):
+    """The filter parses as valid SQL but fails at execution (unknown column) — caught, not raised."""
+    deps = _make_deps(connection_manager=ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+
+    result = date_range(
+        ctx, source=_AD_CAMPAIGNS_SOURCE, date_column="date", filter="nonexistent_col > 5"
+    )
+
+    assert result.error is not None
+    assert result.result_id == ""
+
+
+def test_date_range_aggregate_execution_failure_returns_error_not_raised(ad_campaigns_connection_manager):
+    deps = _make_deps(connection_manager=ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+
+    with patch("aitaem.agent.definition_tools._build_bounds_agg", side_effect=RuntimeError("boom")):
+        result = date_range(ctx, source=_AD_CAMPAIGNS_SOURCE, date_column="date")
+
+    assert result.error is not None
+    assert "boom" in result.error
+    assert result.result_id == ""
+
+
+def test_date_range_stores_min_max_metadata(ad_campaigns_connection_manager):
+    deps = _make_deps(connection_manager=ad_campaigns_connection_manager)
+    ctx = _make_ctx(deps)
+
+    result = date_range(ctx, source=_AD_CAMPAIGNS_SOURCE, date_column="date")
+
+    entry = deps.store.get_tabular(result.result_id)
+    assert entry.metadata["source"] == _AD_CAMPAIGNS_SOURCE
+    assert entry.metadata["column"] == "date"
+    assert entry.metadata["min_val"] == result.min_val
+    assert entry.metadata["max_val"] == result.max_val
+
+
+def test_build_bounds_agg_no_percentile_fields_on_numeric_column(ad_campaigns_connection_manager):
+    """Structural guarantee: _build_bounds_agg has no numeric branch at all, so
+    it cannot produce mean/std/percentile fields even when pointed at a numeric
+    column — unlike common_tools._build_distribution_agg."""
+    connector = ad_campaigns_connection_manager.get_connection("duckdb")
+    table = connector.get_table("ad_campaigns")
+
+    agg = _build_bounds_agg(table, "revenue")
+
+    assert set(agg.columns) == {"count", "null_count", "min_val", "max_val", "distinct_count"}
+    row = agg.to_pandas().iloc[0]
+    assert row["count"] == 1800
+
+
+def test_build_bounds_agg_temporal_column(ad_campaigns_connection_manager):
+    connector = ad_campaigns_connection_manager.get_connection("duckdb")
+    table = connector.get_table("ad_campaigns")
+
+    agg = _build_bounds_agg(table, "date")
+    row = agg.to_pandas().iloc[0]
+
+    assert row["count"] == 1800
+    assert "mean" not in agg.columns
+    assert "p25" not in agg.columns
+
+
+# ---------------------------------------------------------------------------
+# Plan 37, SF-5: compute_metrics (DefinitionBot's single-call version)
+# ---------------------------------------------------------------------------
+
+
+def _make_revenue_spec_cache():
+    sc = MagicMock()
+    rev = MagicMock()
+    rev.entities = ["store_id"]
+    rev.timestamp_col = "ts"
+    rev.format = None
+    sc.metrics = {"revenue": rev}
+    sc.slices = {"by_country": MagicMock()}
+    sc.segments = {"by_advertiser": MagicMock()}
+    return sc
+
+
+def _mock_mc(arrow_table=None):
+    import pyarrow as pa
+
+    mc = MagicMock()
+    mock_ibis = MagicMock()
+    mock_ibis.to_pyarrow.return_value = arrow_table or pa.table({
+        "metric_name": ["revenue"], "metric_value": [1000.0],
+    })
+    mc.compute.return_value = mock_ibis
+    return mc
+
+
+def test_definition_compute_metrics_success():
+    deps = _make_deps(spec_cache=_make_revenue_spec_cache())
+    ctx = _make_ctx(deps)
+
+    with patch("aitaem.agent.common_tools.MetricCompute", return_value=_mock_mc()):
+        result = definition_compute_metrics(ctx, metric_name="revenue")
+
+    assert result.error is None
+    assert result.row_count == 1
+    assert result.result_id != ""
+    assert deps.dependent_metrics == ["revenue"]
+
+
+def test_definition_compute_metrics_unknown_metric_no_compute_attempted():
+    sc = _make_revenue_spec_cache()
+    deps = _make_deps(spec_cache=sc)
+    ctx = _make_ctx(deps)
+
+    with patch("aitaem.agent.common_tools.MetricCompute") as mock_mc_cls:
+        result = definition_compute_metrics(ctx, metric_name="bogus_metric")
+
+    mock_mc_cls.assert_not_called()
+    assert result.error is not None
+    assert result.result_id == ""
+    assert any(nm.why_not == "unknown_metric" for nm in result.near_misses)
+    assert deps.dependent_metrics == []
+
+
+def test_definition_compute_metrics_unknown_slice_no_compute_attempted():
+    deps = _make_deps(spec_cache=_make_revenue_spec_cache())
+    ctx = _make_ctx(deps)
+
+    with patch("aitaem.agent.common_tools.MetricCompute") as mock_mc_cls:
+        result = definition_compute_metrics(ctx, metric_name="revenue", slices=["bogus_slice"])
+
+    mock_mc_cls.assert_not_called()
+    assert any(nm.why_not == "unknown_slice" for nm in result.near_misses)
+    assert deps.dependent_metrics == []
+
+
+def test_definition_compute_metrics_unknown_segment_no_compute_attempted():
+    deps = _make_deps(spec_cache=_make_revenue_spec_cache())
+    ctx = _make_ctx(deps)
+
+    with patch("aitaem.agent.common_tools.MetricCompute") as mock_mc_cls:
+        result = definition_compute_metrics(ctx, metric_name="revenue", segment="bogus_segment")
+
+    mock_mc_cls.assert_not_called()
+    assert any(nm.why_not == "unknown_segment" for nm in result.near_misses)
+    assert deps.dependent_metrics == []
+
+
+def test_definition_compute_metrics_unsupported_by_entity_no_compute_attempted():
+    deps = _make_deps(spec_cache=_make_revenue_spec_cache())
+    ctx = _make_ctx(deps)
+
+    with patch("aitaem.agent.common_tools.MetricCompute") as mock_mc_cls:
+        result = definition_compute_metrics(ctx, metric_name="revenue", by_entity="unknown_col")
+
+    mock_mc_cls.assert_not_called()
+    assert any(nm.why_not == "unsupported_by_entity" for nm in result.near_misses)
+    assert deps.dependent_metrics == []
+
+
+def test_definition_compute_metrics_unsupported_period_type_no_compute_attempted():
+    sc = _make_revenue_spec_cache()
+    sc.metrics["revenue"].timestamp_col = ""
+    deps = _make_deps(spec_cache=sc)
+    ctx = _make_ctx(deps)
+
+    with patch("aitaem.agent.common_tools.MetricCompute") as mock_mc_cls:
+        result = definition_compute_metrics(ctx, metric_name="revenue", period_type="monthly")
+
+    mock_mc_cls.assert_not_called()
+    assert any(nm.why_not == "unsupported_period_type" for nm in result.near_misses)
+    assert deps.dependent_metrics == []
+
+
+def test_definition_compute_metrics_dependent_metrics_deduped():
+    deps = _make_deps(spec_cache=_make_revenue_spec_cache())
+    ctx = _make_ctx(deps)
+
+    with patch("aitaem.agent.common_tools.MetricCompute", return_value=_mock_mc()):
+        definition_compute_metrics(ctx, metric_name="revenue")
+        definition_compute_metrics(ctx, metric_name="revenue", by_entity="store_id")
+
+    assert deps.dependent_metrics == ["revenue"]
+
+
+def test_definition_compute_metrics_execution_failure_leaves_dependent_metrics_unmodified():
+    from aitaem.utils.exceptions import SpecNotFoundError
+
+    deps = _make_deps(spec_cache=_make_revenue_spec_cache())
+    ctx = _make_ctx(deps)
+    mc = MagicMock()
+    mc.compute.side_effect = SpecNotFoundError("metric", "revenue", [])
+
+    with patch("aitaem.agent.common_tools.MetricCompute", return_value=mc):
+        result = definition_compute_metrics(ctx, metric_name="revenue")
+
+    assert result.error is not None
+    assert "SpecNotFoundError" in result.error
+    assert deps.dependent_metrics == []
+
+
+def test_definition_compute_metrics_unexpected_exception_returns_error():
+    """A non-AitaemError exception during execution hits the generic Exception
+    fallback branch, not just the AitaemError branch."""
+    deps = _make_deps(spec_cache=_make_revenue_spec_cache())
+    ctx = _make_ctx(deps)
+    mc = MagicMock()
+    mc.compute.side_effect = ValueError("unexpected boom")
+
+    with patch("aitaem.agent.common_tools.MetricCompute", return_value=mc):
+        result = definition_compute_metrics(ctx, metric_name="revenue")
+
+    assert result.error is not None
+    assert "Unexpected error" in result.error
+    assert "unexpected boom" in result.error
+    assert deps.dependent_metrics == []
+
+
+def test_definition_compute_metrics_uses_exact_match_not_raw_arguments():
+    """Regression test (Plan 37, SF-5): compute_metrics must read metric_name/
+    slices/segment off SpecResolver.resolve()'s exact_match, not the raw
+    arguments — mirrors the equivalent QueryBot fix in resolve_intent
+    (test_query_tools.py::test_resolve_intent_uses_exact_match_not_raw_arguments)."""
+    from aitaem.agent.resolver import ExactMatch, SpecMatchResult
+
+    deps = _make_deps(spec_cache=_make_revenue_spec_cache())
+    ctx = _make_ctx(deps)
+
+    diverging_match = ExactMatch(
+        spec_token="", metric_name="canonical_revenue", slices=["by_country"], segment=None,
+    )
+    with patch("aitaem.agent.definition_tools.SpecResolver") as mock_resolver_cls, \
+         patch("aitaem.agent.common_tools.MetricCompute", return_value=_mock_mc()) as mock_mc_cls:
+        mock_resolver_cls.return_value.resolve.return_value = SpecMatchResult(
+            exact_match=diverging_match, near_misses=[],
+        )
+        result = definition_compute_metrics(ctx, metric_name="revenue")
+
+    assert result.error is None
+    mc_call_kwargs = mock_mc_cls.return_value.compute.call_args.kwargs
+    assert mc_call_kwargs["metrics"] == ["canonical_revenue"]
+    assert mc_call_kwargs["slices"] == ["by_country"]
+    assert deps.dependent_metrics == ["canonical_revenue"]

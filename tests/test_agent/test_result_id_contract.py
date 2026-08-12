@@ -41,6 +41,12 @@ def _tool_functions_that_write_to_store() -> Iterator[tuple[str, Callable[..., A
         for node in tree.body:
             if not isinstance(node, ast.FunctionDef):
                 continue
+            if node.name.startswith("_"):
+                # Private helpers (e.g. common_tools._execute_metric_compute) are
+                # never registered as tools — they're internal execution cores
+                # consumed by public tools, which still must satisfy this contract
+                # on their own return types.
+                continue
             calls_store = any(
                 isinstance(call, ast.Call)
                 and isinstance(call.func, ast.Attribute)

@@ -171,7 +171,7 @@ def _three_step_model(metric: str = "revenue") -> FunctionModel:
 def _patch_metric_compute():
     from unittest.mock import patch
 
-    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_revenue_mock_mc()):
+    with patch("aitaem.agent.common_tools.MetricCompute", return_value=_revenue_mock_mc()):
         yield
 
 

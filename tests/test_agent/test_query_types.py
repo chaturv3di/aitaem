@@ -9,7 +9,7 @@ from aitaem.agent.query_types import (
     RecordIntentResult,
     ResolveIntentResult,
     QueryDeps,
-    ComputeMetricsResult,
+    Q_ComputeMetricsResult,
     ColumnDistribution,
     DistributionSummaryResult,
     ColumnDistributionResult,
@@ -83,7 +83,7 @@ def test_query_deps_fresh_per_instance():
 
 def test_compute_metrics_result_no_old_input_fields():
     """The old per-call input fields (metrics, slices, segment, period_type, etc.) are gone."""
-    r = ComputeMetricsResult(
+    r = Q_ComputeMetricsResult(
         spec_token="sm_tok",
         result_id="r1", row_count=1, sample=[], columns=[], format_hints={},
     )
@@ -96,7 +96,7 @@ def test_compute_metrics_result_no_old_input_fields():
 
 
 def test_compute_metrics_result_has_spec_token():
-    r = ComputeMetricsResult(
+    r = Q_ComputeMetricsResult(
         spec_token="sm_tok",
         result_id="r1", row_count=0, sample=[], columns=[], format_hints={},
     )

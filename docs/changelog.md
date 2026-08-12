@@ -134,6 +134,20 @@
   validates the referenced result was computed against the same metric being
   resolved — a mismatch surfaces as a new `NearMiss.why_not` value,
   `"column_distribution_metric_mismatch"`.
+- **`DefinitionBot` can now ground a spec's `where:` threshold in real data
+  instead of inventing a number**, via three new/reused tools: `date_range`
+  (bounds of a temporal column on any raw table — for cohort/window
+  boundaries), `DefinitionBot`'s own `compute_metrics` (validates a proposed
+  metric/slices/segment/by_entity/period_type against the catalog the same
+  way `QueryBot`'s `resolve_intent` does, then executes in one call, no
+  `spec_token` gate), and `column_distribution`/`distribution_summary` —
+  reused verbatim from `QueryBot`, now shared via a new
+  `aitaem.agent.common_tools` module. `column_distribution` stays
+  deliberately metric-only on both bots: there is no raw `source:` mode, so
+  the only path to a percentile-capable statistic is through a catalog
+  metric. `DefinitionDeps.dependent_metrics` / `DefinitionPayload.dependent_metrics`
+  record which metrics were referenced while drafting, appended only on a
+  successful `column_distribution`/`compute_metrics` call.
 ## v1.0.0 — 2026-07-23
 
 This release bundles the last breaking changes expected before v1.0's stability

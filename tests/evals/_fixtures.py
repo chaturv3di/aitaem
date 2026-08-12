@@ -12,9 +12,11 @@ is the point.
 
 from __future__ import annotations
 
+import datetime
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import ibis
 import pyarrow as pa
 
 from aitaem.agent.definition_bot import DefinitionBot
@@ -50,7 +52,7 @@ def _mock_metric_compute() -> MagicMock:
 # returns GROUND_TRUTH_REVENUE_TABLE via compute_metrics(), regardless of the
 # (fake) backend it's constructed against.
 patch(
-    "aitaem.agent.query_tools.MetricCompute",
+    "aitaem.agent.common_tools.MetricCompute",
     return_value=_mock_metric_compute(),
 ).start()
 
@@ -67,7 +69,7 @@ def _query_bot_spec_cache() -> Any:
 
 def make_query_bot_fixture(model: Any) -> QueryBot:
     """Build a QueryBot against a minimal one-metric SpecCache stand-in and a
-    MagicMock ConnectionManager, with aitaem.agent.query_tools.MetricCompute
+    MagicMock ConnectionManager, with aitaem.agent.common_tools.MetricCompute
     patched (at import time, above) so compute_metrics() deterministically
     returns GROUND_TRUTH_REVENUE_TABLE regardless of the (fake) backend.
     """
@@ -115,4 +117,62 @@ def make_definition_bot_fixture(model: Any) -> DefinitionBot:
         model=model,
         spec_cache=_definition_spec_cache(),
         connection_manager=_definition_connection_manager(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Grounding fixture (Plan 37, SF-10): one metric already in the catalog,
+# backed by a real ibis.memtable so column_distribution/date_range/
+# compute_metrics execute real aggregation logic — a MagicMock ibis table
+# (as used by make_definition_bot_fixture above) doesn't support .to_pandas()
+# on an aggregate expression.
+# ---------------------------------------------------------------------------
+
+GROUNDING_TRANSACTIONS_TABLE = ibis.memtable(pa.table({
+    "amount": [100.0, 250.0, 400.0, 999.0, 1500.0],
+    "transaction_date": [
+        datetime.date(2024, 1, 1),
+        datetime.date(2024, 3, 1),
+        datetime.date(2024, 6, 1),
+        datetime.date(2024, 9, 1),
+        datetime.date(2024, 12, 1),
+    ],
+}))
+# Small, hand-constructed — not derived from any real backend. Same spirit as
+# GROUND_TRUTH_REVENUE_TABLE above.
+
+
+def _grounding_connection_manager() -> Any:
+    mock_cm = MagicMock()
+    mock_cm.backend_types = ["duckdb"]
+    mock_connector = MagicMock()
+    mock_connector.list_tables.return_value = ["transactions"]
+    mock_connector.get_table.return_value = GROUNDING_TRANSACTIONS_TABLE
+    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://analytics.db/{name}"
+    mock_cm.get_connection.return_value = mock_connector
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_cm.parse_source_uri.return_value = ("duckdb", "analytics.db", "transactions")
+    mock_cm.resolve_table_reference.return_value = ("transactions", None)
+    return mock_cm
+
+
+def _grounding_spec_cache() -> Any:
+    sc = MagicMock()
+    rev = MagicMock(description="Total revenue", entities=["user_id"], format="currency:USD")
+    rev.source = "duckdb://analytics.db/transactions"
+    rev.timestamp_col = "transaction_date"
+    sc.metrics = {"revenue": rev}
+    sc.slices = {}
+    sc.segments = {}
+    return sc
+
+
+def make_definition_bot_grounding_fixture(model: Any) -> DefinitionBot:
+    """Build a DefinitionBot with a `revenue` metric already in the catalog,
+    backed by GROUNDING_TRANSACTIONS_TABLE, for cases exercising
+    date_range/column_distribution/compute_metrics."""
+    return DefinitionBot(
+        model=model,
+        spec_cache=_grounding_spec_cache(),
+        connection_manager=_grounding_connection_manager(),
     )

@@ -10,6 +10,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from aitaem.agent.resolver import NearMiss
 from aitaem.agent.store import ResultStore
 from aitaem.agent.trace import Status
 
@@ -55,6 +56,9 @@ class DefinitionDeps:
     store: ResultStore
     draft_registry: dict[str, SpecDraft] = field(default_factory=dict)
     definition_intent: DefinitionIntent | None = None
+    # Audit trail of metric names referenced (via column_distribution or
+    # compute_metrics) while drafting this spec. Appended on success only.
+    dependent_metrics: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +103,8 @@ class DefinitionPayload(BaseModel):
     validation_warnings: list[str] = []
     # Column names referenced in SQL, keyed by table/source field name.
     referenced_columns: dict[str, list[str]] | None = None
+    # Metric names referenced via column_distribution/compute_metrics during this run.
+    dependent_metrics: list[str] = []
     # Exactly one of these is set based on spec_type; others are None.
     metric_spec: Any | None = None
     slice_spec: Any | None = None
@@ -211,4 +217,31 @@ class DeleteSpecResult(BaseModel):
     spec_name: str
     deleted: bool
     # Set when the spec was not found, or removal was blocked by a dependent composite.
+    error: str | None = None
+
+
+class DateRangeResult(BaseModel):
+    """Returned by date_range. Bounds-only — no percentile-shaped field exists on
+    this type, so no code path can ever return one, regardless of input dtype."""
+
+    result_id: str
+    min_val: str | None = None
+    max_val: str | None = None
+    count: int | None = None
+    null_count: int | None = None
+    distinct_count: int | None = None
+    error: str | None = None
+
+
+class D_ComputeMetricsResult(BaseModel):
+    """Returned by DefinitionBot's compute_metrics. Validates via SpecResolver.resolve()
+    then executes in one call — see QueryBot's Q_ComputeMetricsResult (query_types.py)
+    for the spec_token-gated two-step equivalent."""
+
+    result_id: str
+    row_count: int
+    sample: list[dict[str, Any]]
+    columns: list[str]
+    # Set when SpecResolver.resolve() found no exact_match — no compute attempted.
+    near_misses: list[NearMiss] = []
     error: str | None = None

@@ -64,7 +64,7 @@ def test_query_bot_smoke_three_step_flow():
         spec_cache=_smoke_spec_cache(),
         connection_manager=MagicMock(),
     )
-    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_smoke_mc()):
+    with patch("aitaem.agent.common_tools.MetricCompute", return_value=_smoke_mc()):
         response = asyncio.run(bot.chat("What was total revenue?"))
 
     assert response.status == Status.ok, (
@@ -96,7 +96,7 @@ def test_query_bot_smoke_prompt_cache_hit_on_turn_2():
         spec_cache=_smoke_spec_cache(),
         connection_manager=MagicMock(),
     )
-    with patch("aitaem.agent.query_tools.MetricCompute", return_value=_smoke_mc()):
+    with patch("aitaem.agent.common_tools.MetricCompute", return_value=_smoke_mc()):
         asyncio.run(bot.chat("What was total revenue?"))
         response2 = asyncio.run(bot.chat("What about last month?"))
 
