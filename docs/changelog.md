@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.10.0 — 2026-08-12
+
 ### Breaking changes
 
 - **`distribution_summary`'s return shape changes: `DistributionSummaryResult.distributions`
