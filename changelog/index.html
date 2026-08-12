@@ -1135,6 +1135,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#breaking-changes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1218,7 +1229,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed" class="md-nav__link">
+  <a href="#changed_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -1497,7 +1508,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed_1" class="md-nav__link">
+  <a href="#changed_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -1663,6 +1674,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#breaking-changes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1746,7 +1768,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed" class="md-nav__link">
+  <a href="#changed_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -2025,7 +2047,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#changed_1" class="md-nav__link">
+  <a href="#changed_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Changed
@@ -2129,6 +2151,12 @@
 <h1 id="changelog">Changelog</h1>
 <h2 id="unreleased">Unreleased</h2>
 <h2 id="v200-2026-08-12">v2.0.0 — 2026-08-12</h2>
+<h3 id="changed">Changed</h3>
+<ul>
+<li><strong>Project license changed from AGPL-3.0 to Apache-2.0.</strong> Versions before v2.0.0 remain
+  under AGPL-3.0 for anyone who already has them — this change applies going forward,
+  starting with this release. See <a href="../license/">License</a> for what this means for you.</li>
+</ul>
 <h3 id="breaking-changes">Breaking changes</h3>
 <ul>
 <li><strong><code>distribution_summary</code>'s return shape changes: <code>DistributionSummaryResult.distributions</code>
@@ -2382,7 +2410,7 @@ constructors, primitives base classes, default tool schemas, and <code>RunTrace<
   <code>pydantic_evals</code> evaluations against a live <code>QueryBot</code>, including a
   <code>pass_rate()</code> helper for repeated-run confidence. The live-model companion
   to <code>tests/evals/</code>'s CI-safe substrate harness.</p>
-<h3 id="changed">Changed</h3>
+<h3 id="changed_1">Changed</h3>
 <ul>
 <li><strong>Example files under <code>examples/</code> are now numbered</strong> (<code>01_definition_bot_example</code>,
   <code>02_query_bot_example</code>, <code>03_intent_resolution_example</code>,
@@ -2603,7 +2631,7 @@ constructors, primitives base classes, default tool schemas, and <code>RunTrace<
   falls back to treating the input as YAML content.</li>
 </ul>
 <h2 id="v014-2026-03-23">v0.1.4 — 2026-03-23</h2>
-<h3 id="changed_1">Changed</h3>
+<h3 id="changed_2">Changed</h3>
 <ul>
 <li><strong><code>MetricSpec</code></strong>: removed <code>aggregation</code> field. Aggregation type is now inferred from the SQL
   function embedded in <code>numerator</code> (and <code>denominator</code>). Ratio is implied when <code>denominator</code> is
