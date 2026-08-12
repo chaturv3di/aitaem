@@ -4,6 +4,12 @@
 
 ## v2.0.0 — 2026-08-12
 
+### Changed
+
+- **Project license changed from AGPL-3.0 to Apache-2.0.** Versions before v2.0.0 remain
+  under AGPL-3.0 for anyone who already has them — this change applies going forward,
+  starting with this release. See [License](license.md) for what this means for you.
+
 ### Breaking changes
 
 - **`distribution_summary`'s return shape changes: `DistributionSummaryResult.distributions`
