@@ -1711,7 +1711,7 @@ expression method (<code>.filter()</code>, <code>.select()</code>, <code>.aggreg
 <tr>
 <td><code>period_start_date</code></td>
 <td><code>str \| None</code></td>
-<td>ISO date string (<code>"YYYY-MM-DD HH:MM:SS"</code>) for non-<code>all_time</code>, or <code>None</code></td>
+<td>Timestamp cast to string (typically <code>"YYYY-MM-DD HH:MM:SS"</code>) for non-<code>all_time</code>, or <code>None</code>. The exact rendering is the target backend's own <code>TIMESTAMP → STRING</code> cast, so it can vary across DuckDB/BigQuery/Postgres — parse with a tolerant timestamp parser rather than a fixed format string</td>
 </tr>
 <tr>
 <td><code>period_end_date</code></td>

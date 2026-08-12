@@ -818,6 +818,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="The Bot subclassing contract">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rebuilding-the-agent-when-your-catalog-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rebuilding the agent when your catalog changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1274,6 +1291,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="The Bot subclassing contract">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rebuilding-the-agent-when-your-catalog-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rebuilding the agent when your catalog changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1415,6 +1449,35 @@ you install separately (<code>pip install anthropic</code>, <code>pip install op
 </code></pre></div>
 <p>Swap <code>TestModel()</code> for a real model string (e.g. <code>"anthropic:claude-haiku-4-5-20251001"</code>)
 once you've installed the matching provider SDK.</p>
+<h3 id="rebuilding-the-agent-when-your-catalog-changes">Rebuilding the agent when your catalog changes</h3>
+<p><code>EchoBot</code> above builds its toolset unconditionally — fine for a bot with no
+<code>SpecCache</code>-derived prompt content. If your bot's instructions embed anything from a
+<code>SpecCache</code> (a metric/slice/segment catalog, as <code>QueryBot</code> and <code>DefinitionBot</code> both do),
+guard the toolset construction so a later <code>_build_agent()</code> call — triggered when you
+detect <code>self._spec_cache.version</code> has moved — refreshes the catalog without discarding
+tools added at runtime via <code>add_tool()</code> (which mutates <code>self._toolset</code> in place, so a
+fresh <code>FunctionToolset()</code> on every call would silently drop them):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_build_agent</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Agent</span><span class="p">:</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_toolset</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>        <span class="n">toolset</span> <span class="o">=</span> <span class="n">FunctionToolset</span><span class="p">()</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>        <span class="n">toolset</span><span class="o">.</span><span class="n">add_function</span><span class="p">(</span><span class="n">word_count</span><span class="p">)</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>        <span class="k">for</span> <span class="n">tool</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tools</span><span class="p">:</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>            <span class="n">_register_tool</span><span class="p">(</span><span class="n">toolset</span><span class="p">,</span> <span class="n">tool</span><span class="p">)</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_toolset</span> <span class="o">=</span> <span class="n">toolset</span>  <span class="c1"># built once; add_tool() mutates it afterward</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="c1"># ... rebuild the Agent (instructions, deps_type, etc.) every call ...</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="k">return</span> <span class="n">Agent</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_model</span><span class="p">,</span> <span class="n">toolsets</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_toolset</span><span class="p">],</span> <span class="n">instructions</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_catalog_instructions</span><span class="p">())</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">ask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BotResponse</span><span class="p">:</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_spec_cache</span><span class="o">.</span><span class="n">version</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_catalog_version</span><span class="p">:</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_agent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_agent</span><span class="p">()</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_catalog_version</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_spec_cache</span><span class="o">.</span><span class="n">version</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    <span class="o">...</span>
+</code></pre></div>
+<p>This is exactly the pattern <code>QueryBot</code>/<code>DefinitionBot</code> use to stay current when a
+<code>DefinitionBot</code> commits, updates, or deletes a spec in a <code>SpecCache</code> another bot shares —
+without a per-turn rebuild, that other bot's catalog would go stale for the rest of its
+session.</p>
 <h2 id="botresponse-status-runtrace-resultstore"><code>BotResponse</code>, <code>Status</code>, <code>RunTrace</code>, <code>ResultStore</code></h2>
 <p>Every bot method returns a <code>BotResponse[PayloadT]</code> — a frozen Pydantic model with
 <code>status: Status</code> (<code>ok</code> / <code>empty</code> / <code>refused</code> / <code>error</code>), a <code>narrative: str</code>, a
@@ -1431,22 +1494,22 @@ ref) or <code>TextEntry</code> (string + content type) — narrow with <code>isi
 <code>WrongEntryKindError</code> on a kind mismatch.</p>
 <h2 id="tool-composition">Tool composition</h2>
 <p>Three surfaces add tools to a bot without subclassing further:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Construction-time — folded into the bot&#39;s default toolset</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">bot</span> <span class="o">=</span> <span class="n">QueryBot</span><span class="p">(</span><span class="n">model</span><span class="o">=...</span><span class="p">,</span> <span class="n">spec_cache</span><span class="o">=...</span><span class="p">,</span> <span class="n">connection_manager</span><span class="o">=...</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">my_tool</span><span class="p">])</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Runtime, persistent — takes effect on the next chat()/ask() call</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">bot</span><span class="o">.</span><span class="n">add_tool</span><span class="p">(</span><span class="n">another_tool</span><span class="p">)</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># Per-call, ephemeral — additive to construction-time tools, not a replacement</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">bot</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span><span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">extra_tools</span><span class="o">=</span><span class="p">[</span><span class="n">one_off_tool</span><span class="p">])</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Construction-time — folded into the bot&#39;s default toolset</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">bot</span> <span class="o">=</span> <span class="n">QueryBot</span><span class="p">(</span><span class="n">model</span><span class="o">=...</span><span class="p">,</span> <span class="n">spec_cache</span><span class="o">=...</span><span class="p">,</span> <span class="n">connection_manager</span><span class="o">=...</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">my_tool</span><span class="p">])</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Runtime, persistent — takes effect on the next chat()/ask() call</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">bot</span><span class="o">.</span><span class="n">add_tool</span><span class="p">(</span><span class="n">another_tool</span><span class="p">)</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># Per-call, ephemeral — additive to construction-time tools, not a replacement</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">bot</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span><span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">extra_tools</span><span class="o">=</span><span class="p">[</span><span class="n">one_off_tool</span><span class="p">])</span>
 </code></pre></div>
 <p>Tool-name collisions (construction-time duplicates, or a runtime/per-call tool sharing a
 name with a default tool) raise <code>pydantic_ai.exceptions.UserError</code> at the point of
 registration — no silent auto-namespacing.</p>
 <h2 id="history-serialization">History serialization</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">bundle</span> <span class="o">=</span> <span class="n">bot</span><span class="o">.</span><span class="n">dump_history</span><span class="p">()</span>          <span class="c1"># JSON-serializable dict</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1"># ... persist bundle, e.g. json.dumps(bundle) to disk/DB ...</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">QueryBot</span><span class="o">.</span><span class="n">load_history</span><span class="p">(</span><span class="n">bundle</span><span class="p">,</span> <span class="n">model</span><span class="o">=...</span><span class="p">,</span> <span class="n">spec_cache</span><span class="o">=...</span><span class="p">,</span> <span class="n">connection_manager</span><span class="o">=...</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">bundle</span> <span class="o">=</span> <span class="n">bot</span><span class="o">.</span><span class="n">dump_history</span><span class="p">()</span>          <span class="c1"># JSON-serializable dict</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="c1"># ... persist bundle, e.g. json.dumps(bundle) to disk/DB ...</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">QueryBot</span><span class="o">.</span><span class="n">load_history</span><span class="p">(</span><span class="n">bundle</span><span class="p">,</span> <span class="n">model</span><span class="o">=...</span><span class="p">,</span> <span class="n">spec_cache</span><span class="o">=...</span><span class="p">,</span> <span class="n">connection_manager</span><span class="o">=...</span><span class="p">)</span>
 </code></pre></div>
 <p><code>dump_history()</code> preserves Arrow artifacts but not live Ibis refs — <code>get_result()</code> on a
 restored bot works, but <code>get_ibis()</code> returns <code>None</code> for restored entries. Tools added at
@@ -1456,16 +1519,16 @@ via <code>tools=[...]</code> or call <code>add_tool()</code> post-reload to sile
 <h2 id="context-window-management">Context-window management</h2>
 <p>For long-running sessions where history may exceed the model's context limit, pass a
 history processor via <code>capabilities</code> when constructing the <code>Agent</code> in <code>_build_agent()</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai.capabilities</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProcessHistory</span><span class="p">,</span> <span class="n">ReinjectSystemPrompt</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">_build_agent</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Agent</span><span class="p">:</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="k">return</span> <span class="n">Agent</span><span class="p">(</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        <span class="n">model</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_model</span><span class="p">,</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>            <span class="n">ReinjectSystemPrompt</span><span class="p">(</span><span class="n">replace_existing</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>            <span class="n">ProcessHistory</span><span class="p">(</span><span class="n">trim_old_messages</span><span class="p">),</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>        <span class="p">],</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai.capabilities</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProcessHistory</span><span class="p">,</span> <span class="n">ReinjectSystemPrompt</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">_build_agent</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Agent</span><span class="p">:</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="k">return</span> <span class="n">Agent</span><span class="p">(</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        <span class="n">model</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_model</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>            <span class="n">ReinjectSystemPrompt</span><span class="p">(</span><span class="n">replace_existing</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>            <span class="n">ProcessHistory</span><span class="p">(</span><span class="n">trim_old_messages</span><span class="p">),</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        <span class="p">],</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>    <span class="p">)</span>
 </code></pre></div>
 <p>The processor receives the full message list before each model request (including
 mid-tool-call-loop steps) and returns a modified list. Only trim complete tool-call pairs

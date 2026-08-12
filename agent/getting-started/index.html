@@ -1354,7 +1354,8 @@
 <h1 id="agent-getting-started">Agent: Getting Started</h1>
 <p><code>aitaem.agent</code> is an optional install that ships two LLM-facing convenience bots on top
 of the deterministic compute layer: <code>QueryBot</code> (answer questions against your metric
-catalog) and <code>DefinitionBot</code> (draft and validate new specs from natural language).</p>
+catalog) and <code>DefinitionBot</code> (draft, validate, and commit or delete specs from natural
+language).</p>
 <h2 id="installation">Installation</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;aitaem[agent-anthropic]&quot;</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ANTHROPIC_API_KEY</span><span class="o">=</span>sk-ant-...
@@ -1430,7 +1431,7 @@ runnable scripts and notebooks, numbered in a suggested reading order:</p>
 <tr>
 <td>01</td>
 <td><code>definition_bot_example</code></td>
-<td>The four-step spec-definition workflow, direct YAML parsing and LLM-assisted drafting</td>
+<td>The five-step spec-definition workflow, direct YAML parsing and LLM-assisted drafting</td>
 </tr>
 <tr>
 <td>02</td>

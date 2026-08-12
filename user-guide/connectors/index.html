@@ -1706,6 +1706,11 @@
 </tr>
 </tbody>
 </table>
+<p><code>project_id</code>/<code>dataset_id</code> are resolution defaults, not an access boundary: a spec whose
+<code>source:</code> URI names a different project is still queried under that project, not silently
+rewritten to the connection's own. aitaem does not restrict which project or dataset a
+connection can reach — the connection's own ADC/service-account credentials are the only
+real boundary, the same as querying BigQuery directly.</p>
 <p><strong>Authentication</strong> uses Application Default Credentials (ADC). Before connecting, run:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>gcloud<span class="w"> </span>auth<span class="w"> </span>application-default<span class="w"> </span>login
 </code></pre></div>
@@ -1862,9 +1867,17 @@
 <td><code>my-project</code></td>
 <td><code>analytics.events</code></td>
 </tr>
+<tr>
+<td><code>bigquery://my-project/analytics/events</code></td>
+<td><code>my-project</code></td>
+<td><code>analytics.events</code></td>
+</tr>
 </tbody>
 </table>
-<p>BigQuery URIs must contain at least three dot-separated parts (project, dataset, table).</p>
+<p>Every <code>/</code> after the backend prefix is normalized to a <code>.</code> before parsing, so slash- and
+dot-separated forms are interchangeable — the resulting URI must contain at least three
+dot-separated parts (project, dataset, table) once normalized. <code>bigquery://project/dataset/table</code>
+(all-slash) is the form <code>DefinitionBot</code> uses when drafting a spec's <code>source:</code> field.</p>
 <h3 id="postgresql_2">PostgreSQL</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>postgres://schema/table
 </code></pre></div>
