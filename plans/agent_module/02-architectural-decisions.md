@@ -121,7 +121,7 @@ The convenience classes are designed from day one as if primitives are available
 
 **Context.** Trace serves debugging, transparency/audit, and evals. Two flavors: (A) standardized aggregated `RunTrace` on the response; (B) event-stream protocol that callers subscribe to.
 
-**Decision.** Flavor A for v1. Each response carries a `RunTrace` with tools_called, model, usage, duration, run_id. The bot's internals are designed so an event-stream hook can be added later without breaking the response shape.
+**Decision.** Flavor A for v1. Each response carries a `RunTrace` with tool_calls, model, usage, duration, run_id. The bot's internals are designed so an event-stream hook can be added later without breaking the response shape.
 
 **Consequences.**
 - Simple, eval-friendly, debuggable from day one.

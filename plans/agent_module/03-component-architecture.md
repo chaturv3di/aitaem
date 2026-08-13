@@ -22,7 +22,7 @@ flowchart TB
             ToolBase["Tool / ToolResult contracts"]
             RespBase["BotResponse[PayloadT]<br/>status · narrative · trace · reason"]
             Store["ResultStore<br/>dict[result_id, Artifact]<br/>session-scoped<br/>dual-rep (artifact + optional ibis ref)"]
-            Trace["RunTrace<br/>OTel-compatible<br/>tools_called · usage · duration"]
+            Trace["RunTrace<br/>OTel-compatible<br/>tool_calls · usage · duration"]
             History["History I/O<br/>dump_history() / load_history()<br/>includes result store artifacts"]
         end
 
@@ -114,7 +114,7 @@ Per-turn aggregated trace, OpenTelemetry-compatible by design.
 
 - `run_id: str` (UUID for correlation)
 - `model: str` (the LLM identifier used)
-- `tools_called: list[ToolCall]` — each entry: name, args (structured dict), result_id (if any), summary returned to LLM, success, duration
+- `tool_calls: list[ToolCall]` — each entry: name, args (structured dict), result_id (if any), summary returned to LLM, success, duration
 - `usage` — token counts (input, output, total)
 - `duration_ms: int`
 
