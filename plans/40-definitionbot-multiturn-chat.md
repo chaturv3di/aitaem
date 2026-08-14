@@ -22,9 +22,9 @@ follow-on.
 |---|---|
 | What the tool exposes | `store.get_text(spec_draft_token)`. No new storage, no new lifetime semantics: `ResultStore` is already `self._store`, constructed once per bot instance and untouched across `chat()` turns. |
 | Draft-registry (`draft_id`, pre-validation) parity | Not added — the LLM only ever needs the last *validated* YAML to revise from; an unvalidated intermediate draft is never the thing worth recovering. |
-| Failure modes | Unknown token → not-found error. Token pointing at a `TabularEntry` → a distinct, kind-naming error — stricter than `commit_spec`'s current single `except` clause covering both cases with one generic message. The LLM needs to know whether to retry with a different token or stop entirely. |
-| Prompt guidance | Layer A: when revising a spec from earlier in the conversation, call `get_prior_spec` with that turn's `validate_spec` token, rather than reconstructing YAML from memory. |
-| Bucket placement | Token-gated, like `commit_spec` — not the no-token grounding-tools group (`date_range`/`compute_metrics`/`column_distribution`) and not standalone like `delete_spec`. |
+| Failure modes | Unknown token → not-found error. Token pointing at a `TabularEntry` → a distinct, kind-naming error, so the LLM knows whether to retry with a different token or stop entirely. |
+| Prompt guidance | Layer A: when revising a spec from earlier in the conversation, call `get_prior_spec` with that turn's `validate_spec` token to retrieve the full YAML. |
+| Bucket placement | Token-gated, like `commit_spec`. |
 | Stale-base / lost-update exposure | Not mitigated — flagged as an accepted, pre-existing risk this plan widens. `commit_spec`'s add-vs-update routing is derived purely from live `spec_cache` state at commit time, with no comparison against what the spec looked like when `get_prior_spec` last returned it (`test_commit_spec_drift_validated_new_but_now_exists_routes_to_update` already proves a silent overwrite happens today with no warning). Multi-turn `get_prior_spec` usage has an unbounded validate→commit gap, which only widens the window for this to bite — no detection/locking is added here, consistent with the project's existing late-binding "cache may have changed" posture (Plan 33, Plan 39's `check_existing_spec`). |
 | ND-10 status | Marked implemented (`DefinitionBot`-side) in `plans/agent_module/07-non-decisions.md` and `ARCHITECTURE.md`'s Section 7 table; `QueryBot`'s `get_prior_result` stays explicitly deferred. |
 
@@ -42,7 +42,7 @@ follow-on.
 **Out of scope:**
 - `QueryBot`'s analogous `get_prior_result(result_id)`.
 - Any change to `draft_spec`'s 800-char `yaml_preview` truncation.
-- Any change to `ResultStore`'s lifetime/eviction semantics (none exist today; this plan makes long multi-turn sessions — and therefore more, larger, accumulated entries per session — a first-class supported pattern rather than an edge case, but doesn't add bounding).
+- Any change to `ResultStore`'s lifetime/eviction semantics (none exist today; this plan makes long multi-turn sessions, and therefore more, larger, accumulated entries per session, a first-class supported pattern, but doesn't add bounding).
 - Stale-base/lost-update detection or locking (see Key decisions).
 - A dedicated multi-turn refinement *workflow* tool (e.g. auto-diffing old vs. new YAML) — the LLM edits the retrieved text itself, same as any other draft.
 
@@ -63,7 +63,7 @@ def get_prior_spec(
 
 - `ctx.deps.store.get_text(spec_draft_token)` — same call site pattern as `commit_spec` (`definition_tools.py:543`).
 - `KeyError` / `WrongEntryKindError` → `GetPriorSpecResult(error=...)`, with distinct messages (see Key decisions).
-- On success: returns the full, untruncated `yaml_string`, plus `spec_type`/`spec_name`/`referenced_columns`/`warnings` — deserialized from `TextEntry.metadata` the same way `_assemble_payload` already does (`referenced_columns`/`warnings` are stored there as JSON-encoded strings, not native types; reuse its `json.loads` + `None`-guard handling rather than re-implementing it).
+- On success: returns the full, untruncated `yaml_string`, plus `spec_type`/`spec_name`/`referenced_columns`/`warnings` — deserialized from `TextEntry.metadata` the same way `_assemble_payload` already does (`referenced_columns`/`warnings` are stored there as JSON-encoded strings; reuse its `json.loads` + `None`-guard handling).
 
 **File:** `aitaem/agent/definition_types.py`
 
@@ -83,9 +83,9 @@ class GetPriorSpecResult(BaseModel):
 **File:** `aitaem/agent/definition_bot.py`
 
 - `_build_agent()`: register `get_prior_spec`.
-- `_build_layer_a_definition()`: new section — to revise a spec from earlier in the conversation: call `get_prior_spec(spec_draft_token)` (the token from that turn's `validate_spec` result) to retrieve the full YAML; edit it; **re-call `record_definition_intent(existing_yaml=<edited yaml>)` before calling `draft_spec`/`validate_spec` again** — required because `definition_intent` (including `is_update`/name-lock state) doesn't survive across turns, so skipping this re-call routes the revision through `validate_spec`'s new-spec path instead of its update/name-lock path, risking either a spurious name-conflict rejection or, if the LLM also changed the name while revising, a silent duplicate `add()` instead of the intended `update()`.
+- `_build_layer_a_definition()`: new section — to revise a spec from earlier in the conversation: call `get_prior_spec(spec_draft_token)` (the token from that turn's `validate_spec` result) to retrieve the full YAML; edit it; **re-call `record_definition_intent(existing_yaml=<edited yaml>)` before calling `draft_spec`/`validate_spec` again** — `definition_intent` (including `is_update`/name-lock state) doesn't survive across turns, so omitting this re-call risks a spurious name-conflict rejection, or a silent duplicate `add()` if the LLM also changed the name while revising.
 
-**File:** `aitaem/agent/definition_tools.py` module docstring — add `get_prior_spec` to the tool list, grouped with `commit_spec` (token-gated), not the no-token grounding tools or standalone `delete_spec`.
+**File:** `aitaem/agent/definition_tools.py` module docstring — add `get_prior_spec` to the tool list, grouped with `commit_spec` (token-gated).
 
 ### SF-3 — Non-decision doc updates
 

@@ -8,12 +8,11 @@ currently lacks:
 2. Decide between a wildcard spec (Plan 38) and an enumerated one for slices/segments, using
    the distribution tooling already wired onto `DefinitionBot` (Plan 37).
 3. Detect when the columns a request needs are spread across multiple tables, and recommend
-   the user create a backend view instead of attempting (or silently failing at) a
-   single-table spec.
+   the user create a backend view.
 
 None of `DefinitionBot`'s 9 existing tools are renamed or removed. `resolver.py`'s
-`SpecResolver.resolve()` keeps its existing signature and return shape — this plan refactors
-its internals, not its contract.
+`SpecResolver.resolve()` keeps its existing signature and return shape — this plan's refactor
+is internals-only.
 
 ---
 
@@ -21,14 +20,14 @@ its internals, not its contract.
 
 | Decision | Choice |
 |---|---|
-| Existing-spec discovery mechanism | A new `check_existing_spec` tool, built on a shared name-resolution primitive extracted from `SpecResolver.resolve()` — not a bespoke reimplementation. `resolve()`'s own docstring already calls this exact-match + `difflib`-suggestion logic the "v0 → v1 swap point" for a future RAG upgrade; extracting it once means both `resolve()` and `check_existing_spec` inherit that upgrade later with no second migration. |
-| Shared primitive shape | New `SpecResolver.resolve_name(spec_type: Literal["metric","slice","segment"], proposed_name: str, spec_cache: SpecCache) -> NameResolution` (`NameResolution`: `exact: MetricSpec \| SliceSpec \| SegmentSpec \| None`, `suggestions: list[str]`). `resolve()` is refactored internally (no signature/behavior change) to call this. Semantic/description-based matching is explicitly not added — stays v0 exact-name+typo-suggestion on both bots, deferred to the planned RAG work. |
-| Scope of matching | Per-`spec_type` only — a name that exists under a *different* `spec_type` than requested is reported as not found. Documented as a limitation in the tool's docstring, not fixed here (per-type name uniqueness is how `SpecCache`/`validate_spec` already work). |
-| What `check_existing_spec` returns on a match | `name`/`description`/`source` only — **not** the spec's full definition. No spec class has a YAML/dict serialization method today (`to_yaml()` or equivalent doesn't exist on `MetricSpec`/`SliceSpec`/`SegmentSpec`), so there is nothing lossless to return yet; adding one is real, cross-cutting core-library work, out of scope here (noted as a future option below). |
+| Existing-spec discovery mechanism | A new `check_existing_spec` tool, built on a shared name-resolution primitive extracted from `SpecResolver.resolve()`. `resolve()`'s own docstring already calls this exact-match + `difflib`-suggestion logic the "v0 → v1 swap point" for a future RAG upgrade; extracting it once means both `resolve()` and `check_existing_spec` inherit that upgrade later with no second migration. |
+| Shared primitive shape | New `SpecResolver.resolve_name(spec_type: Literal["metric","slice","segment"], proposed_name: str, spec_cache: SpecCache) -> NameResolution` (`NameResolution`: `exact: MetricSpec \| SliceSpec \| SegmentSpec \| None`, `suggestions: list[str]`). `resolve()` is refactored internally (no signature/behavior change) to call this. Semantic/description-based matching stays deferred to the planned RAG work; v0 is exact-name+typo-suggestion on both bots. |
+| Scope of matching | Per-`spec_type` only — a name that exists under a *different* `spec_type` than requested is reported as not found (per-type name uniqueness is how `SpecCache`/`validate_spec` already work). Documented as a limitation in the tool's docstring. |
+| What `check_existing_spec` returns on a match | `name`/`description`/`source` only. No spec class has a YAML/dict serialization method today (`to_yaml()` or equivalent doesn't exist on `MetricSpec`/`SliceSpec`/`SegmentSpec`), so there is nothing lossless to return yet; adding one is real, cross-cutting core-library work, out of scope here (noted as a future option below). |
 | Preventing fabricated `existing_yaml` | The prompt explicitly forbids constructing `existing_yaml` from `check_existing_spec`'s summary or from memory. If the user wants a matched spec changed, the LLM asks the user to paste its current YAML. Drafting a "revision" from a 2–3-field paraphrase would silently invent whatever fields weren't in that paraphrase (numerator, `entities`, `values`, `join_keys`, ...) — exactly the failure mode this property exists to prevent. |
 | Where it sits in the tool-call order | Advisory only — grouped with `list_tables`/`describe_table`/`date_range`/`column_distribution` as callable any time before `draft_spec`, prompted to be called first. `validate_spec` Check 3 remains the authoritative, late-binding conflict check, consistent with `commit_spec`'s existing "cache may have changed" posture (Plan 33). |
-| Wildcard-vs-enumeration guidance | Prompt-only, not a new tool or a hard-coded cardinality threshold. `column_distribution` (Plan 37) already returns `distinct_count` and is already wired onto `DefinitionBot`. It only matters when the user hasn't already named the values they want — if they have, `DefinitionBot` enumerates exactly those; cardinality only decides the shape when `DefinitionBot` has to pick the value set itself. Soft, LLM-judgment guardrail, same shape as the Metric Precision Rule — not validation-enforced, since a rigid cutoff would misfire on legitimate small-but-open-ended or large-but-controlled cases. |
-| Multi-table join-gap output | Reuse `status="refused"` + `narrative`/`reason` — no `DefinitionPayload` schema change. While exploring schema, if the needed columns aren't co-located on one table, refuse and recommend a backend view rather than draft a spec that's structurally impossible (every spec has exactly one `source:`) or silently wrong. Matches the project's minimal-status-enum philosophy and the Metric Precision Rule / Plan 37 SF-7 refusal precedent. |
+| Wildcard-vs-enumeration guidance | Prompt-only, built on `column_distribution` (Plan 37, already wired onto `DefinitionBot`, returns `distinct_count`). Matters only when the user hasn't already named the values they want — if they have, `DefinitionBot` enumerates exactly those; cardinality decides the shape only when `DefinitionBot` has to pick the value set itself. Soft, LLM-judgment guardrail, same shape as the Metric Precision Rule, since a rigid cutoff would misfire on legitimate small-but-open-ended or large-but-controlled cases. |
+| Multi-table join-gap output | Reuse `status="refused"` + `narrative`/`reason` — no `DefinitionPayload` schema change. While exploring schema, if the needed columns aren't co-located on one table, refuse and recommend a backend view (every spec has exactly one `source:`). Matches the project's minimal-status-enum philosophy and the Metric Precision Rule / Plan 37 SF-7 refusal precedent. |
 | Docs timing | `docs/changelog.md` only — no `docs/api/agent.md` edits now, per the convention Plan 37's SF-9 established (release-time pass, not per-plan). |
 
 ---
@@ -95,7 +94,7 @@ def check_existing_spec(
 - Calls `SpecResolver.resolve_name(spec_type, proposed_name, ctx.deps.spec_cache)`.
 - On `.exact` found: `found=True`, `name`, `description`, `source` (metrics/segments only). Read-only — no draft/token minted.
 - On miss: `found=False`, `suggestions`.
-- Docstring covers: when to call it, that it's advisory only (`validate_spec` Check 3 is authoritative), that it only checks the given `spec_type`'s bucket, and that a match's `description`/`source` must not be used to construct `existing_yaml` — ask the user for the current YAML instead.
+- Docstring covers: when to call it, that it's advisory only (`validate_spec` Check 3 is authoritative), that it only checks the given `spec_type`'s bucket, and that a match's `description`/`source` must not be used to construct `existing_yaml`; the LLM asks the user for the current YAML.
 
 **File:** `aitaem/agent/definition_types.py`
 
@@ -115,7 +114,7 @@ class CheckExistingSpecResult(BaseModel):
 **File:** `aitaem/agent/definition_bot.py`
 
 - `_build_agent()`: register `check_existing_spec`.
-- `_build_layer_a_definition()`: new section, before schema exploration — call `check_existing_spec` with a best-guess name first; if found, don't draft a duplicate, tell the user what exists by name/description; if they want changes, ask them to paste the spec's current YAML to pass as `existing_yaml` rather than reconstructing it from the tool's summary or from memory.
+- `_build_layer_a_definition()`: new section, before schema exploration — call `check_existing_spec` with a best-guess name first; if found, don't draft a duplicate, tell the user what exists by name/description; if they want changes, ask them to paste the spec's current YAML to pass as `existing_yaml`.
 
 **File:** `aitaem/agent/definition_tools.py` module docstring — add `check_existing_spec` to the tool list, in the "callable any time before `draft_spec`" bucket alongside `date_range`/`compute_metrics`/`column_distribution`.
 
@@ -123,7 +122,7 @@ class CheckExistingSpecResult(BaseModel):
 
 **File:** `aitaem/agent/definition_bot.py`, `_build_layer_a_definition()`
 
-- New section: if the user names specific values, enumerate exactly those (`column_distribution` afterward only to catch typos/mismatches, not to override the shape). If the value set is unspecified, call `column_distribution` first: prefer a wildcard (`where:`) when distinct values are numerous, open-ended, or expected to grow; prefer enumerated `values` when the mapping isn't 1:1 with raw values (bucketing, numeric thresholds, a controlled vocabulary that should drop out-of-list values). Covers both `where:` forms — a single column and a list of columns for a cross-product segment (Plan 38) — since the existing YAML format reference has no segment-wildcard example of either form.
+- New section: if the user names specific values, enumerate exactly those; `column_distribution` afterward only catches typos/mismatches. If the value set is unspecified, call `column_distribution` first: prefer a wildcard (`where:`) when distinct values are numerous, open-ended, or expected to grow; prefer enumerated `values` when the mapping isn't 1:1 with raw values (bucketing, numeric thresholds, a controlled vocabulary that should drop out-of-list values). Covers both `where:` forms — a single column and a list of columns for a cross-product segment (Plan 38) — since the existing YAML format reference has no segment-wildcard example of either form.
 - Same section (or immediately after): add a `SegmentSpec` wildcard example, single- and multi-column, to the existing YAML format-reference block — today it has wildcard/composite examples for `SliceSpec` but none for `SegmentSpec`.
 
 ### SF-5 — Multi-table join-gap guidance
@@ -135,7 +134,7 @@ class CheckExistingSpecResult(BaseModel):
 ### SF-6 — Tests
 
 - `tests/test_agent/test_resolver.py` — `resolve_name` direct tests (exact match per spec_type, suggestions on miss); full regression pass confirming `resolve()`'s public output is unchanged pre/post refactor.
-- `tests/test_agent/test_definition_tools.py` — `check_existing_spec`: exact match per spec_type (asserting `description`/`source` echoed, not full YAML), near-miss suggestions, unknown `spec_type` handling, same-name-under-a-different-`spec_type` reports `found=False`.
+- `tests/test_agent/test_definition_tools.py` — `check_existing_spec`: exact match per spec_type (asserting `description`/`source` are echoed back), near-miss suggestions, unknown `spec_type` handling, same-name-under-a-different-`spec_type` reports `found=False`.
 - `tests/test_agent/test_definition_bot.py` — tool-registration set; Layer A prompt-content assertions for all three new sections, including the fabrication-prevention instruction and the new `SegmentSpec` wildcard YAML example.
 - `tests/evals/test_definition_bot_evals.py` — one scripted-model `Case` calling `check_existing_spec` as part of the wiring dataset.
 - `tests/evals/test_definition_bot_discovery_evals.py` (new, live-model, `skipif` no API key):
@@ -175,8 +174,8 @@ case (both need Plan 38's `column` field to exist) — sequence after Plan 38, o
 
 Independent of Plan 40 in mechanism, but both edit the same three points: `_build_layer_a_definition()`,
 the `definition_tools.py` module docstring, and the `toolset.add_function(...)` registration
-block inside `definition_bot.py`'s `_build_agent()` (the actual tool-registration list — not
-`definition_tools.py`, which only carries the descriptive docstring). That third point is the
+block inside `definition_bot.py`'s `_build_agent()` (the actual tool-registration list;
+`definition_tools.py` only carries the descriptive docstring). That third point is the
 one most likely to produce a real merge conflict, since both plans insert a new registration
 line into the same block. Whichever of Plan 39/40 lands second rebases its insertions onto the
 first.

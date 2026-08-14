@@ -18,7 +18,7 @@ this is a purely additive extension.
 | YAML key | `where:` accepts a scalar (`where: store_type`) or a list (`where: [store_type, region]`), parsed into `column` as a 1-tuple or n-tuple. |
 | Where the wildcard column(s) live | On the segment's DIM table (`segment_spec.source`); added onto `dim_src` before the join. |
 | Multi-column: group by raw columns | Each listed column gets its own alias (`_segment_0`, `_segment_1`, ...); `GROUP BY` runs on these columns; the `'\|'`-joined display value is built only after aggregation, so distinct combinations can't collide into one group. |
-| Wildcard column casting | Ibis's `.cast("string")`, applied via `.mutate()` — not raw SQL. CASE-WHEN (enumerated) stays SQL-spliced (predicates are raw user text). |
+| Wildcard column casting | Ibis's `.cast("string")`, applied via `.mutate()`. CASE-WHEN (enumerated) stays SQL-spliced (predicates are raw user text). |
 | `segment_value`/`segment_name` | Built by reusing `_build_slice_value_expr`, renamed `_build_joined_value_expr` (now serves both slices and segments), against the post-aggregation table. `segment_name` is always `segment_spec.name`. |
 | Composite segments (named-spec form) | Out of scope — single-spec, single-table mechanism only. |
 | Validation dispatch | `validate_segment_spec` requires exactly one of `values`/`column` non-empty. Each `column` entry validated with `_is_valid_column_identifier`, checked for duplicates (mirrors `values`/`cross_product`'s existing dedup checks), and checked for overlap with `entity_id`/`join_keys` (rejected — wildcarding the join key turns every DIM row into its own segment). |
