@@ -336,3 +336,92 @@ segment:
         result = spec.validate()
         assert result.valid is True
         assert "join_keys" not in (result.referenced_columns or {})
+
+
+class TestSegmentSpecWildcard:
+    def test_scalar_where_parses_single_column_tuple(self):
+        yaml_str = """
+segment:
+  name: by_region
+  source: duckdb://db/dim_customers
+  entity_id: customer_id
+  where: region
+"""
+        spec = SegmentSpec.from_yaml(yaml_str)
+        assert spec.column == ("region",)
+        assert spec.values == ()
+
+    def test_list_where_parses_multi_column_tuple(self):
+        yaml_str = """
+segment:
+  name: by_region_and_tier
+  source: duckdb://db/dim_customers
+  entity_id: customer_id
+  where: [region, tier]
+"""
+        spec = SegmentSpec.from_yaml(yaml_str)
+        assert spec.column == ("region", "tier")
+        assert spec.values == ()
+
+    def test_is_wildcard_true_for_where_spec(self):
+        yaml_str = """
+segment:
+  name: by_region
+  source: duckdb://db/dim_customers
+  entity_id: customer_id
+  where: region
+"""
+        spec = SegmentSpec.from_yaml(yaml_str)
+        assert spec.is_wildcard is True
+
+    def test_is_wildcard_false_for_leaf_spec(self, valid_segment_yaml):
+        spec = SegmentSpec.from_yaml(valid_segment_yaml)
+        assert spec.is_wildcard is False
+
+    def test_validate_round_trips_single_column_as_scalar(self):
+        spec = SegmentSpec(
+            name="by_region",
+            source="duckdb://db/dim_customers",
+            entity_id="customer_id",
+            column=("region",),
+        )
+        result = spec.validate()
+        assert result.valid is True
+        assert result.referenced_columns["where"] == ["region"]
+
+    def test_validate_round_trips_multi_column_as_list(self):
+        spec = SegmentSpec(
+            name="by_region_tier",
+            source="duckdb://db/dim_customers",
+            entity_id="customer_id",
+            column=("region", "tier"),
+        )
+        result = spec.validate()
+        assert result.valid is True
+        assert result.referenced_columns["where"] == ["region", "tier"]
+
+    def test_both_values_and_where_raises(self):
+        yaml_str = """
+segment:
+  name: bad
+  source: duckdb://db/tbl
+  entity_id: user_id
+  where: region
+  values:
+    - name: tier_a
+      where: "x > 100"
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            SegmentSpec.from_yaml(yaml_str)
+        assert any("values" in e.field or "where" in e.field for e in exc_info.value.errors)
+
+    def test_neither_values_nor_where_raises(self):
+        yaml_str = """
+segment:
+  name: bad
+  source: duckdb://db/tbl
+  entity_id: user_id
+"""
+        with pytest.raises(SpecValidationError) as exc_info:
+            SegmentSpec.from_yaml(yaml_str)
+        assert any(e.field == "values" for e in exc_info.value.errors)

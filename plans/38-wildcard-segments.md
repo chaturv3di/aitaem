@@ -23,7 +23,7 @@ this is a purely additive extension.
 | Composite segments (named-spec form) | Out of scope — single-spec, single-table mechanism only. |
 | Validation dispatch | `validate_segment_spec` requires exactly one of `values`/`column` non-empty. Each `column` entry validated with `_is_valid_column_identifier`, checked for duplicates (mirrors `values`/`cross_product`'s existing dedup checks), and checked for overlap with `entity_id`/`join_keys` (rejected — wildcarding the join key turns every DIM row into its own segment). |
 | DIM-side column existence checking | `referenced_columns["where"] = list(column)` flows through `validate_spec` Check 5, which already checks referenced columns against the DIM table's live schema. |
-| Cardinality / dot-qualified column names | No cardinality limit, matching wildcard slices. `_is_valid_column_identifier` accepts dot-qualified names, but `dim_src[col]` requires a bare name — a dot-qualified entry fails with an Ibis `KeyError` at query-build time. |
+| Cardinality / dot-qualified column names | No cardinality limit, matching wildcard slices. `_is_valid_column_identifier` accepts dot-qualified names, but `dim_src[col]` requires a bare name — a dot-qualified entry fails with `ibis.common.exceptions.IbisTypeError` at query-build time. |
 
 ---
 
@@ -103,7 +103,7 @@ class SegmentSpec:
   - New `TestWildcardSegmentExecution`: NULL exclusion, one aggregate row per distinct value/combination, correct aggregates, `segment_name == spec.name`, `'\|'`-join order.
   - Collision regression: two DIM rows whose column values differ but whose naive `'\|'`-joined string would match (e.g. `("A|B", "C")` vs. `("A", "B|C")`) → two separate aggregate rows.
   - Empty DIM table / no matching rows → zero segment rows.
-  - Dot-qualified `column` entry → `KeyError` at query-build time.
+  - Dot-qualified `column` entry → `ibis.common.exceptions.IbisTypeError` at query-build time.
   - `ibis.to_sql(expr, dialect="bigquery")`: `.cast("string")` emits `STRING`.
   - Multi-entity metric + explicit `by_entity` + wildcard segment.
 - `tests/test_agent/test_definition_tools.py` — `validate_spec` Check 5 coverage, single- and multi-column.

@@ -92,13 +92,21 @@ Maps each spec field to the unqualified column names it references. Populated on
 
 **Keys for composite slice specs:** empty dict `{}` — no SQL expressions to extract from.
 
-**Keys for segment specs:**
+**Keys for segment leaf specs:**
 
 | Key | Source |
 |-----|--------|
 | `"entity_id"` | Plain string field |
 | `"join_keys"` | Plain list field, present only when `join_keys` is non-empty |
 | `"values[i].where"` | SQL WHERE expression (AST-parsed), one key per value |
+
+**Keys for wildcard segment specs:**
+
+| Key | Source |
+|-----|--------|
+| `"entity_id"` | Plain string field |
+| `"join_keys"` | Plain list field, present only when `join_keys` is non-empty |
+| `"where"` | The wildcard column name(s) — one entry for a single column, or one per column for a multi-column (cross-product) segment |
 
 **Example — metric spec:**
 

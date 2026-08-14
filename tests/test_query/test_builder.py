@@ -259,14 +259,15 @@ class TestBuildSegmentCaseWhenExpr:
 
 
 # ---------------------------------------------------------------------------
-# 8. _build_slice_value_expr
+# 8. _build_joined_value_expr (renamed from _build_slice_value_expr; now
+#    shared by both slice and segment code paths — see TestBuildJoinedValueExprRename)
 # ---------------------------------------------------------------------------
 
 
 class TestBuildSliceValueExpr:
     def test_no_aliases_returns_literal_all(self):
         t = ibis.table(schema={"x": "string"}, name="t")
-        expr = QueryBuilder._build_slice_value_expr(t, [])
+        expr = QueryBuilder._build_joined_value_expr(t, [])
         # Compile-level check: literal 'all', no column reference
         sql = ibis.to_sql(t.mutate(slice_value=expr), dialect="duckdb")
         assert "'all'" in sql
@@ -276,7 +277,7 @@ class TestBuildSliceValueExpr:
         con.create_table("t", schema={"_slice_geo": "string"})
         con.raw_sql("INSERT INTO t VALUES ('USA')")
         t = con.table("t")
-        expr = QueryBuilder._build_slice_value_expr(t, ["_slice_geo"])
+        expr = QueryBuilder._build_joined_value_expr(t, ["_slice_geo"])
         df = t.mutate(slice_value=expr).execute()
         assert df["slice_value"].iloc[0] == "USA"
 
@@ -285,7 +286,7 @@ class TestBuildSliceValueExpr:
         con.create_table("t", schema={"_slice_geo": "string", "_slice_device": "string"})
         con.raw_sql("INSERT INTO t VALUES ('USA', 'mobile')")
         t = con.table("t")
-        expr = QueryBuilder._build_slice_value_expr(t, ["_slice_geo", "_slice_device"])
+        expr = QueryBuilder._build_joined_value_expr(t, ["_slice_geo", "_slice_device"])
         df = t.mutate(slice_value=expr).execute()
         assert df["slice_value"].iloc[0] == "USA|mobile"
 
@@ -294,9 +295,24 @@ class TestBuildSliceValueExpr:
         con.create_table("t", schema={"_a": "string", "_b": "string", "_c": "string"})
         con.raw_sql("INSERT INTO t VALUES ('x', 'y', 'z')")
         t = con.table("t")
-        expr = QueryBuilder._build_slice_value_expr(t, ["_a", "_b", "_c"])
+        expr = QueryBuilder._build_joined_value_expr(t, ["_a", "_b", "_c"])
         df = t.mutate(slice_value=expr).execute()
         assert df["slice_value"].iloc[0] == "x|y|z"
+
+
+class TestBuildJoinedValueExprRename:
+    """Regression: the rename to _build_joined_value_expr must not change
+    slice-composite behavior — same assertions as TestBuildSliceValueExpr,
+    routed through the segment_value call site's exact usage pattern."""
+
+    def test_used_for_segment_value_too(self):
+        con = ibis.duckdb.connect()
+        con.create_table("t", schema={"_segment_0": "string", "_segment_1": "string"})
+        con.raw_sql("INSERT INTO t VALUES ('A', 'B')")
+        t = con.table("t")
+        expr = QueryBuilder._build_joined_value_expr(t, ["_segment_0", "_segment_1"])
+        df = t.mutate(segment_value=expr).execute()
+        assert df["segment_value"].iloc[0] == "A|B"
 
 
 # ---------------------------------------------------------------------------
@@ -984,6 +1000,213 @@ class TestWildcardSliceExecution:
         df = self._compute([_wildcard_slice, _leaf_campaign_type_slice])
         assert df["metric_value"].notna().all()
         assert set(df["slice_type"]) == {"industry|campaign_type"}
+
+
+# ---------------------------------------------------------------------------
+# 14b. Wildcard segment — _build_wildcard_segment_mutations and execution
+# ---------------------------------------------------------------------------
+
+SETUP_SQL_WILDCARD_SEGMENT = """
+CREATE TABLE wc_transactions AS
+SELECT * FROM (VALUES
+    (1, 10.0),
+    (2, 20.0),
+    (3, 30.0),
+    (4, 40.0)
+) AS t(user_id, amount);
+CREATE TABLE dim_wc_users AS
+SELECT * FROM (VALUES
+    (1, 'A|B', 'C'),
+    (2, 'A',   'B|C'),
+    (3, 'X',   'Y'),
+    (4, NULL,  'Z')
+) AS t(user_id, region, tier)
+"""
+
+_wildcard_segment_metric = MetricSpec(
+    name="wc_revenue",
+    source="duckdb://analytics.db/wc_transactions",
+    numerator="SUM(amount)",
+    timestamp_col="event_ts",
+)
+
+_wildcard_region_segment = SegmentSpec(
+    name="region",
+    source="duckdb://analytics.db/dim_wc_users",
+    entity_id="user_id",
+    column=("region",),
+)
+
+_wildcard_region_tier_segment = SegmentSpec(
+    name="region_tier",
+    source="duckdb://analytics.db/dim_wc_users",
+    entity_id="user_id",
+    column=("region", "tier"),
+)
+
+
+class TestBuildWildcardSegmentMutations:
+    """Unit tests for _build_wildcard_segment_mutations."""
+
+    def test_single_column_alias_and_expr(self):
+        dim = ibis.table(schema={"user_id": "int64", "region": "string"}, name="dim")
+        mutations = QueryBuilder._build_wildcard_segment_mutations(
+            _wildcard_region_segment, dim
+        )
+        assert list(mutations.keys()) == ["_segment_0"]
+        assert mutations["_segment_0"].type().is_string()
+
+    def test_multi_column_aliases_and_exprs(self):
+        dim = ibis.table(
+            schema={"user_id": "int64", "region": "string", "tier": "string"}, name="dim"
+        )
+        mutations = QueryBuilder._build_wildcard_segment_mutations(
+            _wildcard_region_tier_segment, dim
+        )
+        assert list(mutations.keys()) == ["_segment_0", "_segment_1"]
+        assert all(v.type().is_string() for v in mutations.values())
+
+
+class TestWildcardSegmentExecution:
+    """End-to-end DuckDB execution tests for wildcard segments."""
+
+    def _compute(self, segment_spec):
+        manager = _make_manager(SETUP_SQL_WILDCARD_SEGMENT)
+        connector = manager.get_connection("duckdb")
+        expr = QueryBuilder._build_metric_segment_query(
+            metric=_wildcard_segment_metric,
+            connector=connector,
+            slice_specs=None,
+            segment_spec=segment_spec,
+            period_type="all_time",
+            period_start=None,
+            period_end=None,
+        )
+        return expr.execute()
+
+    def test_wildcard_excludes_null_column_values(self):
+        df = self._compute(_wildcard_region_segment)
+        assert df["segment_value"].isna().sum() == 0
+        assert df["metric_value"].sum() == pytest.approx(60.0)  # excludes user 4's 40.0
+
+    def test_wildcard_produces_one_row_per_distinct_value(self):
+        df = self._compute(_wildcard_region_segment)
+        assert set(df["segment_value"]) == {"A|B", "A", "X"}
+        assert len(df) == 3
+
+    def test_wildcard_correct_aggregates(self):
+        df = self._compute(_wildcard_region_segment)
+        totals = df.set_index("segment_value")["metric_value"]
+        assert totals["A|B"] == pytest.approx(10.0)
+        assert totals["A"] == pytest.approx(20.0)
+        assert totals["X"] == pytest.approx(30.0)
+
+    def test_wildcard_segment_name_is_spec_name(self):
+        df = self._compute(_wildcard_region_segment)
+        assert (df["segment_name"] == "region").all()
+
+    def test_wildcard_multi_column_pipe_join_order(self):
+        df = self._compute(_wildcard_region_tier_segment)
+        assert "X|Y" in set(df["segment_value"])
+
+    def test_wildcard_multi_column_collision_regression(self):
+        """Two DIM rows ('A|B','C') and ('A','B|C') both naively '|'-join to
+        the same display string 'A|B|C' — GROUP BY on the raw per-column
+        aliases must still keep them as two separate aggregate rows."""
+        df = self._compute(_wildcard_region_tier_segment)
+        collided = df[df["segment_value"] == "A|B|C"]
+        assert len(collided) == 2
+        assert sorted(collided["metric_value"]) == pytest.approx([10.0, 20.0])
+
+    def test_wildcard_empty_dim_table_produces_zero_rows(self):
+        manager = _make_manager(
+            """
+            CREATE TABLE wc_transactions AS
+            SELECT * FROM (VALUES (1, 10.0)) AS t(user_id, amount);
+            CREATE TABLE dim_wc_users AS
+            SELECT * FROM (VALUES (1, 'A')) AS t(user_id, region) WHERE FALSE
+            """
+        )
+        connector = manager.get_connection("duckdb")
+        expr = QueryBuilder._build_metric_segment_query(
+            metric=_wildcard_segment_metric,
+            connector=connector,
+            slice_specs=None,
+            segment_spec=_wildcard_region_segment,
+            period_type="all_time",
+            period_start=None,
+            period_end=None,
+        )
+        assert len(expr.execute()) == 0
+
+    def test_wildcard_dot_qualified_column_raises(self):
+        manager = _make_manager(SETUP_SQL_WILDCARD_SEGMENT)
+        connector = manager.get_connection("duckdb")
+        dotted_segment = SegmentSpec(
+            name="region",
+            source="duckdb://analytics.db/dim_wc_users",
+            entity_id="user_id",
+            column=("public.dim_wc_users.region",),
+        )
+        with pytest.raises(ibis.common.exceptions.IbisTypeError):
+            QueryBuilder._build_metric_segment_query(
+                metric=_wildcard_segment_metric,
+                connector=connector,
+                slice_specs=None,
+                segment_spec=dotted_segment,
+                period_type="all_time",
+                period_start=None,
+                period_end=None,
+            )
+
+    def test_wildcard_segment_bigquery_dialect_cast_emits_string(self):
+        manager = _make_manager(SETUP_SQL_WILDCARD_SEGMENT)
+        connector = manager.get_connection("duckdb")
+        expr = QueryBuilder._build_metric_segment_query(
+            metric=_wildcard_segment_metric,
+            connector=connector,
+            slice_specs=None,
+            segment_spec=_wildcard_region_segment,
+            period_type="all_time",
+            period_start=None,
+            period_end=None,
+        )
+        sql = ibis.to_sql(expr, dialect="bigquery")
+        assert "STRING" in sql.upper()
+
+    def test_wildcard_segment_with_by_entity(self):
+        manager = _make_manager(
+            SETUP_SQL_WILDCARD_SEGMENT.replace(
+                "CREATE TABLE wc_transactions AS\nSELECT * FROM (VALUES\n"
+                "    (1, 10.0),\n    (2, 20.0),\n    (3, 30.0),\n    (4, 40.0)\n"
+                ") AS t(user_id, amount);",
+                "CREATE TABLE wc_transactions AS\nSELECT * FROM (VALUES\n"
+                "    (1, 10.0),\n    (1, 5.0),\n    (2, 20.0),\n    (3, 30.0),\n    (4, 40.0)\n"
+                ") AS t(user_id, amount);",
+            )
+        )
+        connector = manager.get_connection("duckdb")
+        metric = MetricSpec(
+            name="wc_revenue",
+            source="duckdb://analytics.db/wc_transactions",
+            numerator="SUM(amount)",
+            timestamp_col="event_ts",
+            entities=["user_id"],
+        )
+        expr = QueryBuilder._build_metric_segment_query(
+            metric=metric,
+            connector=connector,
+            slice_specs=None,
+            segment_spec=_wildcard_region_segment,
+            period_type="all_time",
+            period_start=None,
+            period_end=None,
+            by_entity="user_id",
+        )
+        df = expr.execute()
+        row = df[df["entity_id"] == 1]
+        assert row["metric_value"].iloc[0] == pytest.approx(15.0)
+        assert row["segment_value"].iloc[0] == "A|B"
 
 
 # ---------------------------------------------------------------------------

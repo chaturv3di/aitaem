@@ -348,12 +348,22 @@ Frozen dataclass representing a single named filter condition within a leaf Slic
 SegmentSpec(
     name: str,
     source: str,
-    values: tuple[SegmentValue, ...],
+    entity_id: str,
+    values: tuple[SegmentValue, ...] = (),
+    column: tuple[str, ...] = (),
     description: str = "",
+    join_keys: tuple[str, ...] = (),
 )
 ```
 
+Exactly one of `values` (leaf, named cohort filters) or `column` (wildcard, auto-discovers
+segments from one or more DIM-table columns at query time) is set.
+
 **`SegmentSpec.from_yaml(yaml_input: str | Path) -> SegmentSpec`**
+
+**`segment_spec.is_wildcard -> bool`**
+
+`True` if `column` is non-empty.
 
 **`SegmentValue(name: str, where: str)`**
 

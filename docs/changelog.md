@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added
+
+- **Wildcard segments.** `SegmentSpec` now accepts a `where:` key (analogous to `SliceSpec`'s
+  wildcard mode) instead of an enumerated `values:` list — one or more DIM-table columns whose
+  distinct values, or value combinations for more than one column, become segments
+  automatically at query time. A list of columns produces the cross-product of their distinct
+  combinations.
+
 ## v2.0.0 — 2026-08-12
 
 ### Changed

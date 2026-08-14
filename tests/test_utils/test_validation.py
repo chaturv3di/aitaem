@@ -202,3 +202,87 @@ class TestSegmentSpecNameValidation:
         name_errors = [e for e in result.errors if e.field == "name"]
         assert len(name_errors) == 1
         assert "not a valid SQL identifier" not in name_errors[0].message
+
+
+# ---------------------------------------------------------------------------
+# validate_segment_spec — wildcard 'where' field
+# ---------------------------------------------------------------------------
+
+VALID_WILDCARD_SEGMENT = {
+    "name": "by_region",
+    "source": "duckdb://db/dim_customers",
+    "entity_id": "customer_id",
+    "where": "region",
+}
+
+
+class TestSegmentSpecWildcardValidation:
+    def test_single_column_valid(self):
+        result = validate_segment_spec(VALID_WILDCARD_SEGMENT)
+        assert result.valid is True
+
+    def test_multi_column_valid(self):
+        spec = {**VALID_WILDCARD_SEGMENT, "where": ["region", "tier"]}
+        result = validate_segment_spec(spec)
+        assert result.valid is True
+
+    def test_invalid_column_identifier_rejected(self):
+        spec = {**VALID_WILDCARD_SEGMENT, "where": "my region"}
+        result = validate_segment_spec(spec)
+        assert result.valid is False
+        assert any("plain column identifier" in e.message for e in result.errors)
+
+    def test_invalid_column_identifier_in_list_rejected(self):
+        spec = {**VALID_WILDCARD_SEGMENT, "where": ["region", "my tier"]}
+        result = validate_segment_spec(spec)
+        assert result.valid is False
+        assert any("plain column identifier" in e.message for e in result.errors)
+
+    def test_duplicate_column_rejected(self):
+        spec = {**VALID_WILDCARD_SEGMENT, "where": ["region", "region"]}
+        result = validate_segment_spec(spec)
+        assert result.valid is False
+        assert any("Duplicate column" in e.message for e in result.errors)
+
+    def test_column_overlapping_entity_id_rejected(self):
+        spec = {**VALID_WILDCARD_SEGMENT, "where": "customer_id"}
+        result = validate_segment_spec(spec)
+        assert result.valid is False
+        assert any("overlaps with entity_id" in e.message for e in result.errors)
+
+    def test_column_overlapping_join_keys_rejected(self):
+        spec = {**VALID_WILDCARD_SEGMENT, "where": "buyer_id", "join_keys": ["buyer_id"]}
+        result = validate_segment_spec(spec)
+        assert result.valid is False
+        assert any("overlaps with entity_id" in e.message for e in result.errors)
+
+    def test_both_values_and_where_rejected(self):
+        spec = {**VALID_WILDCARD_SEGMENT, "values": [{"name": "a", "where": "x = 1"}]}
+        result = validate_segment_spec(spec)
+        assert result.valid is False
+
+    def test_neither_values_nor_where_rejected(self):
+        spec = {k: v for k, v in VALID_WILDCARD_SEGMENT.items() if k != "where"}
+        result = validate_segment_spec(spec)
+        assert result.valid is False
+
+    def test_referenced_columns_where_key_single_column(self):
+        result = validate_segment_spec(VALID_WILDCARD_SEGMENT)
+        assert result.referenced_columns["where"] == ["region"]
+
+    def test_referenced_columns_where_key_multi_column(self):
+        spec = {**VALID_WILDCARD_SEGMENT, "where": ["region", "tier"]}
+        result = validate_segment_spec(spec)
+        assert result.referenced_columns["where"] == ["region", "tier"]
+
+    def test_empty_string_where_rejected(self):
+        spec = {**VALID_WILDCARD_SEGMENT, "where": ""}
+        result = validate_segment_spec(spec)
+        assert result.valid is False
+        assert any(e.field == "where" for e in result.errors)
+
+    def test_empty_string_entry_in_where_list_rejected(self):
+        spec = {**VALID_WILDCARD_SEGMENT, "where": ["", "region"]}
+        result = validate_segment_spec(spec)
+        assert result.valid is False
+        assert any("non-empty string" in e.message for e in result.errors)
