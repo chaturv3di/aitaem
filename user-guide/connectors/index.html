@@ -1646,7 +1646,7 @@
 <p>The recommended way to configure connections is a <code>connections.yaml</code> file. Load it with:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectionManager</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span><span class="s2">&quot;connections.yaml&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span><span class="s2">"connections.yaml"</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="duckdb">DuckDB</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">duckdb</span><span class="p">:</span>
@@ -1788,21 +1788,21 @@ real boundary, the same as querying BigQuery directly.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectionManager</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;analytics.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">"duckdb"</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"analytics.db"</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="duckdb-from-csv-files">DuckDB — from CSV files</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectionManager</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.helpers</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_csvs_to_duckdb</span>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">connector</span> <span class="o">=</span> <span class="n">load_csvs_to_duckdb</span><span class="p">(</span><span class="s2">&quot;data/events.csv&quot;</span><span class="p">,</span> <span class="s2">&quot;analytics.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">connector</span> <span class="o">=</span> <span class="n">load_csvs_to_duckdb</span><span class="p">(</span><span class="s2">"data/events.csv"</span><span class="p">,</span> <span class="s2">"analytics.db"</span><span class="p">)</span>
 <a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
 <a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span> <span class="n">connector</span><span class="o">=</span><span class="n">connector</span><span class="p">)</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">"duckdb"</span><span class="p">,</span> <span class="n">connector</span><span class="o">=</span><span class="n">connector</span><span class="p">)</span>
 </code></pre></div>
 <p>Pass a directory path instead of a single file to load all CSV files in that directory at once — each file becomes a table named after its stem.</p>
 <h3 id="bigquery_1">BigQuery</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">&quot;bigquery&quot;</span><span class="p">,</span> <span class="n">project_id</span><span class="o">=</span><span class="s2">&quot;my-project&quot;</span><span class="p">,</span> <span class="n">dataset_id</span><span class="o">=</span><span class="s2">&quot;my_dataset&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">"bigquery"</span><span class="p">,</span> <span class="n">project_id</span><span class="o">=</span><span class="s2">"my-project"</span><span class="p">,</span> <span class="n">dataset_id</span><span class="o">=</span><span class="s2">"my_dataset"</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="postgresql_1">PostgreSQL</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
@@ -1810,11 +1810,11 @@ real boundary, the same as querying BigQuery directly.</p>
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="n">conn</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="s2">&quot;postgres&quot;</span><span class="p">,</span>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="n">host</span><span class="o">=</span><span class="s2">&quot;db.example.com&quot;</span><span class="p">,</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>    <span class="n">database</span><span class="o">=</span><span class="s2">&quot;mydb&quot;</span><span class="p">,</span>
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    <span class="n">user</span><span class="o">=</span><span class="s2">&quot;myuser&quot;</span><span class="p">,</span>
-<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>    <span class="n">password</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;POSTGRES_PASSWORD&quot;</span><span class="p">],</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="s2">"postgres"</span><span class="p">,</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="n">host</span><span class="o">=</span><span class="s2">"db.example.com"</span><span class="p">,</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>    <span class="n">database</span><span class="o">=</span><span class="s2">"mydb"</span><span class="p">,</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    <span class="n">user</span><span class="o">=</span><span class="s2">"myuser"</span><span class="p">,</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>    <span class="n">password</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"POSTGRES_PASSWORD"</span><span class="p">],</span>
 <a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="p">)</span>
 </code></pre></div>
 <hr />
@@ -1909,16 +1909,16 @@ dot-separated parts (project, dataset, table) once normalized. <code>bigquery://
 <p>When a single <code>compute()</code> call includes metrics from different backends (e.g., one from BigQuery and one from DuckDB), aitaem must materialise intermediate result sets into a temporary DuckDB database. <code>ConnectionManager</code> manages this automatically.</p>
 <p>By default the temporary file is written to <code>/tmp</code>. Pass <code>tmp_dir</code> to control the location, or set it to <code>None</code> to keep everything in memory:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># File-based (default) — safe for large cross-backend result sets</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">(</span><span class="n">tmp_dir</span><span class="o">=</span><span class="s2">&quot;/tmp&quot;</span><span class="p">)</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">(</span><span class="n">tmp_dir</span><span class="o">=</span><span class="s2">"/tmp"</span><span class="p">)</span>
 <a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
 <a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># Custom directory</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">(</span><span class="n">tmp_dir</span><span class="o">=</span><span class="s2">&quot;/data/tmp&quot;</span><span class="p">)</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">(</span><span class="n">tmp_dir</span><span class="o">=</span><span class="s2">"/data/tmp"</span><span class="p">)</span>
 <a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
 <a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="c1"># In-memory — use when result sets are known to be small</span>
 <a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">(</span><span class="n">tmp_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
 </code></pre></div>
 <p>When using <code>from_yaml()</code>, pass <code>tmp_dir</code> as a keyword argument:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span><span class="s2">&quot;connections.yaml&quot;</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="o">=</span><span class="s2">&quot;/data/tmp&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span><span class="s2">"connections.yaml"</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="o">=</span><span class="s2">"/data/tmp"</span><span class="p">)</span>
 </code></pre></div>
 <p>The temporary database is deleted automatically when <code>close_all()</code> is called, or when the <code>ConnectionManager</code> instance is garbage collected as a final backstop.</p>
 <hr />

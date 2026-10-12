@@ -1324,11 +1324,11 @@ backlog that never shrinks.</p>
   additional code.</li>
 </ul>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">metrics</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;ctr&quot;</span><span class="p">,</span> <span class="s2">&quot;roas&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">slices</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;campaign_type&quot;</span><span class="p">,</span> <span class="s2">&quot;geo&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">segments</span><span class="o">=</span><span class="s2">&quot;platform&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-04-01&quot;</span><span class="p">),</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">period_type</span><span class="o">=</span><span class="s2">&quot;monthly&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">metrics</span><span class="o">=</span><span class="p">[</span><span class="s2">"ctr"</span><span class="p">,</span> <span class="s2">"roas"</span><span class="p">],</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">slices</span><span class="o">=</span><span class="p">[</span><span class="s2">"campaign_type"</span><span class="p">,</span> <span class="s2">"geo"</span><span class="p">],</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">segments</span><span class="o">=</span><span class="s2">"platform"</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">"2024-01-01"</span><span class="p">,</span> <span class="s2">"2024-04-01"</span><span class="p">),</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">period_type</span><span class="o">=</span><span class="s2">"monthly"</span><span class="p">,</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">df</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
 </code></pre></div>
@@ -1353,17 +1353,17 @@ these tables by hand involves bespoke SQL per feature, repeated for every traini
 </ul>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Per-user monthly ad CTR — feed directly into an ML feature pipeline</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">table</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">metrics</span><span class="o">=</span><span class="s2">&quot;ad_ctr&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">by_entity</span><span class="o">=</span><span class="s2">&quot;user_id&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;2023-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-01-01&quot;</span><span class="p">),</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">period_type</span><span class="o">=</span><span class="s2">&quot;monthly&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">metrics</span><span class="o">=</span><span class="s2">"ad_ctr"</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">by_entity</span><span class="o">=</span><span class="s2">"user_id"</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">time_window</span><span class="o">=</span><span class="p">(</span><span class="s2">"2023-01-01"</span><span class="p">,</span> <span class="s2">"2024-01-01"</span><span class="p">),</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">period_type</span><span class="o">=</span><span class="s2">"monthly"</span><span class="p">,</span>
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="p">)</span>
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
 <a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1"># Materialise and pivot → one row per user, one column per month</span>
 <a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="n">feature_table</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span><span class="o">.</span><span class="n">pivot_table</span><span class="p">(</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="n">index</span><span class="o">=</span><span class="s2">&quot;entity_id&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">columns</span><span class="o">=</span><span class="s2">&quot;period_start_date&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">values</span><span class="o">=</span><span class="s2">&quot;metric_value&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="n">index</span><span class="o">=</span><span class="s2">"entity_id"</span><span class="p">,</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">columns</span><span class="o">=</span><span class="s2">"period_start_date"</span><span class="p">,</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">values</span><span class="o">=</span><span class="s2">"metric_value"</span><span class="p">,</span>
 <a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="p">)</span>
 </code></pre></div>
 <hr />
@@ -1442,12 +1442,12 @@ correctness, security, and cost risks.</p>
 <li>Since aitaem is explicitly designed to be LLM-friendly, it fits naturally as the "tool call"
   layer in an agentic pipeline.</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>User: &quot;How did CTR trend by campaign type in Q1?&quot;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>User: "How did CTR trend by campaign type in Q1?"
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>          │
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>          ▼
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>     LLM Agent
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>          │  tool_call: compute(metrics=&quot;ctr&quot;, slices=&quot;campaign_type&quot;,
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>          │             time_window=(&quot;2024-01-01&quot;, &quot;2024-04-01&quot;), period_type=&quot;monthly&quot;)
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>          │  tool_call: compute(metrics="ctr", slices="campaign_type",
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>          │             time_window=("2024-01-01", "2024-04-01"), period_type="monthly")
 <a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>          ▼
 <a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>   MetricCompute → ibis.Table → .to_pandas()
 <a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>          │

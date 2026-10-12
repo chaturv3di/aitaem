@@ -1357,13 +1357,13 @@ of the deterministic compute layer: <code>QueryBot</code> (answer questions agai
 catalog) and <code>DefinitionBot</code> (draft, validate, and commit or delete specs from natural
 language).</p>
 <h2 id="installation">Installation</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;aitaem[agent-anthropic]&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"aitaem[agent-anthropic]"</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ANTHROPIC_API_KEY</span><span class="o">=</span>sk-ant-...
 </code></pre></div>
 <p><code>agent-anthropic</code> is the tested, concrete install path — every example in this repo runs
 against an Anthropic model. If you plan to use a different or multiple model providers,
 install the provider-neutral superset instead:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;aitaem[agent]&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"aitaem[agent]"</span>
 </code></pre></div>
 <p>Both bots accept any <a href="https://ai.pydantic.dev/">pydantic-ai</a> model string (e.g.
 <code>"openai:gpt-4o"</code>), so <code>agent</code> — which also pulls in the OpenAI SDK — is the extra to
@@ -1374,20 +1374,20 @@ reach for once you're not exclusively on Anthropic.</p>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">QueryBot</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">spec_cache</span> <span class="o">=</span> <span class="n">SpecCache</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">metric_paths</span><span class="o">=</span><span class="s2">&quot;examples/metrics/&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">slice_paths</span><span class="o">=</span><span class="s2">&quot;examples/slices/&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">metric_paths</span><span class="o">=</span><span class="s2">"examples/metrics/"</span><span class="p">,</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">slice_paths</span><span class="o">=</span><span class="s2">"examples/slices/"</span><span class="p">,</span>
 <a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="p">)</span>
 <a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
 <a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="n">conn_mgr</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="n">conn_mgr</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;examples/data/ad_campaigns.duckdb&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="n">conn_mgr</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">"duckdb"</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"examples/data/ad_campaigns.duckdb"</span><span class="p">)</span>
 <a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
 <a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="n">bot</span> <span class="o">=</span> <span class="n">QueryBot</span><span class="p">(</span>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;anthropic:claude-haiku-4-5-20251001&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="n">model</span><span class="o">=</span><span class="s2">"anthropic:claude-haiku-4-5-20251001"</span><span class="p">,</span>
 <a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="n">spec_cache</span><span class="o">=</span><span class="n">spec_cache</span><span class="p">,</span>
 <a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    <span class="n">connection_manager</span><span class="o">=</span><span class="n">conn_mgr</span><span class="p">,</span>
 <a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="p">)</span>
 <a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">bot</span><span class="o">.</span><span class="n">chat</span><span class="p">(</span><span class="s2">&quot;What was total revenue and ROAS across all campaigns?&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">bot</span><span class="o">.</span><span class="n">chat</span><span class="p">(</span><span class="s2">"What was total revenue and ROAS across all campaigns?"</span><span class="p">)</span>
 <a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">narrative</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="definitionbot-quick-start">DefinitionBot quick start</h2>
@@ -1396,22 +1396,22 @@ reach for once you're not exclusively on Anthropic.</p>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefinitionBot</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">spec_cache</span> <span class="o">=</span> <span class="n">SpecCache</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">metric_paths</span><span class="o">=</span><span class="s2">&quot;examples/metrics/&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">slice_paths</span><span class="o">=</span><span class="s2">&quot;examples/slices/&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">metric_paths</span><span class="o">=</span><span class="s2">"examples/metrics/"</span><span class="p">,</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">slice_paths</span><span class="o">=</span><span class="s2">"examples/slices/"</span><span class="p">,</span>
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">)</span>
 <a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
 <a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="n">conn_mgr</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="n">conn_mgr</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;examples/data/ad_campaigns.duckdb&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="n">conn_mgr</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">"duckdb"</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"examples/data/ad_campaigns.duckdb"</span><span class="p">)</span>
 <a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
 <a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="n">bot</span> <span class="o">=</span> <span class="n">DefinitionBot</span><span class="p">(</span>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;anthropic:claude-haiku-4-5-20251001&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="n">model</span><span class="o">=</span><span class="s2">"anthropic:claude-haiku-4-5-20251001"</span><span class="p">,</span>
 <a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>    <span class="n">spec_cache</span><span class="o">=</span><span class="n">spec_cache</span><span class="p">,</span>
 <a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>    <span class="n">connection_manager</span><span class="o">=</span><span class="n">conn_mgr</span><span class="p">,</span>
 <a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="p">)</span>
 <a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>
 <a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">bot</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span>
-<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>    <span class="s2">&quot;Define a metric called avg_cpc for average cost per click — &quot;</span>
-<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>    <span class="s2">&quot;total ad spend divided by total clicks.&quot;</span>
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>    <span class="s2">"Define a metric called avg_cpc for average cost per click — "</span>
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>    <span class="s2">"total ad spend divided by total clicks."</span>
 <a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="p">)</span>
 <a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">narrative</span><span class="p">)</span>
 <a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">payload</span><span class="o">.</span><span class="n">yaml_string</span><span class="p">)</span>
