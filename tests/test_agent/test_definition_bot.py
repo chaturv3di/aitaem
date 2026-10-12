@@ -1229,7 +1229,7 @@ def test_layer_b_rebuilds_and_updates_version_after_mutation():
     assert bot._agent is not agent_before
     assert bot._layer_b_version == cache.version
     assert any(
-        isinstance(instr, str) and "new_metric" in instr for instr in bot._agent._instructions
+        "new_metric" in getattr(instr, "instruction", instr) for instr in bot._agent._instructions
     )
 
 
