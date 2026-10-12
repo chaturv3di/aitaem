@@ -39,8 +39,8 @@ from aitaem.helpers import load_csvs_to_duckdb
 
 ```python
 from aitaem import PeriodType, VALID_PERIOD_TYPES
-# PeriodType = Literal["all_time", "daily", "weekly", "monthly", "yearly"]
-# VALID_PERIOD_TYPES = frozenset({"all_time", "daily", "weekly", "monthly", "yearly"})
+# PeriodType = Literal["all_time", "daily", "weekly", "monthly", "yearly", "hourly"]
+# VALID_PERIOD_TYPES = frozenset({"all_time", "daily", "weekly", "monthly", "yearly", "hourly"})
 ```
 
 ## Exceptions

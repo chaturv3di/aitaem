@@ -257,6 +257,31 @@ segment:
       where: "platform = 'TikTok Ads'"
 ```
 
+**Wildcard** — auto-discover segments from DIM-table columns at query time by setting `where` at
+the spec level to a column name (or a list of column names) instead of enumerating `values`:
+
+```yaml
+segment:
+  name: store_type
+  source: duckdb://retail.duckdb/dim_stores
+  entity_id: store_id
+  where: store_type
+```
+
+A list of columns produces one segment per distinct combination (a cross-product of the columns'
+values that actually occur), with `segment_value` joined by `|`:
+
+```yaml
+segment:
+  name: store_type_region
+  source: duckdb://retail.duckdb/dim_stores
+  entity_id: store_id
+  where: [store_type, region]   # segment_value e.g. "flagship|west"
+```
+
+Wildcard columns are cast to string, and rows where any wildcard column is `NULL` are dropped.
+Exactly one of `values` or `where` must be set.
+
 At compute time, aitaem generates a JOIN from the fact table to the DIM table on the entity key:
 
 ```sql
@@ -270,6 +295,8 @@ The `<join_key>` is resolved at `compute()` time — see [`segments` parameter](
     `values[].where` expressions are evaluated against the DIM table (aliased as `_dim`).
     Unqualified column references are automatically qualified — `"platform = 'Google Ads'"` becomes
     `_dim.platform = 'Google Ads'` in the generated SQL. You do **not** need to write the prefix yourself.
+    Wildcard `where` entries are bare column names on the same DIM table; dot-qualified names are
+    not supported there.
 
 ### Fields
 
@@ -278,7 +305,8 @@ The `<join_key>` is resolved at `compute()` time — see [`segments` parameter](
 | `name` | Yes | Unique identifier |
 | `source` | Yes | URI of the DIM table to join |
 | `entity_id` | Yes | Primary key column on the DIM table. Used as the right-hand side of the JOIN ON condition (`_dim.<entity_id>`). |
-| `values` | Yes | List of `{name, where}` filter definitions against DIM table columns |
+| `values` | One of `values`/`where` | List of `{name, where}` filter definitions against DIM table columns (enumerated segment) |
+| `where` | One of `values`/`where` | A DIM-table column name, or a list of column names, to auto-discover segments from (wildcard segment). Each entry must be a plain column identifier, must not repeat, and must not equal `entity_id` or a `join_keys` entry. Mutually exclusive with `values`. |
 | `join_keys` | No | Whitelist of fact-table FK columns accepted as join keys. When non-empty, the join key supplied in `compute()` must be in this list. When empty (default), any column name is accepted. |
 | `description` | No | Human-readable description |
 
@@ -342,6 +370,9 @@ if result.valid:
     #   'values[1].where': ['lifetime_value'],
     # }
 ```
+
+For a wildcard segment, the DIM-table column(s) appear under a single `'where'` key instead of the
+`values[i].where` keys, e.g. `'where': ['store_type', 'region']`.
 
 !!! note
     `referenced_columns` is `None` when the spec is invalid — always check `result.valid` first.
@@ -428,7 +459,7 @@ For slices, the scan checks that every column referenced in `values[].where` (or
 
 For segments, only the **fact-table side** is checked: the scan verifies that at least one join
 key candidate (`join_keys`, or `entity_id` when `join_keys` is empty) exists in the metric's
-source table. The DIM-table columns (used in `values[].where`) are on the segment's own source
+source table. The DIM-table columns (used in `values[].where`, or the wildcard `where`) are on the segment's own source
 and are not validated here.
 
 ```python

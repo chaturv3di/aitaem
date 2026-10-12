@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2.1.0 — 2026-10-12
+
 ### Added
 
 - **Wildcard segments.** `SegmentSpec` now accepts a `where:` key (analogous to `SliceSpec`'s
