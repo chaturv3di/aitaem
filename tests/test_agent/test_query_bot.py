@@ -1029,7 +1029,7 @@ def test_query_bot_rebuilds_and_updates_version_after_mutation():
     assert bot._agent is not agent_before
     assert bot._layer_b_version == cache.version
     assert any(
-        isinstance(instr, str) and "new_metric" in instr for instr in bot._agent._instructions
+        "new_metric" in getattr(instr, "instruction", instr) for instr in bot._agent._instructions
     )
 
 
@@ -1103,6 +1103,6 @@ def test_query_bot_layer_b_reflects_spec_committed_by_shared_definition_bot():
 
     assert query_bot._agent is not agent_before
     assert any(
-        isinstance(instr, str) and "shared_metric" in instr
+        "shared_metric" in getattr(instr, "instruction", instr)
         for instr in query_bot._agent._instructions
     )

@@ -64,6 +64,22 @@ segment:
       where: "tier = 'premium'"
 """
 
+_VALID_WILDCARD_SEGMENT_YAML = """\
+segment:
+  name: by_region
+  source: duckdb://analytics.db/customers
+  entity_id: customer_id
+  where: region
+"""
+
+_VALID_MULTI_COLUMN_WILDCARD_SEGMENT_YAML = """\
+segment:
+  name: by_region_tier
+  source: duckdb://analytics.db/customers
+  entity_id: customer_id
+  where: [region, tier]
+"""
+
 _INVALID_METRIC_YAML = """\
 metric:
   name: broken
@@ -616,6 +632,64 @@ def test_validate_spec_column_not_in_schema_populates_column_errors():
     assert len(result.column_errors) > 0
     assert result.spec_draft_token is None
     mock_connector.get_table.assert_called_once_with("transactions", database=None)
+
+
+def test_validate_spec_wildcard_segment_column_in_schema_passes():
+    mock_connector = MagicMock()
+    mock_ibis = MagicMock()
+    mock_ibis.columns = ["customer_id", "region", "tier"]
+    mock_connector.get_table.return_value = mock_ibis
+    mock_cm = MagicMock()
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_cm.resolve_table_reference.return_value = ("customers", None)
+
+    deps = _make_deps(connection_manager=mock_cm)
+    draft_id = _store_draft(deps, "segment", _VALID_WILDCARD_SEGMENT_YAML)
+    ctx = _make_ctx(deps)
+
+    result = validate_spec(ctx, draft_id=draft_id)
+
+    assert result.column_errors == []
+    assert result.spec_draft_token is not None
+
+
+def test_validate_spec_wildcard_segment_multi_column_in_schema_passes():
+    mock_connector = MagicMock()
+    mock_ibis = MagicMock()
+    mock_ibis.columns = ["customer_id", "region", "tier"]
+    mock_connector.get_table.return_value = mock_ibis
+    mock_cm = MagicMock()
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_cm.resolve_table_reference.return_value = ("customers", None)
+
+    deps = _make_deps(connection_manager=mock_cm)
+    draft_id = _store_draft(deps, "segment", _VALID_MULTI_COLUMN_WILDCARD_SEGMENT_YAML)
+    ctx = _make_ctx(deps)
+
+    result = validate_spec(ctx, draft_id=draft_id)
+
+    assert result.column_errors == []
+    assert result.spec_draft_token is not None
+
+
+def test_validate_spec_wildcard_segment_column_missing_from_schema_populates_column_errors():
+    mock_connector = MagicMock()
+    mock_ibis = MagicMock()
+    # 'region' (the wildcard column) is absent
+    mock_ibis.columns = ["customer_id", "tier"]
+    mock_connector.get_table.return_value = mock_ibis
+    mock_cm = MagicMock()
+    mock_cm.get_connection_for_source.return_value = mock_connector
+    mock_cm.resolve_table_reference.return_value = ("customers", None)
+
+    deps = _make_deps(connection_manager=mock_cm)
+    draft_id = _store_draft(deps, "segment", _VALID_WILDCARD_SEGMENT_YAML)
+    ctx = _make_ctx(deps)
+
+    result = validate_spec(ctx, draft_id=draft_id)
+
+    assert len(result.column_errors) > 0
+    assert result.spec_draft_token is None
 
 
 def test_validate_spec_connection_failure_during_column_check_adds_warning():

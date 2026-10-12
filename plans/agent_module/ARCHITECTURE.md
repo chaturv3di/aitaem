@@ -1,8 +1,12 @@
 # Architecture: `aitaem.agent` Module
 
-**Version:** 0.2 (Draft, post-AITAEM-v0.4.0)  
-**Date:** June 2026  
-**Status:** Architecture-level alignment; pending user sign-off on open questions before downstream implementation planning.
+**Version:** 0.3 (Implemented)  
+**Date:** Originally June 2026; last updated 2026-08-14  
+**Status:** Shipped. `QueryBot` and `DefinitionBot` released in `aitaem[agent]` v1.0.0
+(2026-07-23); both bots were extended afterward by Plans 33–37, all released in v2.0.0
+(2026-08-12). This document is now a living record of the module as built, not a
+pre-implementation proposal — the "Open Questions" section at the end is resolved/closed
+throughout except where a decision remains genuinely deferred (cross-referenced to Section 7).
 
 ---
 
@@ -39,14 +43,14 @@ This is the master document. Each section also exists as a standalone Markdown f
 - **`MetricCompute` is constructed fresh per `compute_metrics` call** (AD-16, revised — Plan 30) — a stateless wrapper around the bot's held `spec_cache`/`connection_manager`; no bot-held instance. Live Ibis refs instead reference into `ConnectionManager`'s cross-backend scratch DuckDB, valid for the bot-held `ConnectionManager`'s lifetime regardless of how `MetricCompute` is scoped.
 - **No AITAEM operational-parameter passthrough exists today** (AD-17, dormant — Plan 30). `MetricCompute` takes only `spec_cache`/`connection_manager`. If AITAEM reintroduces an operational parameter, opaque `compute_kwargs` pass-through is the reactivation design.
 
-**Evals.** The architecture commits to a substrate (OTel-compatible trace + portable history + result retrieval). Library choice is the user's call; recommended primary is **pydantic-evals**, complemented by **deepeval** when RAG flows arrive. Inspect AI is recommended for future capability/safety benchmarks.
+**Evals.** The architecture commits to a substrate (OTel-compatible trace + portable history + result retrieval). **pydantic-evals** was adopted as the sole eval library (`tests/evals/`, `tests/test_agent/test_otel_spans.py`) — `deepeval` was never added, since no RAG-flow feature has shipped that would need it; it remains an option if one does. Inspect AI remains a future option for capability/safety benchmarks, not yet adopted.
 
-**Implementation order.** AITAEM v0.4.0 (Ibis-return migration + cross-backend `tmp_dir`) is shipped, satisfying the hard prerequisite. The module builds in seven phases: foundations → QueryBot → DefinitionBot → SetupBot (deferred to v1.x) → composition primitives → eval validation → docs and v1.0 release. v1.0 ships QueryBot + DefinitionBot; SetupBot ships in a later v1.x release.
+**Implementation order — shipped.** All seven phases described in Section 8 are complete: foundations → QueryBot → DefinitionBot → composition primitives → eval validation → docs and v1.0 release. `aitaem[agent]` v1.0.0 shipped `QueryBot` + `DefinitionBot` on 2026-07-23; `SetupBot` (Phase 4) remains deferred to a later v1.x release — no code exists for it yet. Since v1.0.0, Plans 33–37 extended both bots — spec commit/update/delete (`DefinitionBot`), Ibis-native query building, backend-correct source URI resolution, and backend-pushed-down distribution tools on both bots — all released in v2.0.0 (2026-08-12). See the updated Section 8 for the full phase-by-phase status and the post-v1.0 plan list.
 
-**Open questions for user decision before downstream planning:**
+**Open questions — resolved:**
 
-1. Eval library choice — concur with pydantic-evals primary recommendation, or pick differently? (Section 5, §4)
-2. Concur with the implementation phasing in Section 8?
+1. Eval library choice: **pydantic-evals**, as recommended. No `deepeval`/Inspect AI adopted; `tests/evals/` and the OTel span-verification suite (`tests/test_agent/test_otel_spans.py`) both run against it in CI. (Section 5, §4)
+2. Implementation phasing: followed as proposed, with Phase 5.2 (composition) deliberately reordered ahead of Phase 4 (`SetupBot`) — see Section 8's reordering note. (Section 8)
 
 ---
 
@@ -85,7 +89,7 @@ Section 1 elaborates each with rationale.
 
 > Full text: [`./02-architectural-decisions.md`](./02-architectural-decisions.md)
 
-Fifteen committed decisions. Listed compactly here; consult Section 2 for context, rationale, and consequences per decision.
+Seventeen committed decisions. Listed compactly here; consult Section 2 for context, rationale, and consequences per decision.
 
 | ID | Decision |
 |---|---|
@@ -156,9 +160,9 @@ flowchart TB
 
 ### Components in one paragraph each
 
-- **Primitives layer:** `Bot` (abstract base owning session, history, tools, trace assembly), `BotResponse[PayloadT]` (status / narrative / trace / reason / typed payload), `ResultStore` (session-scoped dict of result IDs to artifacts, with optional live Ibis refs), `RunTrace` (per-turn OTel-compatible aggregated record), history I/O surface (`dump_history()` / `load_history()` serializing messages and artifacts together).
-- **Convenience bots layer:** `QueryBot` (compute + analysis on AITAEM specs), `DefinitionBot` (schema introspection + spec generation + validation), `SetupBot` (connection wizard returning config; caller persists).
-- **Default tools:** `compute_metrics` (the single AITAEM-touching tool, post-Ibis-migration aware) + five analysis tools operating on result store entries.
+- **Primitives layer:** `Bot` (abstract base owning session, history, tools, trace assembly — `aitaem/agent/base.py`), `BotResponse[PayloadT]` (status / narrative / trace / reason / typed payload), `ResultStore` (session-scoped dict of result IDs to artifacts, with optional live Ibis refs), `RunTrace` (per-turn OTel-compatible aggregated record), history I/O surface (`dump_history()` / `load_history()` serializing messages and artifacts together). Composition primitives `add_tool()`, constructor `tools=[...]`, and per-call `extra_tools=[...]` are implemented and tested (`tests/test_agent/test_composition.py`); `add_bot()`/`as_tool()` exist as method stubs but `as_tool()` still raises `NotImplementedError` — see ND-11.
+- **Convenience bots layer:** `QueryBot` (intent-gated metric resolution + compute + analysis on AITAEM specs), `DefinitionBot` (schema introspection + spec drafting/validation/commit/update/delete + data-grounded threshold guidance), `SetupBot` (connection wizard returning config; caller persists — **not yet implemented**, deferred to a later v1.x release).
+- **Default tools:** `compute_metrics` (the single AITAEM-touching tool, post-Ibis-migration aware) + analysis tools operating on result store entries (`rank_by_value`, `filter_by_threshold`, `distribution_summary`, `column_distribution`, `period_over_period`, `contribution_share`) on `QueryBot`; `column_distribution`/`distribution_summary`/`date_range`/`compute_metrics` are also registered on `DefinitionBot` (Plan 37) so it can ground wildcard/threshold spec decisions in live data instead of guessing.
 - **Caller responsibilities:** building `SpecCache` and `ConnectionManager`, choosing the model, per-user lifecycle, persisting history if desired, rendering responses. The library handles none of these.
 
 A typical multi-tool turn (compute → rank → narrate) is illustrated as a sequence diagram in Section 3, §5. Key property: the LLM never sees the full DataFrame; only summaries. The caller dereferences result IDs after the turn.
@@ -172,8 +176,14 @@ A typical multi-tool turn (compute → rank → narrate) is illustrated as a seq
 **One-way:** `aitaem.agent` → `aitaem`. Never reverse. Enforced by CI import-graph check.
 
 **Imports from `aitaem` top level (no submodules):**
-- Types: `SpecCache`, `MetricSpec`, `SliceSpec`, `SegmentSpec`, `IbisConnector`, `ConnectionManager`, `MetricCompute`, `PeriodType`, `METRIC_FORMAT_VALUES`, `ValidationResult`.
-- Exceptions: `SpecValidationError`, `SpecNotFoundError`, `QueryBuildError`, `QueryExecutionError`, `AitaemConnectionError`.
+- Types: `SpecCache`, `MetricSpec`, `SliceSpec`, `SegmentSpec`, `IbisConnector`, `ConnectionManager`, `MetricCompute`, `PeriodType`, `METRIC_FORMAT_VALUES`.
+- Exceptions: `AitaemError`, `SpecValidationError`, `SpecNotFoundError`, `TableNotFoundError`. Plus one agent-owned exception that is *not* imported from core: `WrongEntryKindError` (`aitaem/agent/store.py`), a `ResultStore`-specific subclass of `AitaemError`.
+
+Corrected 2026-08-14 against actual usage: `ValidationResult` was removed from the Types list —
+not imported or referenced anywhere in `aitaem/agent/` (`validate_spec` consumes
+`spec.validate()`'s `.valid`/`.errors`/`.referenced_columns` by duck typing without naming the
+return type). `QueryBuildError`, `QueryExecutionError`, and `AitaemConnectionError` were removed
+from the Exceptions list for the same reason — none currently referenced in `aitaem/agent/`.
 
 **Assumed AITAEM v0.4.0 behaviors:**
 - `MetricCompute(spec_cache, connection_manager)` — constructed fresh per `compute_metrics` call (AD-16, revised).
@@ -189,6 +199,16 @@ A typical multi-tool turn (compute → rank → narrate) is illustrated as a seq
 - Instantiates `IbisConnector` or backend-specific connections.
 - Persists anything to disk or network.
 - Picks defaults for AITAEM operational parameters.
+
+> **Known drift (verified 2026-08-14):** the "no submodule imports" rule is not currently
+> enforced by CI — `scripts/check_import_graph.py` only checks the *direction* (core never
+> imports `aitaem.agent`), not import style — and several files import past the top level today:
+> `aitaem/agent/common_tools.py`, `aitaem/agent/definition_tools.py`, and
+> `aitaem/agent/store.py` import exceptions via `aitaem.utils.exceptions` rather than `aitaem`;
+> `aitaem/agent/resolver.py` and `aitaem/agent/definition_tools.py` import `MetricSpec`/
+> `PeriodType` via `aitaem.specs.metric`/`aitaem.query.builder`. All of these names are also
+> exported at the `aitaem` top level, so this is a style drift, not a functional break — flagged
+> here rather than silently doc-papered-over or fixed as a side effect of this update.
 
 Section 4 documents the full surface plus the dual-representation result store mandated by the Ibis migration.
 
@@ -274,7 +294,7 @@ Nine things deliberately deferred, each with an "escape valve" describing the pa
 | ND-07 | Hot-reload of `SpecCache` | `bot.reset(spec_cache=...)` later |
 | ND-08 | Concurrent calls on same bot | Document as unsupported; lock if needed |
 | ND-09 | Reference eval harness in repo | **✅ Resolved (Plan 29)** — shipped as `tests/evals/`. See `07-non-decisions.md` ND-09. |
-| ND-10 | Multi-turn interactive refinement for DefinitionBot | `chat()` is provided; dedicated multi-turn spec-refinement UX is v1.x once usage patterns are established. Same deferral applies to QueryBot. See `plans/agent_module/07-non-decisions.md`. |
+| ND-10 | Multi-turn interactive refinement for DefinitionBot | `chat()` is provided; dedicated multi-turn spec-refinement UX is v1.x once usage patterns are established. Same deferral applies to QueryBot. See `plans/agent_module/07-non-decisions.md`. A concrete escape valve (a `get_prior_spec` tool recovering a prior turn's validated YAML from `ResultStore`) is drafted in `plans/40-definitionbot-multiturn-chat.md` but **not yet implemented** — no such tool exists in `aitaem/agent/definition_tools.py` today. |
 | ND-11 | `Bot.as_tool()` / `Bot.add_bot(other_bot)` — generic bot-as-tool composition | Wrap `ask()` as a plain function and register it via `add_tool()`; a generic `as_tool()`/`add_bot()` can be layered on top later, purely additively |
 
 Each non-decision identifies the trigger that would cause us to revisit it.
@@ -288,10 +308,10 @@ Each non-decision identifies the trigger that would cause us to revisit it.
 ```mermaid
 flowchart LR
     P0["P0: AITAEM Ibis migration<br/>(✅ done — v0.4.0)"]:::done --> P2
-    P1[Phase 1: Foundations] --> P2
+    P1[Phase 1: Foundations]:::done --> P2
     P1 --> P3
     P1 --> P4
-    P2[Phase 2: QueryBot] --> P3[Phase 3: DefinitionBot]
+    P2[Phase 2: QueryBot]:::done --> P3[Phase 3: DefinitionBot]:::done
     P2 --> P4[Phase 4: SetupBot]
     P2 --> P5[Phase 5.2: Composition]:::done
     P3 --> P5
@@ -299,25 +319,41 @@ flowchart LR
     P3 --> P6
     P4 --> P6
     P5 --> P6
-    P6 --> P7[Phase 7: Docs + v1.0]
+    P6 --> P7[Phase 7: Docs + v1.0]:::done
     classDef done fill:#dfd,stroke:#393
 ```
 
 **Phases:**
 
 - **P0** — AITAEM Ibis-return migration + `tmp_dir` cross-backend support. **Shipped in AITAEM v0.4.0.** Phase 2 unblocked.
-- **Phase 1 — Foundations.** Package structure, optional install, primitives skeleton, trace assembly. Can run in parallel with Phase 2 prep.
-- **Phase 2 — QueryBot.** `compute_metrics` constructing `MetricCompute` per call (AD-16, revised), five analysis tools (lazy-mode-aware), default prompt with Metric Precision Rule, integration, end-to-end multi-turn tests. **Largest phase; bulk of architectural risk lives here.**
-  > **v0.2 update (Plan 26):** QueryBot resolution flow is superseded by a two-tool intent gate (`record_intent` → `resolve_intent` → `compute_metrics(spec_token)`), code-enforcing the Metric Precision Rule. Analysis tools unchanged. See [`09-querybot-v0.2-design.md`](09-querybot-v0.2-design.md) for design; [`../26-querybot-v0.2.md`](../26-querybot-v0.2.md) for the implementation plan.
+- **Phase 1 — Foundations. ✅ Shipped.** Package structure, optional install, primitives skeleton, trace assembly.
+- **Phase 2 — QueryBot. ✅ Shipped.** `compute_metrics` constructing `MetricCompute` per call (AD-16, revised), analysis tools (lazy-mode-aware), default prompt with Metric Precision Rule, integration, end-to-end multi-turn tests.
+  > **v0.2 update (Plan 26):** QueryBot resolution flow is superseded by a two-tool intent gate (`record_intent` → `resolve_intent` → `compute_metrics(spec_token)`), code-enforcing the Metric Precision Rule. See [`09-querybot-v0.2-design.md`](09-querybot-v0.2-design.md) for design; [`../26-querybot-v0.2.md`](../26-querybot-v0.2.md) for the implementation plan.
   >
   > **Plan 31:** `spec_token` is single-use on success only — a failed `compute_metrics` restores the token, so a retry needs no fresh `record_intent`/`resolve_intent`. Safe under parallel tool calls because the pop is atomic and restore only follows failure, with no suspension point between them. That last condition is what the guarantee rests on; hosts that wrap these tools in an async execution model must supply their own mutual exclusion.
-- **Phase 3 — DefinitionBot.** Schema introspection tools, spec validation tool, integration.
-- **Phase 4 — SetupBot. Deferred to v1.x — not implemented for v1.0.** Connection-validation tool, integration.
-- **Phase 5 — Composition.** `Bot(tools=[...])`, `add_tool()`, per-call `extra_tools`. Generic `bot.as_tool()` / `add_bot()` deferred — see ND-11.
+  >
+  > **Plan 36:** Two backend-pushed-down distribution tools, `distribution_summary` and `column_distribution`, added to `QueryBot` and factored into a shared `aitaem/agent/common_tools.py` so `DefinitionBot` (Plan 37) can reuse them.
+- **Phase 3 — DefinitionBot. ✅ Shipped.** Schema introspection tools, spec drafting/validation tool, integration.
+  > **Plan 33:** `commit_spec`/`delete_spec` tools, `SpecCache.update()`/`remove()`, transactional `add()`, and a version counter so `QueryBot` sharing the same `SpecCache` rebuilds its own agent (and LLM-visible catalog) when `DefinitionBot` commits, updates, or deletes a spec — closing a staleness gap where a newly committed spec was queryable but invisible to `QueryBot`'s prompt for the rest of its session.
+  >
+  > **Plan 37:** `date_range`/`compute_metrics` plus the Plan 36 distribution tools added to `DefinitionBot`, so it can ground wildcard-vs-enumerated and numeric-threshold spec decisions in live data instead of guessing.
+- **Phase 4 — SetupBot. Deferred to v1.x — still not implemented as of v2.0.0.** Connection-validation tool, integration.
+- **Phase 5 — Composition. ✅ Shipped (Phase 5.2 only).** `Bot(tools=[...])`, `add_tool()`, per-call `extra_tools`. Generic `bot.as_tool()` / `add_bot()` (Phase 5.1) remain deferred — `as_tool()` exists as a stub that raises `NotImplementedError`; see ND-11.
 - **Phase 6 — Eval substrate validation. ✅ Shipped (Plan 29).** Reference eval harness (`tests/evals/`, covering both `QueryBot` and `DefinitionBot`), OTel span emission verification (`tests/test_agent/test_otel_spans.py`).
-- **Phase 7 — Docs + v1.0 release.** Public API docs, getting-started examples, shipped to PyPI.
+- **Phase 7 — Docs + v1.0 release. ✅ Shipped (Plan 32).** Public API docs, getting-started examples, shipped to PyPI as `aitaem[agent]` v1.0.0 (2026-07-23).
 
-**Risk concentration:** Phase 2. Specific risks: trace assembly faithfulness, tool-summary-vs-store split sufficiency, Metric Precision Rule effectiveness in practice. Each has been worked through against concrete scenarios in the design process, which is why risk is rated medium not high.
+**Post-v1.0 core-library extensions used by the agent module:** Plan 34 (Ibis-native query
+building, replacing hand-assembled SQL strings — fixes real BigQuery/Postgres dialect bugs
+`DefinitionBot`-drafted specs could trigger), Plan 35 (backend-correct source URI resolution —
+fixes `IbisConnector.get_table()` against Postgres and BigQuery project handling). Both are
+`aitaem` core changes, not `aitaem.agent` changes, but they directly affect what `DefinitionBot`
+and `QueryBot` can safely do against non-DuckDB backends. All of Plans 33–37 shipped in v2.0.0
+(2026-08-12).
+
+**Risk concentration (historical):** Phase 2 carried the bulk of the architectural risk during
+design — trace assembly faithfulness, tool-summary-vs-store split sufficiency, Metric Precision
+Rule effectiveness in practice. All three have since been exercised in shipped code and CI evals
+without requiring architectural rework.
 
 ---
 
@@ -353,11 +389,17 @@ flowchart TB
 
 ## Open Questions Awaiting User Decision
 
-Before downstream implementation planning begins:
+All open questions from the original design phase are now closed. Kept here as a historical
+record of what was decided and why — not a live decision queue.
 
-### OQ-1: Eval library choice
+### OQ-1: Eval library choice — closed
 
-Architecture recommends **pydantic-evals primary + deepeval for RAG**. User confirms or selects differently. See Section 5, §4.
+Architecture recommended **pydantic-evals primary + deepeval for RAG**. See Section 5, §4.
+
+Resolved: pydantic-evals adopted as sole eval library. `tests/evals/` and
+`tests/test_agent/test_otel_spans.py` both run against it in CI (Plan 29, Phase 6). `deepeval`
+was never adopted — no RAG-flow feature has shipped that would need its RAG-triad metrics; the
+option remains open if one does.
 
 ### OQ-2: Reference eval harness in the repository? — closed
 
@@ -368,9 +410,15 @@ Architecture leaned (a) for consistency with the blueprint philosophy (G2). See 
 
 Resolved: (a). `tests/evals/` shipped, covering both `QueryBot` and `DefinitionBot`. See `plans/29-agent-phase6-evals.md` and `07-non-decisions.md` ND-09.
 
-### OQ-3: Implementation phasing
+### OQ-3: Implementation phasing — closed
 
-With AITAEM v0.4.0 shipped, P0 is done. Phase 1 (foundations) and Phase 2 prep can begin in parallel. Confirm this sequencing, or push back on a different ordering.
+With AITAEM v0.4.0 shipped, P0 was done. Phase 1 (foundations) and Phase 2 prep began in
+parallel as proposed.
+
+Resolved: followed as proposed, with one deliberate reordering — Phase 5.2 (composition
+primitives) was prioritized ahead of Phase 4 (`SetupBot`) and Phase 5.1 (`as_tool()`), since it
+depended only on Phases 1–3 and `SetupBot` remained out of scope for v1.0. See Section 8's
+reordering note and `plans/28-agent-phase5.2-composition.md`.
 
 ### OQ-4: AITAEM-side coordination — closed
 
@@ -398,4 +446,4 @@ The processor receives the full message list before every model request and retu
 
 **Where it lives in code:** `_build_agent()` in each concrete `Bot` subclass. The `Bot` base class docstring (Phase 1) already documents this hook so Phase 2+ implementors know where to plug in.
 
-**Why unscheduled:** Context overflow only matters in practice once real multi-turn sessions run long enough to hit limits. Monitor whether it surfaces as a real issue in Phase 2 integration testing before committing implementation effort.
+**Status:** Still unimplemented as of v2.0.0 — no `ProcessHistory` capability is registered on either bot (`_build_agent()` in `query_bot.py`/`definition_bot.py` only passes `ReinjectSystemPrompt`), and no trimmer exists anywhere in the codebase. It did not surface as a blocking issue through Phase 2–7 integration testing or the eval suites, so it remains genuinely deferred rather than scheduled. Revisit if long-running multi-turn sessions (helped along by Plan 40's proposed `get_prior_spec`-based multi-turn refinement, if implemented) start hitting real context limits in practice.

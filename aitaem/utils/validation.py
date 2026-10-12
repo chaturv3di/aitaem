@@ -54,7 +54,8 @@ class ValidationResult:
     Keys for composite slice specs: empty dict ``{}``.
 
     Keys for segment specs: ``"entity_id"``, ``"join_keys"`` (if non-empty),
-    ``"values[i].where"`` (one per value).
+    ``"values[i].where"`` (one per value) for leaf specs, ``"where"`` for
+    wildcard specs.
     """
 
 
@@ -550,14 +551,85 @@ def validate_segment_spec(spec_dict: dict) -> ValidationResult:
                     )
 
     values = spec_dict.get("values")
-    if values is None or not isinstance(values, list) or len(values) == 0:
+    where = spec_dict.get("where")
+
+    present = [k for k, v in [("values", values), ("where", where)] if v is not None]
+
+    if len(present) > 1:
         errors.append(
             ValidationError(
-                field="values", message="'values' must contain at least one segment value"
+                field=present[0],
+                message=f"SegmentSpec must have exactly one of 'values' or 'where', but got: {present}",
             )
         )
+    elif values is not None:
+        if not isinstance(values, list) or len(values) == 0:
+            errors.append(
+                ValidationError(
+                    field="values", message="'values' must contain at least one segment value"
+                )
+            )
+        else:
+            _validate_values_list(values, "Segment", errors)
+    elif where is not None:
+        if not isinstance(where, (str, list)) or len(where) == 0:
+            errors.append(
+                ValidationError(
+                    field="where",
+                    message="'where' must be a non-empty column name string or list of column name strings",
+                )
+            )
+        else:
+            where_columns = where if isinstance(where, list) else [where]
+            entity_id_str = entity_id.strip() if isinstance(entity_id, str) else None
+            join_keys_set = (
+                {k.strip() for k in join_keys if isinstance(k, str) and k.strip()}
+                if isinstance(join_keys, list)
+                else set()
+            )
+            seen_cols: set[str] = set()
+            for i, col in enumerate(where_columns):
+                if not isinstance(col, str) or not col.strip():
+                    errors.append(
+                        ValidationError(
+                            field=f"where[{i}]",
+                            message=f"'where' entry at index {i} must be a non-empty string",
+                        )
+                    )
+                    continue
+                col_stripped = col.strip()
+                if not _is_valid_column_identifier(col_stripped):
+                    errors.append(
+                        ValidationError(
+                            field=f"where[{i}]",
+                            message=f"'where' entry '{col}' must be a plain column identifier",
+                        )
+                    )
+                elif col_stripped in seen_cols:
+                    errors.append(
+                        ValidationError(
+                            field="where",
+                            message=f"Duplicate column in 'where': '{col_stripped}'",
+                        )
+                    )
+                elif col_stripped == entity_id_str or col_stripped in join_keys_set:
+                    errors.append(
+                        ValidationError(
+                            field=f"where[{i}]",
+                            message=(
+                                f"'where' entry '{col_stripped}' overlaps with entity_id/join_keys "
+                                "— wildcarding the join key would turn every DIM row into its own segment"
+                            ),
+                        )
+                    )
+                seen_cols.add(col_stripped)
     else:
-        _validate_values_list(values, "Segment", errors)
+        errors.append(
+            ValidationError(
+                field="values",
+                message="SegmentSpec must have exactly one of 'values' or 'where'",
+            )
+        )
 
     referenced_columns: dict[str, list[str]] | None = None
     if not errors:
@@ -568,14 +640,18 @@ def validate_segment_spec(spec_dict: dict) -> ValidationResult:
             col_map["join_keys"] = [
                 k.strip() for k in join_keys if isinstance(k, str) and k.strip()
             ]
-        assert isinstance(values, list)
-        for i, value in enumerate(values):
-            if isinstance(value, dict):
-                where_expr = value.get("where", "")
-                if where_expr and isinstance(where_expr, str):
-                    col_map[f"values[{i}].where"] = _extract_columns_from_sql(
-                        where_expr, context="where"
-                    )
+        if values is not None:
+            assert isinstance(values, list)
+            for i, value in enumerate(values):
+                if isinstance(value, dict):
+                    where_expr = value.get("where", "")
+                    if where_expr and isinstance(where_expr, str):
+                        col_map[f"values[{i}].where"] = _extract_columns_from_sql(
+                            where_expr, context="where"
+                        )
+        elif where is not None:
+            where_columns = where if isinstance(where, list) else [where]
+            col_map["where"] = [c.strip() for c in where_columns if isinstance(c, str) and c.strip()]
         referenced_columns = col_map
 
     return ValidationResult(

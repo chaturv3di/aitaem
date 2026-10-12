@@ -28,9 +28,15 @@ class SegmentSpec:
     name: str
     source: str
     entity_id: str
-    values: tuple[SegmentValue, ...]
+    values: tuple[SegmentValue, ...] = ()
+    column: tuple[str, ...] = ()
     description: str = ""
     join_keys: tuple[str, ...] = ()
+
+    @property
+    def is_wildcard(self) -> bool:
+        """True if this spec auto-discovers values from one or more columns at query time."""
+        return bool(self.column)
 
     @classmethod
     def from_yaml(cls, yaml_input: str | Path) -> "SegmentSpec":
@@ -50,7 +56,15 @@ class SegmentSpec:
         if not result.valid:
             raise SpecValidationError("segment", name, result.errors)
 
-        values = tuple(SegmentValue(name=v["name"], where=v["where"]) for v in spec_dict["values"])
+        raw_where = spec_dict.get("where")
+        values: tuple[SegmentValue, ...] = ()
+        column: tuple[str, ...] = ()
+        if raw_where is not None:
+            column = tuple(raw_where) if isinstance(raw_where, list) else (raw_where,)
+        else:
+            values = tuple(
+                SegmentValue(name=v["name"], where=v["where"]) for v in spec_dict["values"]
+            )
         raw_join_keys = spec_dict.get("join_keys") or []
         join_keys = tuple(raw_join_keys) if isinstance(raw_join_keys, list) else ()
 
@@ -59,6 +73,7 @@ class SegmentSpec:
             "source",
             "entity_id",
             "values",
+            "where",
             "description",
             "join_keys",
         }
@@ -70,6 +85,7 @@ class SegmentSpec:
             source=spec_dict["source"],
             entity_id=spec_dict["entity_id"],
             values=values,
+            column=column,
             description=spec_dict.get("description", ""),
             join_keys=join_keys,
         )
@@ -80,9 +96,12 @@ class SegmentSpec:
             "name": self.name,
             "source": self.source,
             "entity_id": self.entity_id,
-            "values": [{"name": v.name, "where": v.where} for v in self.values],
             "description": self.description,
         }
+        if self.is_wildcard:
+            spec_dict["where"] = self.column[0] if len(self.column) == 1 else list(self.column)
+        else:
+            spec_dict["values"] = [{"name": v.name, "where": v.where} for v in self.values]
         if self.join_keys:
             spec_dict["join_keys"] = list(self.join_keys)
         return validate_segment_spec(spec_dict)

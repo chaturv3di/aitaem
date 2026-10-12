@@ -255,20 +255,25 @@ class QueryBuilder:
         # --- naturally against the DIM table alone, no qualification needed. ---
         dim_labeled: ibis.Table | None = None
         effective_join_key: str | None = None
-        segment_alias: str | None = None
+        segment_aliases: list[str] = []
         if segment_spec is not None:
             dim_table_name, dim_database = ConnectionManager.resolve_table_reference(
                 segment_spec.source
             )
             dim = connector.get_table(dim_table_name, database=dim_database)
             effective_join_key = segment_join_key or segment_spec.entity_id
-            segment_alias = "_segment"
-            segment_col_sql = QueryBuilder._build_segment_case_when_expr(
-                segment_spec, segment_alias
-            )
             dim_src_name = QueryBuilder._unique_alias("_dim_src")
             dim_src = dim.alias(dim_src_name)
-            dim_labeled = dim_src.sql(f"SELECT *, {segment_col_sql} FROM {dim_src_name}")
+            if segment_spec.is_wildcard:
+                mutations = QueryBuilder._build_wildcard_segment_mutations(segment_spec, dim_src)
+                segment_aliases = list(mutations.keys())
+                dim_labeled = dim_src.mutate(**mutations)
+            else:
+                segment_aliases = ["_segment"]
+                segment_col_sql = QueryBuilder._build_segment_case_when_expr(
+                    segment_spec, segment_aliases[0]
+                )
+                dim_labeled = dim_src.sql(f"SELECT *, {segment_col_sql} FROM {dim_src_name}")
 
         # --- Slices: splice classification(s) onto the fact table's own schema. ---
         slice_aliases: list[str] = []
@@ -289,14 +294,14 @@ class QueryBuilder:
         else:
             t_labeled = t
 
-        # --- Join fact + dim, keeping fact columns plus only the derived _segment label. ---
+        # --- Join fact + dim, keeping fact columns plus only the derived segment label(s). ---
         fact_cols = list(t_labeled.columns)
         if dim_labeled is not None:
             joined = t_labeled.join(
                 dim_labeled,
                 t_labeled[effective_join_key] == dim_labeled[segment_spec.entity_id],  # type: ignore[union-attr]
             )
-            labeled = joined.select(*fact_cols, joined[segment_alias])  # type: ignore[arg-type]
+            labeled = joined.select(*fact_cols, *[joined[a] for a in segment_aliases])
         else:
             labeled = t_labeled
 
@@ -327,8 +332,7 @@ class QueryBuilder:
 
         # --- Null-filtering: drop rows unclassified by any slice/segment. ---
         null_filters = [labeled[alias].notnull() for alias in slice_aliases]
-        if segment_alias:
-            null_filters.append(labeled[segment_alias].notnull())
+        null_filters.extend(labeled[alias].notnull() for alias in segment_aliases)
         if null_filters:
             condition = null_filters[0]
             for c in null_filters[1:]:
@@ -343,8 +347,7 @@ class QueryBuilder:
         if by_entity:
             group_by_cols.append(by_entity)
         group_by_cols.extend(slice_aliases)
-        if segment_alias:
-            group_by_cols.append(segment_alias)
+        group_by_cols.extend(segment_aliases)
 
         metric_value_fragment = QueryBuilder._build_metric_value_expr(metric)
         agg_src_name = QueryBuilder._unique_alias("_agg_src")
@@ -366,11 +369,9 @@ class QueryBuilder:
         # --- Outer projection: literals, derived slice/segment values, metric_value. ---
         entity_id_expr = aggregated[by_entity] if by_entity else QueryBuilder._lit_or_null(None)
         slice_type_val = "|".join(ss.name for ss in slice_specs) if slice_specs else "none"
-        slice_value_expr = QueryBuilder._build_slice_value_expr(aggregated, slice_aliases)
+        slice_value_expr = QueryBuilder._build_joined_value_expr(aggregated, slice_aliases)
         segment_name_val = segment_spec.name if segment_spec else "none"
-        segment_value_expr = (
-            aggregated[segment_alias] if segment_alias else ibis.literal("all")
-        )
+        segment_value_expr = QueryBuilder._build_joined_value_expr(aggregated, segment_aliases)
 
         final = aggregated.mutate(
             period_type=ibis.literal(period_type),
@@ -422,13 +423,13 @@ class QueryBuilder:
         return ibis.literal(value, type="string") if value is not None else ibis.null("string")
 
     @staticmethod
-    def _build_slice_value_expr(table: ibis.Table, slice_aliases: list[str]) -> ibis.Value:
-        """Build the slice_value column: '|'-joined slice alias columns, or literal 'all'."""
-        if not slice_aliases:
+    def _build_joined_value_expr(table: ibis.Table, aliases: list[str]) -> ibis.Value:
+        """Build a slice_value/segment_value column: '|'-joined alias columns, or literal 'all'."""
+        if not aliases:
             return ibis.literal("all")
-        if len(slice_aliases) == 1:
-            return table[slice_aliases[0]]
-        first, *rest = slice_aliases
+        if len(aliases) == 1:
+            return table[aliases[0]]
+        first, *rest = aliases
         parts: list[ibis.Value] = []
         for alias in rest:
             parts.extend([ibis.literal("|"), table[alias]])
@@ -438,6 +439,16 @@ class QueryBuilder:
     def _build_wildcard_slice_expr(slice_spec: SliceSpec, alias: str) -> str:
         """Build direct column cast expression for a wildcard SliceSpec."""
         return f"CAST({slice_spec.column} AS VARCHAR) AS {alias}"
+
+    @staticmethod
+    def _build_wildcard_segment_mutations(
+        segment_spec: SegmentSpec, dim_table: ibis.Table
+    ) -> dict[str, ibis.Value]:
+        """Build {alias: dim_table[col].cast("string")} for each wildcard column."""
+        return {
+            f"_segment_{i}": dim_table[col].cast("string")
+            for i, col in enumerate(segment_spec.column)
+        }
 
     @staticmethod
     def _build_slice_case_when_expr(slice_spec: SliceSpec, alias: str) -> str:
