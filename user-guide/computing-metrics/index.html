@@ -1751,7 +1751,7 @@ expression method (<code>.filter()</code>, <code>.select()</code>, <code>.aggreg
 <tr>
 <td><code>segment_value</code></td>
 <td><code>str</code></td>
-<td>Segment value (e.g. <code>"Google Ads"</code>), or <code>"all"</code> for the baseline</td>
+<td>Segment value (e.g. <code>"Google Ads"</code>), or <code>"all"</code> for the baseline. For a multi-column wildcard segment, the column values joined by <code>\|</code> (e.g. <code>"flagship\|west"</code>)</td>
 </tr>
 <tr>
 <td><code>metric_value</code></td>
@@ -1774,7 +1774,7 @@ expression method (<code>.filter()</code>, <code>.select()</code>, <code>.aggreg
 <p>This produces rows for:
 - Each metric × all-data baseline (no slice, no segment)
 - Each metric × each slice value
-- Each metric × each segment value</p>
+- Each metric × each segment value (for a wildcard segment, each distinct value or value combination found in the DIM table; rows with a <code>NULL</code> in any wildcard column are excluded)</p>
 <hr />
 <h2 id="pre-flight-check">Pre-flight Check</h2>
 <p>Use <code>mc.scan()</code> before <code>compute()</code> to verify that your slices and segments are compatible with
