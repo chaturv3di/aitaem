@@ -13,7 +13,7 @@ Sub-feature coverage order (per plan):
   5. _build_metric_value_expr
   6. _build_slice_case_when_expr
   7. _build_segment_case_when_expr
-  8. _build_slice_value_expr
+  8. _build_joined_value_expr
   9. _build_metric_segment_query (all four cases + DuckDB validation)
  10. _resolve_slice_components
  11. _build_queries_for_metric

@@ -215,7 +215,7 @@ expression method (`.filter()`, `.select()`, `.aggregate()`, etc.) directly on t
 | `slice_type` | `str` | Slice name, or `"none"` for the all-data baseline row |
 | `slice_value` | `str` | Slice value (e.g. `"Search"`), or `"all"` for the baseline |
 | `segment_name` | `str` | Segment name, or `"none"` for the all-data baseline row |
-| `segment_value` | `str` | Segment value (e.g. `"Google Ads"`), or `"all"` for the baseline |
+| `segment_value` | `str` | Segment value (e.g. `"Google Ads"`), or `"all"` for the baseline. For a multi-column wildcard segment, the column values joined by `\|` (e.g. `"flagship\|west"`) |
 | `metric_value` | `float` | Computed numeric result |
 
 ---
@@ -237,7 +237,7 @@ df = table.to_pandas()
 This produces rows for:
 - Each metric × all-data baseline (no slice, no segment)
 - Each metric × each slice value
-- Each metric × each segment value
+- Each metric × each segment value (for a wildcard segment, each distinct value or value combination found in the DIM table; rows with a `NULL` in any wildcard column are excluded)
 
 ---
 

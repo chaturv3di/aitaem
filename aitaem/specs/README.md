@@ -9,7 +9,7 @@ The specs module is a pure parsing and validation layer — no database or Ibis 
 **Three spec types**:
 - **MetricSpec**: A single measurable quantity with a SQL aggregation expression
 - **SliceSpec**: A dimension breakdown — either a leaf (named WHERE conditions) or a composite (cross-product of other slices)
-- **SegmentSpec**: A cohort filter applied on top of a metric
+- **SegmentSpec**: A cohort classification resolved from a DIM table — either enumerated (`values`: named WHERE conditions) or wildcard (`where`: one or more DIM-table columns whose distinct values become segments automatically)
 
 **SpecCache**: First-class cache that loads and validates all specs eagerly at construction time, then serves them by name to `MetricCompute`.
 
@@ -53,7 +53,8 @@ slice:
 segment:
   name: premium
   description: Premium tier users
-  source: duckdb://analytics.db/events
+  source: duckdb://analytics.db/dim_users
+  entity_id: user_id
   values:
     - name: premium_users
       where: "subscription_tier = 'premium'"
@@ -189,21 +190,36 @@ slice:
 
 ### SegmentSpec
 
-A SegmentSpec defines one or more named cohort filters. Each value maps a label to a SQL `WHERE` clause.
+A SegmentSpec classifies fact rows by joining to a DIM table (`source`) on `entity_id`. It is either
+enumerated (each value maps a label to a SQL `WHERE` clause against the DIM table) or wildcard
+(distinct values of one or more DIM-table columns become segments automatically).
 
 ```yaml
 segment:
   name: platform                  # Required: unique identifier
   description: "..."              # Optional
-  source: duckdb://db/table       # Required: backend URI
-  values:                         # Required: list of named filters
+  source: duckdb://db/dim_table   # Required: backend URI of the DIM table
+  entity_id: platform             # Required: key column on the DIM table
+  join_keys: [...]                # Optional: whitelist of fact-table FK columns
+  values:                         # Exactly one of `values` or `where`: list of named filters
     - name: Google Ads
       where: "platform = 'Google Ads'"
     - name: Meta Ads
       where: "platform = 'Meta Ads'"
 ```
 
-**Note**: In Phase 1, `source` is recorded but the segment's WHERE conditions are applied to the metric's own table — both must share the same columns.
+Wildcard form — replace `values` with `where`, a DIM-table column or a list of columns:
+
+```yaml
+segment:
+  name: store_type_region
+  source: duckdb://db/dim_stores
+  entity_id: store_id
+  where: [store_type, region]     # or a single column: where: store_type
+```
+
+The segment is joined from its own DIM `source`; `values[].where` expressions and wildcard columns are
+evaluated against that table.
 
 ---
 
@@ -357,7 +373,8 @@ SegmentSpec(
 ```
 
 Exactly one of `values` (leaf, named cohort filters) or `column` (wildcard, auto-discovers
-segments from one or more DIM-table columns at query time) is set.
+segments from one or more DIM-table columns at query time) is set. In YAML the wildcard
+key is `where` (a column name or list of column names); `column` is the dataclass field it is parsed into.
 
 **`SegmentSpec.from_yaml(yaml_input: str | Path) -> SegmentSpec`**
 
