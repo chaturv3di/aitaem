@@ -28,3 +28,10 @@ non-Python files inside the package, so no build configuration is needed.
   children received `CancelledError` (3 started, 3 cancelled, 0 finished). Cancellation reaches
   the executors through asyncio task cancellation of the fan-out tool's `gather`, without passing
   the token.
+
+## SF-14: output validators and `DeferredToolRequests`
+
+Executed: an agent with `output_type=[str, DeferredToolRequests]` and an `@output_validator`
+recording every output it receives. A run whose tool raised `CallDeferred` ended with a
+`DeferredToolRequests` output and the validator recorded nothing. Output validators run on the
+`str` output only, so the main session's `Reply` validator needs no pass-through branch.
