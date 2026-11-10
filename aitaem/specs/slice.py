@@ -10,6 +10,8 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+
 from aitaem.utils.exceptions import SpecValidationError
 from aitaem.utils.validation import ValidationResult, validate_slice_spec
 from aitaem.utils.yaml_validation import load_yaml_spec_dict
@@ -96,6 +98,14 @@ class SliceSpec:
 
     def validate(self) -> ValidationResult:
         """Validate spec fields and return a ValidationResult (does not raise)."""
+        return validate_slice_spec(self._to_dict())
+
+    def to_yaml(self) -> str:
+        """Serialize to YAML under a top-level 'slice:' key. Does not validate."""
+        return yaml.safe_dump({"slice": self._to_dict()}, sort_keys=False)
+
+    def _to_dict(self) -> dict:
+        """Return the spec as a dict with its YAML keys."""
         spec_dict: dict = {"name": self.name, "description": self.description}
         if self.is_composite:
             spec_dict["cross_product"] = list(self.cross_product)
@@ -103,4 +113,4 @@ class SliceSpec:
             spec_dict["where"] = self.column
         else:
             spec_dict["values"] = [{"name": v.name, "where": v.where} for v in self.values]
-        return validate_slice_spec(spec_dict)
+        return spec_dict

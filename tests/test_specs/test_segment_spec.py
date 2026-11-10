@@ -425,3 +425,60 @@ segment:
         with pytest.raises(SpecValidationError) as exc_info:
             SegmentSpec.from_yaml(yaml_str)
         assert any(e.field == "values" for e in exc_info.value.errors)
+
+
+class TestSegmentSpecToYaml:
+    """to_yaml() output reads back with from_yaml to an equal spec."""
+
+    @pytest.mark.parametrize(
+        "yaml_str",
+        [
+            pytest.param(
+                """
+segment:
+  name: customer_value_tier
+  description: |
+    Customer segmentation by value.
+    Second line: 'yes'.
+  source: duckdb://analytics.db/dim_customers
+  entity_id: customer_id
+  join_keys: [buyer_id, seller_id]
+  values:
+    - name: 'null'
+      where: "lifetime_value > 1000 AND customer_status = 'active'"
+    - name: '123'
+      where: "lifetime_value <= 1000"
+""",
+                id="values-with-join-keys",
+            ),
+            pytest.param(
+                """
+segment:
+  name: tier
+  description: 'on'
+  source: duckdb://analytics.db/dim_customers
+  entity_id: customer_id
+  where: tier
+""",
+                id="single-column-wildcard",
+            ),
+            pytest.param(
+                """
+segment:
+  name: tier_region
+  description: "a: b"
+  source: duckdb://analytics.db/dim_customers
+  entity_id: customer_id
+  where: [tier, region]
+""",
+                id="multi-column-wildcard",
+            ),
+        ],
+    )
+    def test_round_trip(self, yaml_str):
+        spec = SegmentSpec.from_yaml(yaml_str)
+        assert SegmentSpec.from_yaml(spec.to_yaml()) == spec
+
+    def test_top_level_key_is_segment(self):
+        spec = SegmentSpec(name="s", source="duckdb://db/t", entity_id="id", column=("c",))
+        assert spec.to_yaml().startswith("segment:\n")
