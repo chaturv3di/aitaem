@@ -1,449 +1,471 @@
-# Architecture: `aitaem.agent` Module
+# Architecture: `aitaem.agent` Module (v3 overhaul)
 
-**Version:** 0.3 (Implemented)  
-**Date:** Originally June 2026; last updated 2026-08-14  
-**Status:** Shipped. `QueryBot` and `DefinitionBot` released in `aitaem[agent]` v1.0.0
-(2026-07-23); both bots were extended afterward by Plans 33–37, all released in v2.0.0
-(2026-08-12). This document is now a living record of the module as built, not a
-pre-implementation proposal — the "Open Questions" section at the end is resolved/closed
-throughout except where a decision remains genuinely deferred (cross-referenced to Section 7).
+**Version:** 1.3-draft (design, not implemented)
+**Status:** Proposed. The v2 design files are archived, as history only, in [`archive/v2/`](archive/v2/).
 
----
+**This document records decisions only.** Evidence, mechanics, and options considered live in
+[`research/agent_module/`](../../research/agent_module/):
 
-## Document Map
-
-This is the master document. Each section also exists as a standalone Markdown file in `./` for independent reference:
-
-| # | Section | File |
-|---|---|---|
-| 1 | Goals & Non-Goals | [`./01-goals-non-goals.md`](./01-goals-non-goals.md) |
-| 2 | Architectural Decisions | [`./02-architectural-decisions.md`](./02-architectural-decisions.md) |
-| 3 | Component Architecture | [`./03-component-architecture.md`](./03-component-architecture.md) |
-| 4 | Contracts with AITAEM Core | [`./04-aitaem-contracts.md`](./04-aitaem-contracts.md) |
-| 5 | Evals Substrate | [`./05-evals.md`](./05-evals.md) |
-| 6 | Extensibility Surface | [`./06-extensibility.md`](./06-extensibility.md) |
-| 7 | Explicit Non-Decisions | [`./07-non-decisions.md`](./07-non-decisions.md) |
-| 8 | Implementation Order | [`./08-implementation-order.md`](./08-implementation-order.md) |
-
----
-
-## Executive Summary
-
-`aitaem.agent` is an **optional install** (`pip install aitaem[agent]`) that ships agent primitives and three opinionated convenience bots — `QueryBot`, `DefinitionBot`, `SetupBot` (deferred to v1.x — see Phase 4 below) — on top of AITAEM's deterministic compute layer. The goals: collapse AITAEM onboarding to two lines of code, serve as a blueprint for custom agentic applications, and preserve AITAEM core as a quiet library with no LLM dependencies.
-
-**Foundational decisions:**
-
-- **pydantic-ai** is the agent runtime. Provider-agnostic via model strings.
-- **One-way dependency.** `aitaem.agent` depends on `aitaem`; never the reverse.
-- **Bot is the session.** Multi-turn (`chat()`) is the primary API; single-turn (`ask()`) is a subset. Bots are constructed per user/session; conversation state lives on the bot.
-- **Result store is a bot field.** Tools return minimal LLM-facing summaries to save tokens; full artifacts live in the bot's result store, addressable by ID. History serialization preserves both messages and artifacts.
-- **Status is an enum** (`ok | empty | refused | error`), not a bool. The `refused` state is the AITAEM-general version of "no spec precisely answers — don't substitute approximation."
-- **Trace is aggregated and OTel-compatible** on each response. Designed eval-friendly from day one. Event-stream hooks are a future extension point.
-- **Ibis-based result handling** (AITAEM v0.4.0). Result store carries dual representation (Arrow artifact + optional live Ibis ref). Analysis tools prefer lazy mode for warehouse pushdown; fall back to eager when ref is gone.
-- **`MetricCompute` is constructed fresh per `compute_metrics` call** (AD-16, revised — Plan 30) — a stateless wrapper around the bot's held `spec_cache`/`connection_manager`; no bot-held instance. Live Ibis refs instead reference into `ConnectionManager`'s cross-backend scratch DuckDB, valid for the bot-held `ConnectionManager`'s lifetime regardless of how `MetricCompute` is scoped.
-- **No AITAEM operational-parameter passthrough exists today** (AD-17, dormant — Plan 30). `MetricCompute` takes only `spec_cache`/`connection_manager`. If AITAEM reintroduces an operational parameter, opaque `compute_kwargs` pass-through is the reactivation design.
-
-**Evals.** The architecture commits to a substrate (OTel-compatible trace + portable history + result retrieval). **pydantic-evals** was adopted as the sole eval library (`tests/evals/`, `tests/test_agent/test_otel_spans.py`) — `deepeval` was never added, since no RAG-flow feature has shipped that would need it; it remains an option if one does. Inspect AI remains a future option for capability/safety benchmarks, not yet adopted.
-
-**Implementation order — shipped.** All seven phases described in Section 8 are complete: foundations → QueryBot → DefinitionBot → composition primitives → eval validation → docs and v1.0 release. `aitaem[agent]` v1.0.0 shipped `QueryBot` + `DefinitionBot` on 2026-07-23; `SetupBot` (Phase 4) remains deferred to a later v1.x release — no code exists for it yet. Since v1.0.0, Plans 33–37 extended both bots — spec commit/update/delete (`DefinitionBot`), Ibis-native query building, backend-correct source URI resolution, and backend-pushed-down distribution tools on both bots — all released in v2.0.0 (2026-08-12). See the updated Section 8 for the full phase-by-phase status and the post-v1.0 plan list.
-
-**Open questions — resolved:**
-
-1. Eval library choice: **pydantic-evals**, as recommended. No `deepeval`/Inspect AI adopted; `tests/evals/` and the OTel span-verification suite (`tests/test_agent/test_otel_spans.py`) both run against it in CI. (Section 5, §4)
-2. Implementation phasing: followed as proposed, with Phase 5.2 (composition) deliberately reordered ahead of Phase 4 (`SetupBot`) — see Section 8's reordering note. (Section 8)
-
----
-
-## 1. Goals & Non-Goals
-
-> Full text: [`./01-goals-non-goals.md`](./01-goals-non-goals.md)
-
-### Goals (G1–G8)
-
-- **G1.** Two-line AITAEM onboarding via convenience bots.
-- **G2.** Self-evidencing blueprint for AITAEM extension.
-- **G3.** One-way dependency, optional install — `aitaem` core remains LLM-free.
-- **G4.** Multi-turn architecture from day one.
-- **G5.** Eval substrate compatibility (trace + history + result retrieval).
-- **G6.** Token-efficient by construction (tools return summaries; artifacts live in result store).
-- **G7.** Provider-agnostic LLM layer via pydantic-ai model strings.
-- **G8.** Composable tool surface (constructor / add / per-call).
-
-### Non-Goals (NG1–NG9)
-
-- **NG1.** Credential storage, persistence, multi-tenancy, RBAC.
-- **NG2.** Streaming response API in v1.
-- **NG3.** Event-stream observability hooks in v1.
-- **NG4.** Typed error taxonomy in v1.
-- **NG5.** Rich default-prompt customization API in v1.
-- **NG6.** Locked default tool catalogue beyond the working set.
-- **NG7.** Tool removal (per-call injection covers the scoped case).
-- **NG8.** Hosting — AITAEM stays a PyPI library.
-- **NG9.** Hot-reload of `SpecCache`.
-
-Section 1 elaborates each with rationale.
-
----
-
-## 2. Architectural Decisions
-
-> Full text: [`./02-architectural-decisions.md`](./02-architectural-decisions.md)
-
-Seventeen committed decisions. Listed compactly here; consult Section 2 for context, rationale, and consequences per decision.
-
-| ID | Decision |
+| Note | Covers |
 |---|---|
-| AD-01 | `aitaem.agent` is an optional install (`aitaem[agent]`); one-way dependency from agent to core |
-| AD-02 | pydantic-ai is the agent runtime; provider-agnostic via model strings |
-| AD-03 | Module shape: primitives layer + convenience bots layer, both first-class |
-| AD-04 | Bot is the session; constructed per user/session |
-| AD-05 | Result store is a bot field; responses carry IDs; history serialization includes artifacts |
-| AD-06 | Per-bot typed response payloads over a common base |
-| AD-07 | `Status` is an enum (`ok / empty / refused / error`), not a bool |
-| AD-08 | Aggregated `RunTrace` on response now; event-stream hooks later |
-| AD-09 | Architecture commits to eval substrate, not framework; substrate is OTel-compatible |
-| AD-10 | Tools return minimal LLM-facing summaries; full artifacts in result store |
-| AD-11 | Tool composition: constructor `tools=[...]`, `add_tool()`, per-call `extra_tools=[...]` |
-| AD-12 | Ibis-based dual-representation result store (AITAEM v0.4.0) |
-| AD-13 | STANDARD_COLUMNS accessed by name, never by index |
-| AD-14 | No raw YAML parsing in the agent module; typed attributes only |
-| AD-15 | Multi-turn is architectural default; `ask()` is a subset |
-| AD-16 | `MetricCompute` constructed fresh per `compute_metrics` call (revised, Plan 30) |
-| AD-17 | `compute_kwargs` passthrough — dormant, not currently implemented (revised, Plan 30) |
+| [00-pydantic-ai-2.55-mechanics](../../research/agent_module/00-pydantic-ai-2.55-mechanics.md) | `Conversation`, deferred capabilities, harness assessment, testing, version minimums |
+| [00-anthropic-prompt-caching](../../research/agent_module/00-anthropic-prompt-caching.md) | Prefix order, settings, what breaks the prefix, tail block, worker caching |
+| [00-history-stubbing](../../research/agent_module/00-history-stubbing.md) | Rewrite costs, hooks, orphan repair, thinking-block binding, compaction |
+| [00-subagent-mechanics](../../research/agent_module/00-subagent-mechanics.md) | Delegation primitives, concurrency, harness `SubAgents`, code- vs LLM-driven fan-out |
+| [00-workflow-options](../../research/agent_module/00-workflow-options.md) | Main session / coordinator / executor workflows, handoff format |
+| [00-result-storage](../../research/agent_module/00-result-storage.md) | v2 result handling, lazy Ibis refs vs local copies, cross-backend results, compute lock |
+| [specs/41-spec-yaml-persistence](../../research/specs/41-spec-yaml-persistence.md) | Saving specs as YAML, fsspec, dependency placement |
+
+Decisions marked **†** rest on a research finding still marked **[verify]**; each must be
+confirmed with a `FunctionModel` test before implementation relies on it.
 
 ---
 
-## 3. Component Architecture
+## 1. Summary
 
-> Full text: [`./03-component-architecture.md`](./03-component-architecture.md)
+Replace the two task-specific bots with **one multi-turn agent session**: a thin **main session**
+talks to the user and delegates each task to a **coordinator**, which may fan out parallel
+**executors**. Each of these agent roles has its own instructions and only the tools it needs, drawn from
+**modular tool groups**. All data exchange between tools and agents goes through a **session-scoped
+artifact store**; the LLM context only ever sees short summaries and artifact IDs.
+
+Design pillars:
+
+1. **Modular tool groups** (stats, data, aitaem, artifact), each an independent toolset.
+2. **Agent roles:** the main session, one coordinator per task type (connections, specs, analysis), and their executors; each role has its own instructions and tools.
+3. **Executors** spawned by deterministic fan-out tools for parallel work.
+4. **Artifacts as the only data channel:** Python objects (by ID), temp files (by path), DuckDB tables (by path + table name), lazy Ibis compute results (by ID).
+5. **Every tool call produces a persisted artifact**, registered in a manifest that doubles as the memory index.
+
+Decisions (justified in [00-workflow-options](../../research/agent_module/00-workflow-options.md),
+[00-result-storage](../../research/agent_module/00-result-storage.md),
+[specs/41-spec-yaml-persistence](../../research/specs/41-spec-yaml-persistence.md)):
+
+| Question | Decision |
+|---|---|
+| Fate of `QueryBot`/`DefinitionBot` | Removed in **v3.0** (breaking). No deprecation shims. |
+| Artifact storage | Per-session directory under the system temp dir (`/tmp`-style), auto-cleaned by the OS; no caller-managed persistence. |
+| Providers | Anthropic-first; other providers work with graceful degradation. |
+| Target model | The module must work on Haiku wherever possible; the main session's context is kept minimal. |
+| Main session role | Talks to the user, writes intake documents, reads handoffs. Delegates every task that computes metrics or changes specs or connections. May itself recall values of already-computed metrics and run basic stats tools on those results; this is also what lets it draft correct intakes for the analysis coordinator. |
+| Coordinator roster | One coordinator per task type: connections, specs, analysis. The connections coordinator has no executors and carries out the task itself. |
+| Spec design workflow | The main session suspends; the spec coordinator converses with the user directly until it writes its handoff and returns control. Each spec is saved when the coordinator commits it; there is no save step at the end of the flow. If the user leaves the flow, the coordinator lists the saved specs, deletes any the user doesn't want, then ends with its handoff. |
+| Connections and analysis workflows | The coordinator never talks to the user. Its handoff is **complete** (answer + result IDs), **needs-input** (questions + result IDs), or **inconclusive** (reason + result IDs). On needs-input, the main session asks the user and re-spawns the coordinator with an updated intake that reuses the earlier results by ID. |
+| When a coordinator may stop | Never while executors are running; only before dispatch or after all executors have returned and their results are reviewed. Enforced structurally: the fan-out tool awaits every executor. Applies to all coordinators, including the spec coordinator's dialogue with the user. |
+| Coordinator → executors | Coordinators fan out identical executors via written task instructions; executors return results individually; the coordinator compiles them and resolves or flags conflicts. |
+| Requests spanning several coordinators | Run one after the other. The main session reads each coordinator's handoff before writing the next intake. Coordinators never hand off to each other. |
+| Compute results | Kept as lazy Ibis refs on the source backend, never materialized whole. Stats and previews run as queries on the source backend. No local cache. |
+| Small tool outputs | Outputs of stats and data tools (aggregates, top-N, previews, profiles) are stored locally in `session.duckdb`. |
+| Tool results vs handoffs | Tool results are Pydantic models. Agent-to-agent intake and handoff documents are YAML written by the agents: only `outcome`, `result_ids`, and `questions` are schema-checked; everything else is free text. |
+| Spec persistence | Through core `SpecCache.save()` as YAML files. The spec coordinator saves to the session directory by default (no user-supplied path); the caller may pass a local path or an fsspec URL instead. |
+| Agent code placement | One package per agent role under `agent_roles/`, the main session included; each holds the role's `instructions.md` and `agent.py`. Separate from `tools/` (§3). |
+| Skills | Current choice: stand-alone tasks go to subagents instead of loaded skills. Each role's instructions are its own static prompt, and its `agent.py` lists the tools its job needs (§6.2). Skills may be added later where they help. |
+
+Because `stability.md` promises semver stability for `QueryBot`, `DefinitionBot` and their tools, the v3.0 release must
+list every removed public name in the changelog and `stability.md` (see §11).
+
+---
+
+## 2. Goals and non-goals
+
+**Goals**
+
+- G1. One agent class (`AitaemAgent`) and one user-facing `chat()`; every capability is reached through agent roles.
+- G2. Tools grouped by function; groups are usable and testable independently, and composable by callers.
+- G3. Parallel subagents with isolated context and no data passed through LLM text.
+- G4. Every tool call leaves a durable, typed artifact; the manifest is the session's ground truth.
+- G5. Cheap and cache-friendly: stable prompt prefix, append-only history by default, progressive disclosure.
+- G6. Concise history: large payloads never enter messages; old results are stubbed to artifact references.
+- G7. Keep what already works: `aitaem` core stays LLM-free, one-way dependency, `Status` semantics, OTel-compatible tracing, eval substrate.
+
+**Non-goals (this version)**
+
+- Credential storage, multi-tenancy, hosting.
+- Cross-session persistence (the OS may delete the session directory; callers who want durability export artifacts themselves, or pass a spec save location, §1).
+- Concurrent turns on the same session.
+- Streaming API.
+- Provider-native features as hard requirements (they are optimizations only).
+
+---
+
+## 3. Component overview
 
 ```mermaid
 flowchart TB
-    subgraph aitaem["aitaem (core)"]
-        Core["SpecCache · MetricCompute · ConnectionManager<br/>Spec types · PeriodType · errors"]
+    subgraph core["aitaem (core, LLM-free)"]
+        Core["SpecCache · MetricCompute · ConnectionManager · specs"]
     end
 
-    subgraph agentmod["aitaem.agent (optional install)"]
+    subgraph agent["aitaem.agent"]
         direction TB
-
-        subgraph primitives["Primitives layer"]
-            BotBase["Bot (abstract base)<br/>session · history · tools · trace"]
-            RespBase["BotResponse[PayloadT]<br/>Status · narrative · trace · reason"]
-            Store["ResultStore (session-scoped, dual-rep)"]
-            Trace["RunTrace (OTel-compatible)"]
+        Session["AitaemAgent (session facade)<br/>chat() routing · dump/load · cleanup"]
+        Deps["SessionDeps<br/>ArtifactStore · session dir · DuckDB path · aitaem handles"]
+        subgraph roles["Agent roles"]
+            Main["main session"]
+            Coord["coordinators<br/>connections · specs · analysis"]
+            Exec["executors"]
         end
-
-        subgraph bots["Convenience bots"]
-            QB["QueryBot"]
-            DB["DefinitionBot"]
-            SB["SetupBot"]
+        subgraph tools["Tool groups (toolsets)"]
+            Stats["stats"]
+            Data["data"]
+            Aitaem["aitaem"]
+            Art["artifact"]
         end
-
-        subgraph defaulttools["Default tools"]
-            CM["compute_metrics"]
-            Analysis["analysis tools<br/>(rank · filter · distribution · period · share)"]
-        end
-
-        bots --> primitives
-        bots --> defaulttools
-        defaulttools --> primitives
+        Hist["History capability<br/>(batched stubbing · tail state block)"]
     end
 
-    subgraph pydanticai["pydantic-ai"]
-        Agent["Agent · Tool · Toolset"]
+    Session --> Main
+    Session -. "spec flow" .-> Coord
+    Main -- "intake / handoff" --> Coord
+    Coord -- "fan-out" --> Exec
+    roles --> tools
+    tools --> Deps
+    Hist -.rewrites.-> Main
+    Deps --> Core
+```
+
+Module layout:
+
+```
+aitaem/agent/
+├── __init__.py          # AitaemAgent, public types
+├── session.py           # AitaemAgent facade: chat() routing, Conversation dump/load, cleanup
+├── deps.py              # SessionDeps
+├── artifacts.py         # ArtifactStore, ArtifactRef, kinds, manifest
+├── history.py           # stubbing capability, tail state/index block
+├── tools/               # every tool that operates on data, grouped by function
+│   ├── stats.py         # sort/rank, summary statistics, distributions, period-over-period
+│   ├── data.py          # list tables, describe schema, sample, date_range, column profile
+│   ├── aitaem.py        # connect, load specs, validate/commit/delete spec, compute_metrics
+│   └── artifacts.py     # list/describe/preview/drop artifacts
+└── agent_roles/         # one package per agent role
+    ├── main_session/
+    │   ├── instructions.md   # the role's static instructions
+    │   └── agent.py          # Agent definition: model, tools, deps, output
+    └── <role>/               # coordinators and executors
+        ├── instructions.md
+        └── agent.py          # as above, plus its intake/handoff schema and the tool that launches it
+```
+
+Rules:
+
+- `tools/` holds the functions that operate on data (`stats`, `data`, `aitaem`, `artifact`).
+- Every agent, the main session included, is a role in `agent_roles/` with the same two files. A
+  launch tool is a thin wrapper around a run of the agent it launches, so it lives in that role's
+  `agent.py`.
+- `agent_roles/` imports `tools/`; `tools/` never imports `agent_roles/`, so data tools cannot
+  launch agents.
+- A role imports only the launch tools of the roles it launches (main session → coordinators →
+  executors).
+- No shared prompt module: each role's `instructions.md` is self-contained.
+
+---
+
+## 4. Artifact store (the data channel)
+
+### 4.1 Session directory
+
+Created at session start under the system temp directory; contents:
+
+```
+<tmp>/aitaem-session-<uuid>/
+├── manifest.jsonl         # append-only: one record per artifact
+├── objects/<id>.json      # python-object artifacts
+├── files/<id>.<ext>       # file artifacts (parquet, csv, text, intake/handoff YAML)
+├── specs/                 # default SpecCache.save() location (metrics/, slices/, segments/)
+└── session.duckdb         # scratch DuckDB; one table per local table artifact
+```
+
+Cleanup is delegated to the OS; `AitaemAgent.cleanup()` exists for eager removal. Consequence: a
+session cannot be resumed after the OS has purged its directory, and `load` must tolerate missing
+artifacts (the manifest marks them `lost`; see §9.6).
+
+### 4.2 ArtifactRef
+
+Every artifact has a typed record (Pydantic model, JSON-serializable):
+
+| Field | Meaning |
+|---|---|
+| `id` | Short stable ID, e.g. `a017` (monotonic per session, readable by the LLM) |
+| `kind` | `object` · `file` · `table` · `ibis` |
+| `type_tag` | Semantic type: `spec_draft`, `metric_result`, `schema_profile`, `relevance_verdict`, `handoff`, … |
+| `location` | object: in-memory key + optional serialized path; file: path; table: `(duckdb_path, table_name)`; ibis: in-memory key of the lazy expression (not serialized) |
+| `summary` | ≤ 200-char, LLM-facing description (rows/cols, key stats) |
+| `produced_by` | tool name + call ID + turn index + (optional) subagent ID |
+| `parents` | IDs of input artifacts (lineage) |
+| `status` | `ok` · `empty` · `refused` · `error` (the existing `Status` enum) |
+| `created_at` | timestamp |
+
+### 4.3 Rules
+
+- **R1. Every tool call writes an artifact.** Even failures and no-ops write an `error`/`empty` artifact so the manifest is a complete trace. A single wrapper enforces this (a `Hooks`/capability `wrap_tool_execute` hook or a tool decorator); tools implement only the payload.
+- **R2. Tools return a small `ToolResult`:** `artifact_id`, `status`, `summary`, and optionally a handful of inline facts (≤ ~300 tokens). Never rows.
+- **R3. Agents exchange intake and handoff YAML documents, stored as `file` artifacts and passed by ID.** The documents themselves refer to results only by artifact ID.
+- **R4. Compute results are `ibis` artifacts; small tool outputs are `table` artifacts in `session.duckdb`.** Subagents receive the database **path** and open their own connection ([00-subagent-mechanics §2](../../research/agent_module/00-subagent-mechanics.md#2-concurrency)). Subagents write namespaced tables (`t_<artifact_id>`); the store registers them.
+- **R5. Lineage is mandatory** (`parents`), so the history stubber and the user can trace any result.
+- **R6. The store is part of `SessionDeps`**, shared by identity between the main session and its subagents.
+
+### 4.4 Compute results
+
+Compute results stay lazy on the source backend, so large results never leave the warehouse
+([00-result-storage](../../research/agent_module/00-result-storage.md)); stats and previews compile
+to backend SQL and only their small outputs come back. The warehouse-side distribution tools
+move into the `data` and `stats` groups. Results spanning several backends are combined by
+core's existing cross-backend path in `ConnectionManager`. An `ibis` artifact does not survive
+session reload and is marked `lost` (§9.6); the agent recomputes it.
+
+---
+
+## 5. Tool groups
+
+Tools are plain functions grouped into `FunctionToolset`s, exposed through pydantic-ai
+`Capability` objects (or bare toolsets) so callers can include, exclude, prefix, or extend groups.
+
+| Group | Examples | Touches |
+|---|---|---|
+| `stats` | `sort_rank`, `summary_stats`, `distribution`, `period_over_period`, `contribution_share`, `filter_threshold` | Result artifacts only (`ibis` and `table`); no `ConnectionManager` or aitaem objects. Stats on an `ibis` artifact run as a query on that result's backend. |
+| `data` | `list_tables`, `describe_table`, `sample_rows`, `column_profile`, `date_range` | Source backends via `ConnectionManager` (read-only). |
+| `aitaem` | `connect_source`, `list_specs`, `resolve_spec`, `validate_spec`, `commit_spec`, `delete_spec`, `compute_metrics` | aitaem core objects; `commit_spec` saves through `SpecCache.save()`. |
+| `artifact` | `list_artifacts`, `describe_artifact`, `preview_artifact`, `drop_artifact` | Store only. |
+
+Tools that launch agents are not a tool group; they live in `agent_roles/` (§3).
+
+Principles:
+
+- **Compute lock.** Every tool that executes an Ibis expression (`compute_metrics`, `data` tools, `stats` and `preview_artifact` on `ibis` artifacts) holds one process-wide lock whenever `ConnectionManager.requires_compute_lock` is true (DuckDB registered, or several backends configured), because Ibis DuckDB connections are not thread-safe and executors run in parallel. `SessionDeps` carries the lock, a no-op otherwise, so tools without a `ConnectionManager` can take it. Parallel executors on DuckDB sources therefore execute one at a time ([00-result-storage §5](../../research/agent_module/00-result-storage.md#5-concurrency)).
+- **Stable tool list.** The tool array is part of the cached prefix and is fixed and deterministically ordered for the whole session (§8).
+- **Semantics:** the Metric Precision Rule (no approximating a spec that doesn't precisely answer the question → `refused`); STANDARD_COLUMNS accessed by name; no raw spec YAML parsing in the agent module (specs go through aitaem's loaders; handoff YAML is parsed and checked against its schema).
+- Reuse existing implementations (distribution tools, `validate_spec`, `compute_metrics` internals) by moving them into the new groups; do not rewrite them.
+
+---
+
+## 6. Agent roles
+
+### 6.1 Main session and facade
+
+The main session is a `pydantic_ai.Agent` defined in `agent_roles/main_session/`, wrapped by
+`AitaemAgent` (the session facade owning deps, the pydantic-ai `Conversation`s, and `chat()`).
+Every role that replies to the user (the main session, and the spec coordinator during spec
+design) has a structured output carrying `response` and `attachments`.
+`chat(message) → Response` with:
+
+- `response`: the LLM's text.
+- `status`: the `Status` enum (`ok` · `empty` · `refused` · `error`).
+- `attachments`: a list of (artifact ID, type, reason), the tool-call results the agent attaches
+  to support the response, for use by another agent or a visualization step.
+- `trace_id`: the chain of steps behind the response (that turn's manifest records, `RunTrace`,
+  and OTel spans).
+
+Multi-turn state is carried as a pydantic-ai `Conversation`, passed as `conversation=` on each run,
+so `UsageLimits` persist across turns; serialized with `ConversationTypeAdapter`
+([mechanics §1](../../research/agent_module/00-pydantic-ai-2.55-mechanics.md#1-multi-turn-state-conversation)).
+
+### 6.2 Instructions and tools
+
+- Each role's instructions are static and loaded from its packaged `instructions.md`, so prompts
+  are reviewable as text.
+- **Progressive disclosure comes from the roles themselves.** A coordinator's instructions are its
+  own prompt in its own context and never enter the main session's context; the main session sees a
+  coordinator only through the description of the tool that launches it.
+- **Each role's `agent.py` lists the tools its job needs**, from any group. The list is fixed for
+  the role's lifetime and kept short, since every tool description is part of the role's prompt (§8).
+
+### 6.3 Workflows
+
+The user always talks to the facade, which routes each message to the active role: the main
+session, or the spec coordinator during spec design. The diagrams leave the facade out.
+
+Analysis. The connections coordinator follows the same flow without the fan-out. Each
+coordinator launch is a new run; only the main session keeps a `Conversation`.
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant M as Main session
+    participant C as Analysis coordinator
+    participant E as Executors
+    U->>M: request
+    M->>C: launch (intake ID)
+    C->>C: check intake against specs
+    opt fan-out
+        C->>E: fan-out tool, awaits all executors
+        E-->>C: results (artifact IDs)
     end
-
-    primitives -.uses.-> pydanticai
-    defaulttools --> Core
-    bots --> Core
+    C-->>M: handoff ID (complete / needs-input / inconclusive)
+    alt needs-input
+        M-->>U: questions
+        U->>M: answers
+        M->>C: launch new run (updated intake, earlier result IDs)
+        C-->>M: handoff ID
+    end
+    M-->>U: answer
 ```
 
-### Components in one paragraph each
-
-- **Primitives layer:** `Bot` (abstract base owning session, history, tools, trace assembly — `aitaem/agent/base.py`), `BotResponse[PayloadT]` (status / narrative / trace / reason / typed payload), `ResultStore` (session-scoped dict of result IDs to artifacts, with optional live Ibis refs), `RunTrace` (per-turn OTel-compatible aggregated record), history I/O surface (`dump_history()` / `load_history()` serializing messages and artifacts together). Composition primitives `add_tool()`, constructor `tools=[...]`, and per-call `extra_tools=[...]` are implemented and tested (`tests/test_agent/test_composition.py`); `add_bot()`/`as_tool()` exist as method stubs but `as_tool()` still raises `NotImplementedError` — see ND-11.
-- **Convenience bots layer:** `QueryBot` (intent-gated metric resolution + compute + analysis on AITAEM specs), `DefinitionBot` (schema introspection + spec drafting/validation/commit/update/delete + data-grounded threshold guidance), `SetupBot` (connection wizard returning config; caller persists — **not yet implemented**, deferred to a later v1.x release).
-- **Default tools:** `compute_metrics` (the single AITAEM-touching tool, post-Ibis-migration aware) + analysis tools operating on result store entries (`rank_by_value`, `filter_by_threshold`, `distribution_summary`, `column_distribution`, `period_over_period`, `contribution_share`) on `QueryBot`; `column_distribution`/`distribution_summary`/`date_range`/`compute_metrics` are also registered on `DefinitionBot` (Plan 37) so it can ground wildcard/threshold spec decisions in live data instead of guessing.
-- **Caller responsibilities:** building `SpecCache` and `ConnectionManager`, choosing the model, per-user lifecycle, persisting history if desired, rendering responses. The library handles none of these.
-
-A typical multi-tool turn (compute → rank → narrate) is illustrated as a sequence diagram in Section 3, §5. Key property: the LLM never sees the full DataFrame; only summaries. The caller dereferences result IDs after the turn.
-
----
-
-## 4. Contracts with AITAEM Core
-
-> Full text: [`./04-aitaem-contracts.md`](./04-aitaem-contracts.md)
-
-**One-way:** `aitaem.agent` → `aitaem`. Never reverse. Enforced by CI import-graph check.
-
-**Imports from `aitaem` top level (no submodules):**
-- Types: `SpecCache`, `MetricSpec`, `SliceSpec`, `SegmentSpec`, `IbisConnector`, `ConnectionManager`, `MetricCompute`, `PeriodType`, `METRIC_FORMAT_VALUES`.
-- Exceptions: `AitaemError`, `SpecValidationError`, `SpecNotFoundError`, `TableNotFoundError`. Plus one agent-owned exception that is *not* imported from core: `WrongEntryKindError` (`aitaem/agent/store.py`), a `ResultStore`-specific subclass of `AitaemError`.
-
-Corrected 2026-08-14 against actual usage: `ValidationResult` was removed from the Types list —
-not imported or referenced anywhere in `aitaem/agent/` (`validate_spec` consumes
-`spec.validate()`'s `.valid`/`.errors`/`.referenced_columns` by duck typing without naming the
-return type). `QueryBuildError`, `QueryExecutionError`, and `AitaemConnectionError` were removed
-from the Exceptions list for the same reason — none currently referenced in `aitaem/agent/`.
-
-**Assumed AITAEM v0.4.0 behaviors:**
-- `MetricCompute(spec_cache, connection_manager)` — constructed fresh per `compute_metrics` call (AD-16, revised).
-- `MetricCompute.compute(...)` returns `ibis.Table` (lazy).
-- `.to_pandas()` / `.to_pyarrow()` for explicit materialization.
-- No operational-parameter passthrough exists today; `compute_kwargs` is AD-17's dormant reactivation design, not current behavior.
-- `STANDARD_COLUMNS` schema (11 columns) accessed by name; metadata columns identifiable by name set; `metric_value` is the value column.
-
-**The agent module never:**
-- Imports from `aitaem` submodules.
-- Parses raw spec YAML.
-- Handles credentials directly.
-- Instantiates `IbisConnector` or backend-specific connections.
-- Persists anything to disk or network.
-- Picks defaults for AITAEM operational parameters.
-
-> **Known drift (verified 2026-08-14):** the "no submodule imports" rule is not currently
-> enforced by CI — `scripts/check_import_graph.py` only checks the *direction* (core never
-> imports `aitaem.agent`), not import style — and several files import past the top level today:
-> `aitaem/agent/common_tools.py`, `aitaem/agent/definition_tools.py`, and
-> `aitaem/agent/store.py` import exceptions via `aitaem.utils.exceptions` rather than `aitaem`;
-> `aitaem/agent/resolver.py` and `aitaem/agent/definition_tools.py` import `MetricSpec`/
-> `PeriodType` via `aitaem.specs.metric`/`aitaem.query.builder`. All of these names are also
-> exported at the `aitaem` top level, so this is a style drift, not a functional break — flagged
-> here rather than silently doc-papered-over or fixed as a side effect of this update.
-
-Section 4 documents the full surface plus the dual-representation result store mandated by the Ibis migration.
-
----
-
-## 5. Evals Substrate
-
-> Full text: [`./05-evals.md`](./05-evals.md)
-
-### The substrate
-
-Three things the architecture surfaces for any eval harness:
-
-1. **`RunTrace` per response.** OTel-compatible by design. Each `ToolCall` carries name, structured args, result ID, LLM-facing summary, success, duration. Replay-sufficient given `(history-before-turn, user message, trace)`.
-2. **`dump_history()`.** JSON-serializable, portable record of the conversation.
-3. **`bot.get_result(result_id)`.** On-demand access to materialized artifacts for ground-truth comparison.
-
-**Why this is special:** AITAEM's deterministic compute means evals can include exact-correctness checks (does the computed DataFrame equal the known ground truth?), not just LLM-as-judge on narrative. This is a stronger signal than most LLM apps can produce.
-
-### Library trade-off summary
-
-| Dimension | pydantic-evals | deepeval | Inspect AI |
-|---|---|---|---|
-| Alignment with pydantic-ai | Native (same authors) | Pytest integration first-class | Generic; solver wrapper |
-| Tool-call evaluation | OTel span_tree (structural) | `ToolUseMetric` (LLM-judge) | Solver/scorer (flexible) |
-| Multi-turn ergonomics | Roll your own | `ConversationalTestCase` (turnkey) | Native |
-| Deterministic correctness | Excellent (EqualsExpected, span checks) | Possible via custom metrics | Excellent |
-| RAG metrics out-of-box | None | RAG triad + multi-turn RAG | None |
-| Observability | OTel + Logfire native | Confident AI cloud (opt-in) | Built-in viewer |
-| LLM-judge bias | Minimal | Pervasive | Optional |
-| Adoption / maturity | Newer, well-built | Established, broad | Mature (AISI / labs) |
-
-### Recommendation (non-binding)
-
-**Primary: pydantic-evals.** Tightest alignment with our trace substrate (OTel span_tree), strongest deterministic-correctness story, native Logfire/OTel for observability synergy.
-
-**Complement: deepeval, for RAG flows when they arrive.** Mature RAG triad and multi-turn RAG metrics that pydantic-evals doesn't have. Two frameworks coexist trivially.
-
-**Future option: Inspect AI** for capability/safety benchmarks (prompt injection resistance, etc.). Post-v1.
-
-Section 5 details the substrate, candidate analysis, and explicitly flags the open question of whether to ship reference evals in the repository.
-
----
-
-## 6. Extensibility Surface
-
-> Full text: [`./06-extensibility.md`](./06-extensibility.md)
-
-Five extension points:
-
-| ID | Surface | Use case |
-|---|---|---|
-| EP1 | Custom tools (constructor / add / per-call) | Add domain logic; e.g. logging or auditing tools |
-| EP2 | Cross-bot delegation via plain-function wrapping | Wrap a bot's `ask()` in a function, attach with `add_tool()`; generic `as_tool()`/`add_bot()` deferred (ND-11) |
-| EP3 | Custom bots from primitives | Downstream apps building their own bots on the primitives layer |
-| EP4 | Prompt overrides (subclass-first; richer API later) | Customize default prompts per deployment |
-| EP5 | Response payload extension | App-specific UX fields (e.g. visualization hints) in a payload subclass |
-
-**Stability guarantees:**
-- Convenience bot constructors and primitives base classes: semver-stable.
-- Default tool input/output schemas: semver-stable.
-- Default prompts: public but not semver-stable in content (tuning is expected).
-- `RunTrace` and `BotResponse` field shapes: semver-stable (eval substrate is contract).
-
-**Not enabled:** modifying result store schema, removing default tools by name, hot-swapping the LLM runtime away from pydantic-ai, persistent state owned by the bot.
-
----
-
-## 7. Explicit Non-Decisions
-
-> Full text: [`./07-non-decisions.md`](./07-non-decisions.md)
-
-Nine things deliberately deferred, each with an "escape valve" describing the path forward we leave open:
-
-| ID | Non-decision | Escape valve |
-|---|---|---|
-| ND-01 | Streaming response API | `chat_stream()` as parallel method later |
-| ND-02 | Event-stream observability hooks | `bot.on(...)` / `bot.events` async iterator |
-| ND-03 | Typed error taxonomy | Additive `error_kind` enum later |
-| ND-04 | Rich prompt customization API | Kwarg / fragment / registry — all purely additive |
-| ND-05 | Default analysis tool catalogue composition | Refine in v1.x based on usage data |
-| ND-06 | Cost/token-budget controls | Wrap pydantic-ai's `UsageLimits` later |
-| ND-07 | Hot-reload of `SpecCache` | `bot.reset(spec_cache=...)` later |
-| ND-08 | Concurrent calls on same bot | Document as unsupported; lock if needed |
-| ND-09 | Reference eval harness in repo | **✅ Resolved (Plan 29)** — shipped as `tests/evals/`. See `07-non-decisions.md` ND-09. |
-| ND-10 | Multi-turn interactive refinement for DefinitionBot | `chat()` is provided; dedicated multi-turn spec-refinement UX is v1.x once usage patterns are established. Same deferral applies to QueryBot. See `plans/agent_module/07-non-decisions.md`. A concrete escape valve (a `get_prior_spec` tool recovering a prior turn's validated YAML from `ResultStore`) is drafted in `plans/40-definitionbot-multiturn-chat.md` but **not yet implemented** — no such tool exists in `aitaem/agent/definition_tools.py` today. |
-| ND-11 | `Bot.as_tool()` / `Bot.add_bot(other_bot)` — generic bot-as-tool composition | Wrap `ask()` as a plain function and register it via `add_tool()`; a generic `as_tool()`/`add_bot()` can be layered on top later, purely additively |
-
-Each non-decision identifies the trigger that would cause us to revisit it.
-
----
-
-## 8. Implementation Order
-
-> Full text: [`./08-implementation-order.md`](./08-implementation-order.md)
+Spec design. The spec coordinator keeps its own `Conversation` for the flow.
 
 ```mermaid
-flowchart LR
-    P0["P0: AITAEM Ibis migration<br/>(✅ done — v0.4.0)"]:::done --> P2
-    P1[Phase 1: Foundations]:::done --> P2
-    P1 --> P3
-    P1 --> P4
-    P2[Phase 2: QueryBot]:::done --> P3[Phase 3: DefinitionBot]:::done
-    P2 --> P4[Phase 4: SetupBot]
-    P2 --> P5[Phase 5.2: Composition]:::done
-    P3 --> P5
-    P2 --> P6[Phase 6: Eval validation]:::done
-    P3 --> P6
-    P4 --> P6
-    P5 --> P6
-    P6 --> P7[Phase 7: Docs + v1.0]:::done
-    classDef done fill:#dfd,stroke:#393
+sequenceDiagram
+    actor U as User
+    participant M as Main session
+    participant S as Spec coordinator
+    participant E as Executors
+    U->>M: request
+    M->>S: launch (intake ID)
+    Note over M,S: user messages now route to the spec coordinator
+    loop until the specs are done or the user leaves
+        opt table research
+            S->>E: fan-out tool, awaits all executors
+            E-->>S: results (artifact IDs)
+        end
+        opt spec agreed
+            S->>S: commit_spec (saves the spec)
+        end
+        S-->>U: reply
+        U->>S: message
+    end
+    opt user leaves
+        S-->>U: saved specs
+        U->>S: specs to delete
+        S->>S: delete_spec
+    end
+    S-->>M: handoff ID
+    Note over M,S: user messages route to the main session again
+    M-->>U: report
 ```
-
-**Phases:**
-
-- **P0** — AITAEM Ibis-return migration + `tmp_dir` cross-backend support. **Shipped in AITAEM v0.4.0.** Phase 2 unblocked.
-- **Phase 1 — Foundations. ✅ Shipped.** Package structure, optional install, primitives skeleton, trace assembly.
-- **Phase 2 — QueryBot. ✅ Shipped.** `compute_metrics` constructing `MetricCompute` per call (AD-16, revised), analysis tools (lazy-mode-aware), default prompt with Metric Precision Rule, integration, end-to-end multi-turn tests.
-  > **v0.2 update (Plan 26):** QueryBot resolution flow is superseded by a two-tool intent gate (`record_intent` → `resolve_intent` → `compute_metrics(spec_token)`), code-enforcing the Metric Precision Rule. See [`09-querybot-v0.2-design.md`](09-querybot-v0.2-design.md) for design; [`../26-querybot-v0.2.md`](../26-querybot-v0.2.md) for the implementation plan.
-  >
-  > **Plan 31:** `spec_token` is single-use on success only — a failed `compute_metrics` restores the token, so a retry needs no fresh `record_intent`/`resolve_intent`. Safe under parallel tool calls because the pop is atomic and restore only follows failure, with no suspension point between them. That last condition is what the guarantee rests on; hosts that wrap these tools in an async execution model must supply their own mutual exclusion.
-  >
-  > **Plan 36:** Two backend-pushed-down distribution tools, `distribution_summary` and `column_distribution`, added to `QueryBot` and factored into a shared `aitaem/agent/common_tools.py` so `DefinitionBot` (Plan 37) can reuse them.
-- **Phase 3 — DefinitionBot. ✅ Shipped.** Schema introspection tools, spec drafting/validation tool, integration.
-  > **Plan 33:** `commit_spec`/`delete_spec` tools, `SpecCache.update()`/`remove()`, transactional `add()`, and a version counter so `QueryBot` sharing the same `SpecCache` rebuilds its own agent (and LLM-visible catalog) when `DefinitionBot` commits, updates, or deletes a spec — closing a staleness gap where a newly committed spec was queryable but invisible to `QueryBot`'s prompt for the rest of its session.
-  >
-  > **Plan 37:** `date_range`/`compute_metrics` plus the Plan 36 distribution tools added to `DefinitionBot`, so it can ground wildcard-vs-enumerated and numeric-threshold spec decisions in live data instead of guessing.
-- **Phase 4 — SetupBot. Deferred to v1.x — still not implemented as of v2.0.0.** Connection-validation tool, integration.
-- **Phase 5 — Composition. ✅ Shipped (Phase 5.2 only).** `Bot(tools=[...])`, `add_tool()`, per-call `extra_tools`. Generic `bot.as_tool()` / `add_bot()` (Phase 5.1) remain deferred — `as_tool()` exists as a stub that raises `NotImplementedError`; see ND-11.
-- **Phase 6 — Eval substrate validation. ✅ Shipped (Plan 29).** Reference eval harness (`tests/evals/`, covering both `QueryBot` and `DefinitionBot`), OTel span emission verification (`tests/test_agent/test_otel_spans.py`).
-- **Phase 7 — Docs + v1.0 release. ✅ Shipped (Plan 32).** Public API docs, getting-started examples, shipped to PyPI as `aitaem[agent]` v1.0.0 (2026-07-23).
-
-**Post-v1.0 core-library extensions used by the agent module:** Plan 34 (Ibis-native query
-building, replacing hand-assembled SQL strings — fixes real BigQuery/Postgres dialect bugs
-`DefinitionBot`-drafted specs could trigger), Plan 35 (backend-correct source URI resolution —
-fixes `IbisConnector.get_table()` against Postgres and BigQuery project handling). Both are
-`aitaem` core changes, not `aitaem.agent` changes, but they directly affect what `DefinitionBot`
-and `QueryBot` can safely do against non-DuckDB backends. All of Plans 33–37 shipped in v2.0.0
-(2026-08-12).
-
-**Risk concentration (historical):** Phase 2 carried the bulk of the architectural risk during
-design — trace assembly faithfulness, tool-summary-vs-store split sufficiency, Metric Precision
-Rule effectiveness in practice. All three have since been exercised in shipped code and CI evals
-without requiring architectural rework.
 
 ---
 
-## Cross-section dependency map
+## 7. Subagents
 
-How sections relate, for orientation:
+### 7.1 Pattern
 
-```mermaid
-flowchart TB
-    S1[Section 1<br/>Goals / Non-Goals] --> S2
-    S2[Section 2<br/>Decisions] --> S3
-    S2 --> S4
-    S2 --> S5
-    S2 --> S6
-    S2 --> S7
-    S3[Section 3<br/>Components] --> S6
-    S3 --> S8
-    S4[Section 4<br/>AITAEM contracts] --> S3
-    S4 --> S8
-    S5[Section 5<br/>Evals substrate] --> S6
-    S5 --> S8
-    S6[Section 6<br/>Extensibility] --> S8
-    S7[Section 7<br/>Non-decisions] --> S8
-    S8[Section 8<br/>Implementation Order]
+Each coordinator with executors has one fan-out tool. The coordinator writes one task instruction
+per executor; the tool runs identical executors in parallel and awaits all of them (§1). Each
+executor writes its handoff as an artifact; the tool returns the handoff IDs with their checked
+fields. The coordinator compiles the results and resolves or flags conflicts
+([00-subagent-mechanics §4](../../research/agent_module/00-subagent-mechanics.md#4-code-driven-vs-llm-driven-fan-out)).
+
+```
+async tool run_executors(ctx, tasks: list[str]) -> ToolResult
+    gather(executor.run(task_i, deps=child_deps_i, usage=ctx.usage))
+        bounded by a semaphore, return_exceptions=True
+    returns: handoff artifact ID + outcome per executor
 ```
 
-- Sections 1 and 2 establish the foundational position.
-- Section 3 (components) is informed by Section 2 (decisions) and Section 4 (what flows in from AITAEM).
-- Sections 5 (evals), 6 (extensibility), and 7 (non-decisions) refine specific surfaces.
-- Section 8 sequences everything into an implementation plan.
+### 7.2 Rules
+
+- Fan-out tools are `async def`.
+- Each executor gets a child `SessionDeps` and `usage=ctx.usage`, so the coordinator's `UsageLimits` bound the whole tree.
+- Executors default to a cheaper model tier than their coordinator.
+- Concurrency is bounded by an `asyncio.Semaphore` in the fan-out tool. If model-level limiting is added, its limiter is used only by the executors. **†**
+- The coordinator's `CancellationToken` is passed to its executors.
+- Failures: `return_exceptions=True`; failed executors produce `error` artifacts, listed in the fan-out tool's result. Siblings are not cancelled by one failure.
+- Executors have no `message_history` and narrow toolsets; they return YAML handoffs (R3) checked by an output validator. **†**
+- Every agent is named (`name=`) and instrumented.
+
+### 7.3 Executor caching
+
+Executors use a short, self-contained prompt and run with `Caching(retention=…, messages=False)`;
+they do not try to share the coordinator's prefix
+([caching §7](../../research/agent_module/00-anthropic-prompt-caching.md#7-parallel-workers)).
 
 ---
 
-## Open Questions Awaiting User Decision
+## 8. Caching
 
-All open questions from the original design phase are now closed. Kept here as a historical
-record of what was decided and why — not a live decision queue.
+Rules follow from the prefix order and invalidation behavior in
+[00-anthropic-prompt-caching](../../research/agent_module/00-anthropic-prompt-caching.md).
 
-### OQ-1: Eval library choice — closed
+- **Setting:** `Caching(retention='1h', messages=True)`; switch to `'5m'` if telemetry shows turns are typically seconds apart.
+- **Stable prefix, never mutated mid-session:**
+  1. Tool array fixed and deterministically ordered; no per-turn `prepare_tools` or `tool_choice` filtering.
+  2. Static instructions are literal strings only.
+  3. Session-state block and artifact index are **not** in `instructions`.
+- **Tail block:** the session-state block (§9.2) and artifact index (§9.3) are regenerated every request from `SessionDeps` and appended behind a `CachePoint` in `wrap_model_request`, never persisted to history. Because they are rebuilt from the store, they survive history stubbing.
+- **Do not toggle** `tool_choice`, thinking params, `effort`, or image presence between turns.
+- **Observability:** surface `cache_read_input_tokens`, `cache_creation_input_tokens`, and collapse reason in `RunTrace`; enable `anthropic_cache_diagnostics` in development; check that prompts exceed the target model's minimum cacheable size.
+- **Progressive disclosure** comes from agent roles (§6.2). Native tool search is reserved for if the tool count grows large.
+- **Other providers:** same structure; Anthropic-only features degrade gracefully.
 
-Architecture recommended **pydantic-evals primary + deepeval for RAG**. See Section 5, §4.
+---
 
-Resolved: pydantic-evals adopted as sole eval library. `tests/evals/` and
-`tests/test_agent/test_otel_spans.py` both run against it in CI (Plan 29, Phase 6). `deepeval`
-was never adopted — no RAG-flow feature has shipped that would need its RAG-triad metrics; the
-option remains open if one does.
+## 9. Multi-turn history
 
-### OQ-2: Reference eval harness in the repository? — closed
+### 9.1 Principle
 
-(a) Ship `tests/evals/` examples demonstrating pydantic-evals wiring — self-evidencing for users.
-(b) Document the substrate only — keeps library leaner.
+Append-only by default. When a trigger fires, one batched rewrite runs and the result is persisted
+(via the `Conversation`), so the prefix is stable again until the next trigger. Because every tool
+result is already a short summary plus artifact ID (R2), growth is slow and rewrites are expected
+to be rare ([00-history-stubbing §1](../../research/agent_module/00-history-stubbing.md#1-why-rewrites-are-costly)).
 
-Architecture leaned (a) for consistency with the blueprint philosophy (G2). See Section 5, §6 and Section 7, ND-09.
+### 9.2 Session-state block
 
-Resolved: (a). `tests/evals/` shipped, covering both `QueryBot` and `DefinitionBot`. See `plans/29-agent-phase6-evals.md` and `07-non-decisions.md` ND-09.
+Small structured object, updated deterministically from tool results (not by an LLM), rendered
+in the tail block each request: current goal, connected sources, active specs, pending question,
+user preferences, unresolved errors. Compact JSON, hard size cap.
 
-### OQ-3: Implementation phasing — closed
+### 9.3 Artifact index
 
-With AITAEM v0.4.0 shipped, P0 was done. Phase 1 (foundations) and Phase 2 prep began in
-parallel as proposed.
+The manifest rendered compactly in the tail block (`a017 ibis metric_result "DAU by country"`),
+newest entries expanded, older ones collapsed to one line each, growing only by appended lines.
+`describe_artifact`/`preview_artifact` give just-in-time detail.
 
-Resolved: followed as proposed, with one deliberate reordering — Phase 5.2 (composition
-primitives) was prioritized ahead of Phase 4 (`SetupBot`) and Phase 5.1 (`as_tool()`), since it
-depended only on Phases 1–3 and `SetupBot` remained out of scope for v1.0. See Section 8's
-reordering note and `plans/28-agent-phase5.2-composition.md`.
+### 9.4 Batched stubbing capability
 
-### OQ-4: AITAEM-side coordination — closed
+A custom `ProcessHistory` capability ([00-history-stubbing §2–4](../../research/agent_module/00-history-stubbing.md#2-pydantic-ai-hooks)):
 
-AITAEM v0.4.0 delivers the Ibis-return `compute()` and adds `tmp_dir` for cross-backend materialization. The dual-representation result store (Section 3, Section 4 §4) is realizable with the v0.4.0 API. AD-16 (one `MetricCompute` per bot) and AD-17 (opaque `compute_kwargs`) addressed the lifetime and forward-compatibility consequences at the time. (AD-16/AD-17 revised since — see Plan 30.)
+- **Trigger:** `ctx.context_window_used` ≥ ~0.6–0.7, or `prompt_cache_outlook(…) == 'cold'` combined with a smaller size threshold. A `min_clear_tokens`-style floor prevents small rewrites.
+- **Action:** replace old, bulky `ToolReturnPart.content` with `[artifact a017 · kind · summary · how to retrieve]` via `dataclasses.replace`. Keep every call/return pair. Leave the last N pairs and the current run untouched.
+- **Escalation:** drop whole oldest turns at a user-prompt boundary.
+- **Eval:** answer fidelity after stubbing is checked in the eval suite (§11).
 
-Any residual coordination — for instance, AITAEM-side feedback on how callers use `tmp_dir` in multi-tenant scenarios — is post-v1.0 territory.
+### 9.5 Thinking-block binding
 
-### OQ-5: Context-window management for long-running sessions
+The main session runs with thinking off, so stubbing never breaks thinking-block binding on 5.x
+Claude models ([00-history-stubbing §5](../../research/agent_module/00-history-stubbing.md#5-thinking-block-binding)).
+Coordinators and executors are never stubbed and may use thinking.
 
-**Problem:** In multi-turn conversations, the accumulated `message_history` passed to each `agent.run()` call grows unboundedly. If history + system prompt + current message exceeds the model's context window, the call fails.
+### 9.6 Persistence
 
-**Solution direction:** pydantic-ai's `ProcessHistory` capability (in `pydantic_ai.capabilities`). Pass a processor callable at agent construction time:
+Every `Conversation` the facade holds, plus the manifest, are dumped/loaded together. Loading with missing artifact
+files marks those manifest entries `lost` rather than failing.
 
-```python
-from pydantic_ai.capabilities import ProcessHistory
+---
 
-Agent(model=..., capabilities=[ProcessHistory(my_trimmer)])
-```
+## 10. Contracts with `aitaem` core
 
-The processor receives the full message list before every model request and returns a modified list. No built-in trimmer exists in pydantic-ai — must be implemented.
+- One-way dependency `aitaem.agent → aitaem`; core never imports the agent.
+- Optional install `aitaem[agent]`; `pydantic-ai` is the runtime.
+- Import from the `aitaem` top level; `scripts/check_import_graph.py` enforces it.
+- `MetricCompute` is constructed per `compute_metrics` call over the session's `SpecCache` / `ConnectionManager`; its lazy `ibis.Table` result is stored as is, not materialized.
+- Specs are saved only through `SpecCache.save()`.
+- The agent module never handles credentials directly, parses raw spec YAML, or instantiates backend connections outside `ConnectionManager`.
 
-**Key constraint (pydantic-ai issue #2050):** The processor fires before *every* model request, including each step of a tool-call loop. The message list it receives includes mid-run tool call/return pairs. Naive trimming that drops a `ToolReturnPart` without its matching `ToolCallPart` violates provider API constraints. Any trimmer must only remove complete call/return pairs as an atomic unit.
+---
 
-**Token counting:** pydantic-ai provides no tokenizer. A safe approximation is character-count or message-count based trimming. Provider-accurate trimming requires an external tokenizer (e.g. `tiktoken` for OpenAI, already available when `[agent-openai]` is installed).
+## 11. Evals, observability, removal of the v2 bots
 
-**Where it lives in code:** `_build_agent()` in each concrete `Bot` subclass. The `Bot` base class docstring (Phase 1) already documents this hook so Phase 2+ implementors know where to plug in.
+**Evals:** pydantic-evals stays. Reuse `tests/evals/` cases for query and definition tasks, retargeted
+to `AitaemAgent`. New eval dimensions: fan-out correctness (verdicts match ground truth), artifact
+completeness (every tool call has a manifest entry), history-stub fidelity (answers unchanged
+after stubbing), cache hit rate on turn ≥ 2.
 
-**Status:** Still unimplemented as of v2.0.0 — no `ProcessHistory` capability is registered on either bot (`_build_agent()` in `query_bot.py`/`definition_bot.py` only passes `ReinjectSystemPrompt`), and no trimmer exists anywhere in the codebase. It did not surface as a blocking issue through Phase 2–7 integration testing or the eval suites, so it remains genuinely deferred rather than scheduled. Revisit if long-running multi-turn sessions (helped along by Plan 40's proposed `get_prior_spec`-based multi-turn refinement, if implemented) start hitting real context limits in practice.
+**Observability:** `RunTrace` per response, extended with artifact IDs per tool call, executor spans
+nested under the fan-out tool call, per-run usage, and cache token counts/collapse reason.
+OTel-compatible.
+
+**Testing:** `FunctionModel` for the main session and coordinators (deterministic delegation and
+fan-out), `TestModel` or `FunctionModel` per executor via `override`
+([mechanics §4](../../research/agent_module/00-pydantic-ai-2.55-mechanics.md#4-testing)).
+
+**Removal of the v2 bots (v3.0):**
+
+- Remove `QueryBot`, `DefinitionBot`, their tools, prompts, `ResultStore`, `resolver` gate; record every removed public name in `docs/changelog.md` and `docs/stability.md`.
+- Rewrite `docs/api/` agent pages and `mkdocs.yml` nav per the documentation instructions.
+
+---
+
+## 12. Dependency floor
+
+- Set `pydantic-ai-slim>=2.55,<3` (currently `>=2.2.0,<3`): one clean baseline covering every feature used ([mechanics §7](../../research/agent_module/00-pydantic-ai-2.55-mechanics.md#7-minimum-versions-per-feature)).
+- Update all five extras in `pyproject.toml` (lines ~46–74) together; CI must exercise the floor version.

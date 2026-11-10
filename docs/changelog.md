@@ -252,7 +252,7 @@ constructors, primitives base classes, default tool schemas, and `RunTrace`/
   after reload — the callables themselves aren't portably serializable, so
   pass them again via `tools=[...]` or re-add them to restore. Generic
   `Bot.as_tool()` / `add_bot()` composition remains deferred (see
-  `plans/agent_module/07-non-decisions.md`, ND-11).
+  `plans/agent_module/archive/v2/07-non-decisions.md`, ND-11).
 
   This work is intentionally sequenced ahead of Phase 4 (`SetupBot`) and
   Phase 5.1. Comprehensive user testing of these composition primitives
@@ -263,7 +263,7 @@ constructors, primitives base classes, default tool schemas, and `RunTrace`/
 - **`tests/evals/` — a runnable reference harness (`pydantic-evals`)** demonstrating
   how to wire tool-selection, refusal, and deterministic-correctness evaluators
   against `QueryBot`/`DefinitionBot`'s `RunTrace`/`ResultStore`/`BotResponse`
-  substrate (resolves `plans/agent_module/07-non-decisions.md` ND-09). Runs in
+  substrate (resolves `plans/agent_module/archive/v2/07-non-decisions.md` ND-09). Runs in
   CI via the new `evals` job against scripted `FunctionModel`s — no live LLM
   calls or API keys required. Validates that the substrate is consumable by
   `pydantic_evals.Evaluator`s, not agent behavior; point it at a live model
