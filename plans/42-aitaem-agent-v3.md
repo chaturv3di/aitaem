@@ -16,6 +16,7 @@ Research ([research/agent_module/](../research/agent_module/)):
 | [42-history-stubbing](../research/agent_module/42-history-stubbing.md) | Stubbing capability (SF-18) |
 | [42-result-storage](../research/agent_module/42-result-storage.md) | Lazy compute results, compute lock (SF-3, SF-7, SF-8) |
 | [specs/41-spec-yaml-persistence](../research/specs/41-spec-yaml-persistence.md) | `SpecCache.save()` (SF-7) |
+| [42-spec-subcache-scan](../research/agent_module/42-spec-subcache-scan.md) | `check_compatibility` sub-cache (SF-7) |
 
 ---
 
@@ -72,7 +73,7 @@ core work, so the intake and the tool call use one definition; they live with th
 
 ```python
 class ConnectionParams(BaseModel):               # connect_source; connections coordinator
-    backend_type: Literal["duckdb", "bigquery"]
+    backend_type: Literal["duckdb", "bigquery", "postgres"]   # postgres is refused (§5)
     config: dict[str, str | int | bool]          # ConnectionManager.add_connection keywords
 
 class MetricComputeParams(BaseModel):            # compute_metrics; analysis coordinator
@@ -249,7 +250,7 @@ registry, and `ResultStore` are replaced by artifacts.
 | aitaem | `list_specs(spec_type=None)` | object, `spec_list` | New; names and descriptions from `SpecCache` |
 | aitaem | `find_specs(spec_type, query, limit=10)` | object, `spec_matches` | New; names and descriptions of the specs that best match `query`, by case-insensitive keyword match over each spec's name, description, entities, and source |
 | aitaem | `read_spec(spec_type, name)` | object, `spec` | New; the full spec as YAML, from `SpecCache` |
-| aitaem | `check_compatibility(metrics, slices=[], segments=[])` | object, `compatibility` | New; `MetricCompute.scan()` on a `SpecCache` holding the named specs: every metric against every slice and segment |
+| aitaem | `check_compatibility(metrics, slices=[], segments=[])` | object, `compatibility` | New; `MetricCompute.scan()` on a `SpecCache` holding the named specs and the component slices of named composite slices: every named metric against every named slice and segment |
 | aitaem | `validate_spec(spec_type, yaml_text)` | object, `spec_draft` | v2 `validate_spec` checks |
 | aitaem | `commit_spec(draft_id)` | object, `spec_commit` | v2 `commit_spec` add-or-update rule, plus `SpecCache.save()` |
 | aitaem | `delete_spec(spec_type, name)` | object, `spec_delete` | v2 `delete_spec`, plus `SpecCache.save()` |
@@ -398,8 +399,9 @@ metrics only; `date_range` rejects non-temporal columns.
 #### SF-7 — aitaem group
 
 **File:** `aitaem/agent/tools/aitaem.py`. Tools per §5.
-**[verify]** first: `SpecCache.add()` accepts a composite slice without the slices it references,
-and `scan()` on that cache gives the same verdicts as on the full cache.
+`SpecCache.add()` rejects a composite slice whose component slices are absent, so the
+`check_compatibility` sub-cache adds them first; its verdicts for the named specs equal the
+full-cache `scan()` ([spec-subcache-scan](../research/agent_module/42-spec-subcache-scan.md)).
 **Tests:** `connect_source` for DuckDB, an existing backend (`error`), and Postgres (`refused`);
 `find_specs` ranks matches on each field for each spec type; `read_spec` returns the spec and
 `error` for an unknown name; `check_compatibility` verdicts match `MetricCompute.scan()` on the
