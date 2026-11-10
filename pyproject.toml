@@ -22,6 +22,9 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     "ibis-framework[duckdb]>=9.0.0",
+    # <2: duckdb 2.0.0 removed DuckDBPyConnection.fetch_arrow_table(), which
+    # ibis-framework 12.0.0's DuckDB backend still calls. Lift once ibis supports duckdb 2.
+    "duckdb<2",
     "pyyaml>=6.0",
     "pandas>=2.0.0",
     "pyarrow>=14.0.0",
