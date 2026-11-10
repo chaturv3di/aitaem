@@ -19,6 +19,18 @@
 - **`MetricSpec(denominator="")` is treated as no denominator**, as YAML `denominator: ''`
   already was. It previously produced invalid SQL.
 
+### Removed
+
+- **The v2 bots and their public names in `aitaem.agent`** (breaking): `Bot`, `BotResponse`,
+  `ResultEntry`, `ResultStore`, `TabularEntry`, `TextEntry`, `WrongEntryKindError`, `QueryBot`,
+  `QueryResponse`, `QueryPayload`, `MetricIntent`, `ResolvedSpec`, `ExactMatch`, `NearMiss`,
+  `SpecMatchResult`, `RecordIntentResult`, `ResolveIntentResult`, `SpecResolver`,
+  `DefinitionBot`, `DefinitionResponse`, `DefinitionPayload`, `DefinitionIntent`, `SpecDraft`,
+  `ColumnInfo`, `ListTablesResult`, `DescribeTableResult`, `DraftSpecResult`,
+  `ValidateSpecResult`, `ValidationIssue`. `Status`, `RunTrace`, `ToolCall`, and `Usage` remain.
+- **Examples 01–04** (`examples/0[1-4]_*.py` / `.ipynb`) and the
+  "Building Your Own Bot" docs page.
+
 ## v2.1.0 — 2026-10-12
 
 ### Added

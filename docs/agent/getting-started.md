@@ -123,6 +123,5 @@ See [Stability & Limitations](stability.md) for the full reference.
 
 ## Next steps
 
-- [Building Your Own Bot](building-your-own-bot.md) — use the primitives layer directly
 - [Evaluating Your Agent](evaluating-your-agent.md) — write `pydantic_evals` evaluations
 - [Agent API Reference](../api/agent.md) — full class and type documentation

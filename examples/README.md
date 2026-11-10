@@ -80,75 +80,11 @@ duckdb:
 | `segments/platform.yaml`  | platform | Google Ads, Meta Ads, TikTok Ads     |
 
 > **Note**: The `platform` segment references a `dim_platforms` dimension table that is
-> not present in the example DuckDB, so it is excluded from the QueryBot examples.
+> not present in the example DuckDB.
 
 ---
 
 ## Examples
-
-Numbered in a suggested reading order — defining specs (01) conceptually precedes
-querying them (02), even though the files don't literally chain.
-
-| # | File | Description |
-|---|------|--------------|
-| 01 | `01_definition_bot_example.py` / `.ipynb` | DefinitionBot four-step workflow: direct spec parsing (Part 1) and LLM-assisted spec definition (Part 2) |
-| 02 | `02_query_bot_example.py` / `.ipynb` | Multi-turn QueryBot conversation over the ad campaign dataset |
-| 03 | `03_intent_resolution_example.py` / `.ipynb` | Deep-dive into the three-step intent → resolve → compute flow and prompt-cache efficiency |
-| 04 | `04_evaluating_agents_example.py` / `.ipynb` | Writing `pydantic_evals` evaluations against a live model, with a `pass_rate()` helper for repeated-run confidence |
-
-### QueryBot quick start
-
-```python
-from aitaem.connectors import ConnectionManager
-from aitaem.specs import SpecCache
-from aitaem.agent import QueryBot
-
-spec_cache = SpecCache.from_yaml(
-    metric_paths="examples/metrics/",
-    slice_paths="examples/slices/",
-)
-
-conn_mgr = ConnectionManager()
-conn_mgr.add_connection("duckdb", path="examples/data/ad_campaigns.duckdb")
-
-bot = QueryBot(
-    model="anthropic:claude-haiku-4-5-20251001",
-    spec_cache=spec_cache,
-    connection_manager=conn_mgr,
-)
-
-response = await bot.chat("What was total revenue and ROAS across all campaigns?")
-print(response.narrative)
-```
-
-### DefinitionBot quick start
-
-```python
-from aitaem.connectors import ConnectionManager
-from aitaem.specs import SpecCache
-from aitaem.agent import DefinitionBot
-
-spec_cache = SpecCache.from_yaml(
-    metric_paths="examples/metrics/",
-    slice_paths="examples/slices/",
-)
-
-conn_mgr = ConnectionManager()
-conn_mgr.add_connection("duckdb", path="examples/data/ad_campaigns.duckdb")
-
-bot = DefinitionBot(
-    model="anthropic:claude-haiku-4-5-20251001",
-    spec_cache=spec_cache,
-    connection_manager=conn_mgr,
-)
-
-response = await bot.ask(
-    "Define a metric called avg_cpc for average cost per click — "
-    "total ad spend divided by total clicks."
-)
-print(response.narrative)
-print(response.payload.yaml_string)
-```
 
 ### MetricCompute (programmatic)
 

@@ -14,7 +14,7 @@ one deliberate exception:
 
 Don't pin application behavior to the exact wording of a default prompt — a patch
 release may change it. If you need prompt stability, override it via the
-[primitives layer](building-your-own-bot.md) instead of depending on default content.
+primitives layer instead of depending on default content.
 
 !!! note "A prompt tune is also a cache-warmup reset"
     Changing the static instruction text (the parts every bot builds once and reuses

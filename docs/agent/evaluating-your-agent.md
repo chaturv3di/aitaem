@@ -50,7 +50,6 @@ run's pass/fail.
 
 - Changing tool wiring, trace assembly, or the result-store contract? Extend
   `tests/evals/` — it must keep passing in CI with no API key.
-  See [Building Your Own Bot](building-your-own-bot.md) if you're introducing new tools.
 - Measuring whether your prompt, catalog, or model choice actually produces correct
   behavior? Write a `04_evaluating_agents_example.py`-style dataset against a live model.
 
