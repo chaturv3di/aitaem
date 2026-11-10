@@ -290,7 +290,7 @@ from aitaem.specs import SpecCache, MetricSpec
 
 cache = SpecCache.from_yaml(metric_paths='metrics/')
 
-# Add a spec at runtime — validated immediately
+# Add a spec at runtime (from_yaml validates its content; add() checks for a duplicate name)
 extra_metric = MetricSpec.from_yaml('custom/my_metric.yaml')
 cache.add(extra_metric)
 ```
@@ -412,7 +412,7 @@ Load specs from YAML strings. Each argument accepts a single string or a list of
 
 **`cache.add(spec: MetricSpec | SliceSpec | SegmentSpec) -> None`**
 
-Add a spec programmatically. Validated immediately on addition.
+Add a spec programmatically. Raises `SpecValidationError` if a spec of the same type and name is already cached, or if a composite slice's `cross_product` references would no longer resolve; on failure the cache is left unchanged. Does not validate the spec's content; use `spec.validate()` (`save()` validates every spec).
 
 **`cache.get_metric(name: str) -> MetricSpec`**
 
