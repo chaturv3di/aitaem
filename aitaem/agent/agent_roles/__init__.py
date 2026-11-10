@@ -80,3 +80,30 @@ async def run_executors(
     summary = f"{len(entries)} {role} runs" + (f", {failed} failed" if failed else "")
     parents = [e.get("handoff_id") or e["error_id"] for e in entries]
     return ToolOutput(entries, "object", "fan_out", summary, parents, facts={"executors": entries})
+
+
+async def launch(
+    ctx: RunContext[SessionDeps],
+    coordinator: Agent[SessionDeps, str],
+    intake: Intake[Any],
+    *,
+    tool: str,
+    role: str,
+) -> ToolOutput:
+    """Store the intake, run the coordinator on it, and return its handoff as the tool's artifact.
+
+    The coordinator shares the launcher's usage, so the launcher's usage limits bound the whole
+    tree.
+    """
+    intake_id = store_intake(ctx.deps, intake, tool, ctx.tool_call_id)
+    child = dataclasses.replace(ctx.deps, role=role)
+    result = await coordinator.run(to_yaml(intake), deps=child, usage=ctx.usage)
+    handoff = parse_handoff(result.output)
+    return ToolOutput(
+        to_yaml(handoff),
+        "file",
+        "handoff",
+        f"{handoff.outcome}: {handoff.response}",
+        [intake_id, *handoff.result_ids],
+        facts=handoff.model_dump(),
+    )

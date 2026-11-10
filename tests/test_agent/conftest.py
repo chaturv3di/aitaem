@@ -1,11 +1,22 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 from pydantic_ai import RunContext, models
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+)
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
@@ -60,3 +71,45 @@ def deps(make_deps, example_specs: SpecCache) -> SessionDeps:
 def make_ctx(deps: SessionDeps, tool_call_id: str = "call_1") -> RunContext[SessionDeps]:
     """A `RunContext` for calling a tool function directly."""
     return RunContext(deps=deps, model=TestModel(), usage=RunUsage(), tool_call_id=tool_call_id)
+
+
+# ── scripted models for role tests ──────────────────────────────────────────
+
+
+def tool_returns(messages: list[ModelMessage]) -> list[ToolReturnPart]:
+    """The tool returns of the latest request."""
+    last = messages[-1]
+    return (
+        [p for p in last.parts if isinstance(p, ToolReturnPart)]
+        if isinstance(last, ModelRequest)
+        else []
+    )
+
+
+def call(tool: str, **args: Any) -> ModelResponse:
+    return ModelResponse(parts=[ToolCallPart(tool, args)])
+
+
+def text(document: dict[str, Any] | str) -> ModelResponse:
+    body = document if isinstance(document, str) else yaml.safe_dump(document, sort_keys=False)
+    return ModelResponse(parts=[TextPart(body)])
+
+
+Step = ModelResponse | Callable[[list[ModelMessage]], ModelResponse]
+
+
+def script(*steps: Step) -> FunctionModel:
+    """A model that answers each request with the next step; a step may read the messages."""
+    queue = list(steps)
+    prompts: list[list[ModelMessage]] = []
+
+    def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        prompts.append(messages)
+        if not queue:
+            raise AssertionError(f"script exhausted after {len(prompts) - 1} steps")
+        step = queue.pop(0)
+        return step(messages) if callable(step) else step
+
+    fm = FunctionModel(model)
+    fm.prompts = prompts  # type: ignore[attr-defined]
+    return fm
