@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Added
+
+- **`to_yaml()` on `MetricSpec`, `SliceSpec`, and `SegmentSpec`.** Serializes a spec in the
+  same YAML format `from_yaml` reads.
+- **`SpecCache.save(metric_dir=None, slice_dir=None, segment_dir=None)`.** Writes each cached
+  spec to `<dir>/<name>.yaml` and deletes the directory's other `*.yaml`/`*.yml` files, so each
+  directory mirrors the cache. Every spec is validated before any file is written or deleted.
+- **Remote spec locations.** `SpecCache.from_yaml` and `SpecCache.save` accept fsspec URLs
+  (`gs://`, `s3://`, `abfs://`, ...) as well as local paths. Remote URLs need the matching
+  fsspec driver (`gcsfs`, `s3fs`, `adlfs`), installed separately.
+- **New core dependency: `fsspec`.**
+
+### Fixed
+
+- **`MetricSpec(denominator="")` is treated as no denominator**, as YAML `denominator: ''`
+  already was. It previously produced invalid SQL.
+
 ## v2.1.0 — 2026-10-12
 
 ### Added

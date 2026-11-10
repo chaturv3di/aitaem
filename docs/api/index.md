@@ -20,7 +20,7 @@ from aitaem.helpers import load_csvs_to_duckdb
 | Class | Module | Purpose |
 |-------|--------|---------|
 | [`MetricCompute`](insights.md) | `aitaem.insights` | Primary interface — compute metrics; `compute()` returns a lazy `ibis.Table` |
-| [`SpecCache`](specs.md) | `aitaem.specs.loader` | Load and cache YAML specs |
+| [`SpecCache`](specs.md) | `aitaem.specs.loader` | Load, cache, and save YAML specs |
 | [`MetricSpec`](specs.md#aitaem.specs.metric.MetricSpec) | `aitaem.specs.metric` | Metric spec dataclass |
 | [`SliceSpec`](specs.md#aitaem.specs.slice.SliceSpec) | `aitaem.specs.slice` | Slice spec dataclass |
 | [`SliceValue`](specs.md#aitaem.specs.slice.SliceValue) | `aitaem.specs.slice` | Individual slice value within a `SliceSpec` |
