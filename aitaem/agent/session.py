@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults
-from pydantic_ai.conversation import Conversation
+from pydantic_ai.conversation import Conversation, ConversationTypeAdapter
 from pydantic_ai.models import Model
 
 from aitaem import ConnectionManager, SpecCache
@@ -224,6 +224,53 @@ class AitaemAgent:
     def trace(self, trace_id: str) -> RunTrace:
         """Return the trace of one `chat()` turn."""
         return self.traces[trace_id]
+
+    # ── persistence ─────────────────────────────────────────────────────────
+
+    def dump(self) -> dict[str, Any]:
+        """Return the session's state as JSON-ready data: conversations, route, and manifest."""
+
+        def conversation(c: Conversation | None) -> Any:
+            return None if c is None else ConversationTypeAdapter.dump_python(c, mode="json")
+
+        return {
+            "session_dir": str(self.store.session_dir),
+            "manifest": self.store.manifest_records(),
+            "turn": self.deps.turn,
+            "route": self.route,
+            "main_conversation": conversation(self.main_conversation),
+            "spec_conversation": conversation(self.spec_conversation),
+            "pending_call_id": self.pending_call_id,
+            "pending_intake_id": self.pending_intake_id,
+            "pending_others": self.pending_others,
+        }
+
+    @classmethod
+    def load(
+        cls,
+        data: dict[str, Any],
+        connection_manager: ConnectionManager | None = None,
+        spec_cache: SpecCache | None = None,
+        *,
+        model: str | Model = DEFAULT_MODEL,
+        executor_model: str | Model = DEFAULT_EXECUTOR_MODEL,
+        spec_dir: str | Path | None = None,
+    ) -> AitaemAgent:
+        """Restore a session from `dump()`; artifacts whose payload is gone are marked `lost`."""
+        store = ArtifactStore.load(data["session_dir"], data["manifest"])
+        agent = cls.__new__(cls)
+        agent._setup(store, connection_manager, spec_cache, model, executor_model, spec_dir)
+        agent.deps = dataclasses.replace(agent.deps, turn=data["turn"])
+        agent.route = data["route"]
+        agent.main_conversation = ConversationTypeAdapter.validate_python(data["main_conversation"])
+        if data["spec_conversation"] is not None:
+            agent.spec_conversation = ConversationTypeAdapter.validate_python(
+                data["spec_conversation"]
+            )
+        agent.pending_call_id = data["pending_call_id"]
+        agent.pending_intake_id = data["pending_intake_id"]
+        agent.pending_others = data["pending_others"]
+        return agent
 
     # ── lifecycle ───────────────────────────────────────────────────────────
 
