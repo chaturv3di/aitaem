@@ -26,6 +26,7 @@ dependencies = [
     "pandas>=2.0.0",
     "pyarrow>=14.0.0",
     "sqlglot>=25.0.0",
+    "fsspec>=2022.5.0",
 ]
 
 [project.optional-dependencies]

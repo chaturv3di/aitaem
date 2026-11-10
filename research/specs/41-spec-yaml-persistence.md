@@ -285,3 +285,18 @@ installed aitaem package (ibis 12.0.0, DuckDB backend) or, for fsspec, in those 
 - `validate_metric_spec` skips the denominator check when the value is falsy (`validation.py:214`),
   so after normalization no blank denominator reaches the query builder's `is not None` check
   (`builder.py:478`).
+
+---
+
+## Update (2026-11-10): directory existence on `memory://` with fsspec 2022.5.0
+
+**Sources:** fsspec **2022.5.0** and **2026.9.0** in the aitaem development environment (Python
+3.12). *(executed)*
+
+- **Correction to A3:** on fsspec 2022.5.0, a `memory://` directory that exists only because files
+  were written under it reports `exists() == False` and `isdir() == True`. After `makedirs`, both
+  are `True`. On 2026.9.0 both are `True` in either case.
+- `isdir`/`isfile` agree on both versions for local paths and `memory://`: directory →
+  `isdir` only, file → `isfile` only, missing → neither.
+- Consequence: telling a missing path from a file or directory with `isdir`/`isfile` works on both
+  versions; `exists` does not.

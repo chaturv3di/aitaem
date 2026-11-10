@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import fsspec
 import pytest
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -73,3 +74,13 @@ def valid_slice_yaml():
 @pytest.fixture
 def valid_segment_yaml():
     return VALID_SEGMENT_YAML
+
+
+@pytest.fixture
+def memfs():
+    """The process-wide fsspec ``memory://`` filesystem, emptied after the test."""
+    fs = fsspec.filesystem("memory")
+    yield fs
+    fs.store.clear()
+    fs.pseudo_dirs.clear()
+    fs.pseudo_dirs.append("")
