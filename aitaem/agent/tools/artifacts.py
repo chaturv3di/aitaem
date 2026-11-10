@@ -6,7 +6,7 @@ from pydantic_ai import FunctionToolset, RunContext
 from pydantic_core import to_jsonable_python
 
 from aitaem.agent.deps import SessionDeps
-from aitaem.agent.tools import ToolOutput, artifact_tool, tabular
+from aitaem.agent.tools import ToolOutput, artifact_tool, rows, tabular
 
 
 @artifact_tool
@@ -84,14 +84,13 @@ def read_artifact(
             arrow = table.to_pyarrow()
     else:
         arrow = table.to_pyarrow()
-    rows = to_jsonable_python(arrow.to_pylist())
     return ToolOutput(
         arrow,
         "table",
         "read",
         f"{arrow.num_rows} rows × {arrow.num_columns} columns of {artifact_id}",
         [artifact_id],
-        facts={"columns": arrow.column_names, "rows": rows},
+        facts={"columns": arrow.column_names, "rows": rows(arrow)},
     )
 
 
