@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+import ibis
 from pydantic import BaseModel
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import (
@@ -22,7 +23,7 @@ from pydantic_ai.exceptions import (
     UsageLimitExceeded,
 )
 
-from aitaem.agent.artifacts import Kind, ProducedBy
+from aitaem.agent.artifacts import ArtifactRef, Kind, ProducedBy
 from aitaem.agent.deps import SessionDeps
 from aitaem.agent.trace import Status
 
@@ -109,4 +110,14 @@ def artifact_tool(fn: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
-__all__ = ["ToolOutput", "ToolResult", "artifact_tool"]
+def tabular(ctx: RunContext[SessionDeps], artifact_id: str) -> tuple[ArtifactRef, ibis.Table]:
+    """Return the record and the Ibis table of a `table` or `ibis` artifact."""
+    ref = ctx.deps.store.get(artifact_id)
+    if ref.kind not in ("table", "ibis"):
+        raise ValueError(
+            f"artifact {artifact_id} is a {ref.kind}; this tool takes a table or ibis artifact"
+        )
+    return ref, ctx.deps.store.read(artifact_id)
+
+
+__all__ = ["ToolOutput", "ToolResult", "artifact_tool", "tabular"]
