@@ -3,10 +3,10 @@
 **Date:** 2026-10-12
 **Sources:** pydantic-ai-slim **2.55.0** and pydantic-ai-harness **0.55.0** (source read from the
 PyPI wheels). An earlier pass against the locally installed 2.2.0 was superseded; differences in §6.
-**Used by:** `plans/agent_module/ARCHITECTURE.md` §6, §11, §14
+**Used by:** `plans/agent_module/ARCHITECTURE.md` §6, §11, §14, `plans/42-aitaem-agent-v3.md`
 
-Related notes: [00-anthropic-prompt-caching](00-anthropic-prompt-caching.md) ·
-[00-history-stubbing](00-history-stubbing.md) · [00-subagent-mechanics](00-subagent-mechanics.md)
+Related notes: [42-anthropic-prompt-caching](42-anthropic-prompt-caching.md) ·
+[42-history-stubbing](42-history-stubbing.md) · [42-subagent-mechanics](42-subagent-mechanics.md)
 
 ---
 
@@ -52,11 +52,11 @@ forces an exact slim pin.
 | Component | What it does | Fit issues for aitaem |
 |---|---|---|
 | `Skills` (`pydantic-ai-harness[skills]`) | SKILL.md-style skills | Needs a workspace; instructions-only (no tools, resources, or scripts) |
-| `SubAgents` (`delegate_task`) | LLM-driven delegation | See [00-subagent-mechanics §3](00-subagent-mechanics.md#3-harness-subagents-assessment) |
-| `ClearToolResults` | Tool-result clearing | See [00-history-stubbing §4](00-history-stubbing.md#4-build-vs-adopt-harness-cleartoolresults) |
+| `SubAgents` (`delegate_task`) | LLM-driven delegation | See [42-subagent-mechanics §3](42-subagent-mechanics.md#3-harness-subagents-assessment) |
+| `ClearToolResults` | Tool-result clearing | See [42-history-stubbing §4](42-history-stubbing.md#4-build-vs-adopt-harness-cleartoolresults) |
 | `TieredCompaction`, `SummarizingCompaction` | Compaction strategies | Usable as an escalation path; compaction resets loaded capabilities |
 | `ToolOutputLimits(Spill)` | Spills oversized tool payloads out of context | Solves generically what an artifact-ID-only tool result guarantees by construction |
-| `SystemReminders` | Request-only tail injection | Pattern reused for the tail state block ([caching §4](00-anthropic-prompt-caching.md#4-volatile-state-tail-block)) |
+| `SystemReminders` | Request-only tail injection | Pattern reused for the tail state block ([caching §4](42-anthropic-prompt-caching.md#4-volatile-state-tail-block)) |
 | `pin()` | Pins content against compaction | Semantics reusable for the session-state block |
 
 ## 4. Testing
@@ -73,7 +73,7 @@ forces an exact slim pin.
 - The `Instrumentation` capability nests child runs under the tool-call span when agents are named
   (`name=`).
 - 2.44+ reports per-run (not conversation-total) usage on run spans.
-- Cache-health span attributes: see [caching §6](00-anthropic-prompt-caching.md#6-observability).
+- Cache-health span attributes: see [caching §6](42-anthropic-prompt-caching.md#6-observability).
 
 ## 6. Changes vs. 2.2
 
@@ -102,3 +102,26 @@ forces an exact slim pin.
 | `prompt_cache_outlook` | 2.52 |
 | `repair_messages` public; parent/child shared-limiter `UserError` | 2.53 |
 | `Conversation` | 2.55 |
+
+---
+
+## Update (2026-11-10): Python floor and mechanics confirmed by execution
+
+**Sources:** pydantic-ai-slim 2.55.0 in an isolated `uv run --no-project` environment (Python
+3.12), with `FunctionModel`; `uv` resolution of `pydantic-ai-slim[anthropic]` on Python 3.10.
+
+- **Python floor:** pydantic-ai-slim 2.55.0 requires Python ≥ 3.11. On Python 3.10 the newest
+  release that resolves is 2.54.0, which predates `Conversation` (§7).
+- **`Conversation` is returned, not mutated (§1):** a run reads the `Conversation` passed as
+  `conversation=` and returns the next state as `AgentRunResult.conversation`. Passing the
+  original object again to resume a deferred call raises `UserError: Tool call results were
+  provided, but the message history is empty.`
+- **Deferred tool calls:** a tool that raises `CallDeferred(metadata=…)` ends the run with a
+  `DeferredToolRequests` output (with `output_type=[str, DeferredToolRequests]`); the metadata is
+  available per `tool_call_id`, and `result.conversation.deferred_tool_requests` holds the pending
+  call. Running again with `conversation=result.conversation` and
+  `deferred_tool_results=DeferredToolResults(calls={tool_call_id: value})` feeds `value` back as
+  the tool's return, and the model continues from it.
+- **`models.ALLOW_MODEL_REQUESTS`** exists in 2.55 (resolves the §4 **[verify]**).
+- **Tool schemas through a decorator:** a tool function wrapped with `functools.wraps` keeps its
+  docstring as the tool description and its parameters as the tool's JSON schema.

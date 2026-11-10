@@ -3,10 +3,10 @@
 **Date:** 2026-10-12
 **Sources:** pydantic-ai-slim 2.55.0 and pydantic-ai-harness 0.55.0 source; Anthropic docs as of
 2026-10-12; arXiv 2508.21433
-**Used by:** `plans/agent_module/ARCHITECTURE.md` §9
+**Used by:** `plans/agent_module/ARCHITECTURE.md` §9, `plans/42-aitaem-agent-v3.md`
 
-Related notes: [00-pydantic-ai-2.55-mechanics](00-pydantic-ai-2.55-mechanics.md) ·
-[00-anthropic-prompt-caching](00-anthropic-prompt-caching.md)
+Related notes: [42-pydantic-ai-2.55-mechanics](42-pydantic-ai-2.55-mechanics.md) ·
+[42-anthropic-prompt-caching](42-anthropic-prompt-caching.md)
 
 ---
 
@@ -26,7 +26,7 @@ Related notes: [00-pydantic-ai-2.55-mechanics](00-pydantic-ai-2.55-mechanics.md)
 - Trigger inputs: `ctx.context_window_used` (2.38+; needs a known `context_window`) and
   `prompt_cache_outlook(messages, …)`, which can report `'cold'`.
 - Dropping `load_capability` returns, `LoadCapability*` parts, or `ToolAvailabilityDeltaPart`s
-  un-loads capabilities ([mechanics §2](00-pydantic-ai-2.55-mechanics.md#2-deferred-capabilities-the-core-primitive-for-skills)).
+  un-loads capabilities ([mechanics §2](42-pydantic-ai-2.55-mechanics.md#2-deferred-capabilities-the-core-primitive-for-skills)).
   The `load_capability` and `search_tools` tools need explicit exclusion from any stubbing.
 
 ## 3. Orphaned tool pairs

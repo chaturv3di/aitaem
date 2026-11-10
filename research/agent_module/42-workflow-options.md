@@ -2,9 +2,9 @@
 
 **Date:** 2026-10-24
 **Sources:** design discussion, 2026-10-24; user observations from testing the v2 `DefinitionBot`
-**Used by:** `plans/agent_module/ARCHITECTURE.md` §1, `plans/agent_module/WORKFLOWS.md` (pending)
+**Used by:** `plans/agent_module/ARCHITECTURE.md` §1, `plans/agent_module/WORKFLOWS.md` (pending), `plans/42-aitaem-agent-v3.md`
 
-Related notes: [00-subagent-mechanics](00-subagent-mechanics.md)
+Related notes: [42-subagent-mechanics](42-subagent-mechanics.md)
 
 ---
 
@@ -55,7 +55,7 @@ Between two consecutive fan-out calls no executors are running, so that gap is a
 checkpoint.
 
 This is enforced by structure rather than prompt: executors are launched by one fan-out tool that
-awaits all of them ([00-subagent-mechanics §1–2](00-subagent-mechanics.md#1-delegation-primitives-read-in-source)),
+awaits all of them ([42-subagent-mechanics §1–2](42-subagent-mechanics.md#1-delegation-primitives-read-in-source)),
 so the coordinator cannot act until every executor has returned.
 
 Consequences:
@@ -148,3 +148,15 @@ session), unlike tool results, which are produced by code.
 ## Outcome
 
 Decisions are recorded in `plans/agent_module/ARCHITECTURE.md` §1.
+
+---
+
+## Update (2026-11-10): output validator on YAML text output confirmed
+
+**Sources:** pydantic-ai-slim 2.55.0, executed with `FunctionModel` (Python 3.12).
+
+An `@agent.output_validator` on `output_type=str` that parses the text with `yaml.safe_load`,
+validates it against a Pydantic model, and raises `ModelRetry` on failure sends a retry prompt
+(`retry-prompt` part in history) and accepts the model's corrected second output. A YAML block
+scalar containing quotes parsed back intact. This resolves the **[verify]** under "Handoff
+document format".

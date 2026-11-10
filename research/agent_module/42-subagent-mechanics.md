@@ -3,11 +3,11 @@
 **Date:** 2026-10-12
 **Sources:** pydantic-ai-slim 2.55.0 and pydantic-ai-harness 0.55.0 source. The DuckDB
 concurrency point (§2) was carried over from the v1.1 architecture draft without a recorded source.
-**Used by:** `plans/agent_module/ARCHITECTURE.md` §4.3, §7
+**Used by:** `plans/agent_module/ARCHITECTURE.md` §4.3, §7, `plans/42-aitaem-agent-v3.md`
 
-Related notes: [00-pydantic-ai-2.55-mechanics](00-pydantic-ai-2.55-mechanics.md) ·
-[00-anthropic-prompt-caching §7](00-anthropic-prompt-caching.md#7-parallel-workers) ·
-[00-workflow-options](00-workflow-options.md)
+Related notes: [42-pydantic-ai-2.55-mechanics](42-pydantic-ai-2.55-mechanics.md) ·
+[42-anthropic-prompt-caching §7](42-anthropic-prompt-caching.md#7-parallel-workers) ·
+[42-workflow-options](42-workflow-options.md)
 
 ---
 
@@ -55,3 +55,15 @@ tool calls:
 | Per-child deps | Yes | Not with harness `SubAgents` |
 | Who decides *when* to fan out | The LLM (by calling the tool) | The LLM |
 | Flexibility of task shapes | Fixed per tool | Free-form |
+
+---
+
+## Update (2026-11-10): DuckDB connections per thread confirmed
+
+**Sources:** duckdb 1.4.4 (the version installed in the project's environment), executed in one
+Python 3.12 process.
+
+Eight threads, each opening its own `duckdb.connect(path)` on one database file, created, filled,
+and read back their own tables (`t_a000` … `t_a007`) concurrently without error; a fresh
+connection afterwards listed all eight tables. This confirms the §2 claim about concurrent workers
+for this pattern: one connection per worker, separate tables per worker.

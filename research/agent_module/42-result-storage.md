@@ -3,9 +3,9 @@
 **Date:** 2026-11-01
 **Sources:** aitaem source at commit 75b3481 (`aitaem/agent/common_tools.py`, `aitaem/agent/store.py`,
 `aitaem/agent/base.py`, `aitaem/query/executor.py`, `aitaem/connectors/connection.py`)
-**Used by:** `plans/agent_module/ARCHITECTURE.md` §1, §4
+**Used by:** `plans/agent_module/ARCHITECTURE.md` §1, §4, `plans/42-aitaem-agent-v3.md`
 
-Related notes: [00-subagent-mechanics](00-subagent-mechanics.md)
+Related notes: [42-subagent-mechanics](42-subagent-mechanics.md)
 
 ---
 

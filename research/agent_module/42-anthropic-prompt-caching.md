@@ -2,10 +2,10 @@
 
 **Date:** 2026-10-12
 **Sources:** Anthropic docs as of 2026-10-12; pydantic-ai-slim 2.55.0 source
-**Used by:** `plans/agent_module/ARCHITECTURE.md` §7.3, §8
+**Used by:** `plans/agent_module/ARCHITECTURE.md` §7.3, §8, `plans/42-aitaem-agent-v3.md`
 
-Related notes: [00-pydantic-ai-2.55-mechanics](00-pydantic-ai-2.55-mechanics.md) ·
-[00-history-stubbing](00-history-stubbing.md)
+Related notes: [42-pydantic-ai-2.55-mechanics](42-pydantic-ai-2.55-mechanics.md) ·
+[42-history-stubbing](42-history-stubbing.md)
 
 ---
 
@@ -48,7 +48,7 @@ Alternative where the model supports it: an enqueued mid-conversation system mes
 
 ## 5. Tool search and progressive disclosure
 
-- Deferred capabilities: see [mechanics §2](00-pydantic-ai-2.55-mechanics.md#2-deferred-capabilities-the-core-primitive-for-skills).
+- Deferred capabilities: see [mechanics §2](42-pydantic-ai-2.55-mechanics.md#2-deferred-capabilities-the-core-primitive-for-skills).
 - Native tool search (`ToolSearch`, `defer_loading`): on Anthropic it keeps the cache stable
   (deferred tools are excluded from the cache key); the local fallback on other providers grows
   the tool array.

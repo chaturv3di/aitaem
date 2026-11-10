@@ -1,6 +1,6 @@
 # Architecture: `aitaem.agent` Module (v3 overhaul)
 
-**Version:** 1.3-draft (design, not implemented)
+**Version:** 1.4-draft (design, not implemented)
 **Status:** Proposed. The v2 design files are archived, as history only, in [`archive/v2/`](archive/v2/).
 
 **This document records decisions only.** Evidence, mechanics, and options considered live in
@@ -8,12 +8,12 @@
 
 | Note | Covers |
 |---|---|
-| [00-pydantic-ai-2.55-mechanics](../../research/agent_module/00-pydantic-ai-2.55-mechanics.md) | `Conversation`, deferred capabilities, harness assessment, testing, version minimums |
-| [00-anthropic-prompt-caching](../../research/agent_module/00-anthropic-prompt-caching.md) | Prefix order, settings, what breaks the prefix, tail block, worker caching |
-| [00-history-stubbing](../../research/agent_module/00-history-stubbing.md) | Rewrite costs, hooks, orphan repair, thinking-block binding, compaction |
-| [00-subagent-mechanics](../../research/agent_module/00-subagent-mechanics.md) | Delegation primitives, concurrency, harness `SubAgents`, code- vs LLM-driven fan-out |
-| [00-workflow-options](../../research/agent_module/00-workflow-options.md) | Main session / coordinator / executor workflows, handoff format |
-| [00-result-storage](../../research/agent_module/00-result-storage.md) | v2 result handling, lazy Ibis refs vs local copies, cross-backend results, compute lock |
+| [42-pydantic-ai-2.55-mechanics](../../research/agent_module/42-pydantic-ai-2.55-mechanics.md) | `Conversation`, deferred capabilities, harness assessment, testing, version minimums |
+| [42-anthropic-prompt-caching](../../research/agent_module/42-anthropic-prompt-caching.md) | Prefix order, settings, what breaks the prefix, tail block, worker caching |
+| [42-history-stubbing](../../research/agent_module/42-history-stubbing.md) | Rewrite costs, hooks, orphan repair, thinking-block binding, compaction |
+| [42-subagent-mechanics](../../research/agent_module/42-subagent-mechanics.md) | Delegation primitives, concurrency, harness `SubAgents`, code- vs LLM-driven fan-out |
+| [42-workflow-options](../../research/agent_module/42-workflow-options.md) | Main session / coordinator / executor workflows, handoff format |
+| [42-result-storage](../../research/agent_module/42-result-storage.md) | v2 result handling, lazy Ibis refs vs local copies, cross-backend results, compute lock |
 | [specs/41-spec-yaml-persistence](../../research/specs/41-spec-yaml-persistence.md) | Saving specs as YAML, fsspec, dependency placement |
 
 Decisions marked **†** rest on a research finding still marked **[verify]**; each must be
@@ -27,7 +27,8 @@ Replace the two task-specific bots with **one multi-turn agent session**: a thin
 talks to the user and delegates each task to a **coordinator**, which may fan out parallel
 **executors**. Each of these agent roles has its own instructions and only the tools it needs, drawn from
 **modular tool groups**. All data exchange between tools and agents goes through a **session-scoped
-artifact store**; the LLM context only ever sees short summaries and artifact IDs.
+artifact store**; the LLM context sees short summaries and artifact IDs, and reads rows only when
+an answer needs them.
 
 Design pillars:
 
@@ -37,8 +38,8 @@ Design pillars:
 4. **Artifacts as the only data channel:** Python objects (by ID), temp files (by path), DuckDB tables (by path + table name), lazy Ibis compute results (by ID).
 5. **Every tool call produces a persisted artifact**, registered in a manifest that doubles as the memory index.
 
-Decisions (justified in [00-workflow-options](../../research/agent_module/00-workflow-options.md),
-[00-result-storage](../../research/agent_module/00-result-storage.md),
+Decisions (justified in [42-workflow-options](../../research/agent_module/42-workflow-options.md),
+[42-result-storage](../../research/agent_module/42-result-storage.md),
 [specs/41-spec-yaml-persistence](../../research/specs/41-spec-yaml-persistence.md)):
 
 | Question | Decision |
@@ -50,13 +51,13 @@ Decisions (justified in [00-workflow-options](../../research/agent_module/00-wor
 | Main session role | Talks to the user, writes intake documents, reads handoffs. Delegates every task that computes metrics or changes specs or connections. May itself recall values of already-computed metrics and run basic stats tools on those results; this is also what lets it draft correct intakes for the analysis coordinator. |
 | Coordinator roster | One coordinator per task type: connections, specs, analysis. The connections coordinator has no executors and carries out the task itself. |
 | Spec design workflow | The main session suspends; the spec coordinator converses with the user directly until it writes its handoff and returns control. Each spec is saved when the coordinator commits it; there is no save step at the end of the flow. If the user leaves the flow, the coordinator lists the saved specs, deletes any the user doesn't want, then ends with its handoff. |
-| Connections and analysis workflows | The coordinator never talks to the user. Its handoff is **complete** (answer + result IDs), **needs-input** (questions + result IDs), or **inconclusive** (reason + result IDs). On needs-input, the main session asks the user and re-spawns the coordinator with an updated intake that reuses the earlier results by ID. |
+| Connections and analysis workflows | The coordinator never talks to the user. Its handoff is **complete** (answer + result IDs), **needs-input** (questions + result IDs), or **inconclusive** (reason + result IDs). On needs-input, the main session asks the user and re-spawns the coordinator with an updated intake that reuses the earlier results by ID. On complete, the main session checks that the answer meets the request and re-spawns the coordinator with what is missing when it falls short. |
 | When a coordinator may stop | Never while executors are running; only before dispatch or after all executors have returned and their results are reviewed. Enforced structurally: the fan-out tool awaits every executor. Applies to all coordinators, including the spec coordinator's dialogue with the user. |
-| Coordinator → executors | Coordinators fan out identical executors via written task instructions; executors return results individually; the coordinator compiles them and resolves or flags conflicts. |
+| Coordinator → executors | Executors research and coordinators decide. Analysis executors find the specs for metric + slice + segment combos and check that each metric supports its combo; spec executors research tables. Coordinators fan out identical executors via written task instructions; executors return results individually; the coordinator compiles them and resolves or flags conflicts. The analysis coordinator plans the computation and runs `compute_metrics` and the stats tools itself, chaining results by artifact ID. |
 | Requests spanning several coordinators | Run one after the other. The main session reads each coordinator's handoff before writing the next intake. Coordinators never hand off to each other. |
-| Compute results | Kept as lazy Ibis refs on the source backend, never materialized whole. Stats and previews run as queries on the source backend. No local cache. |
-| Small tool outputs | Outputs of stats and data tools (aggregates, top-N, previews, profiles) are stored locally in `session.duckdb`. |
-| Tool results vs handoffs | Tool results are Pydantic models. Agent-to-agent intake and handoff documents are YAML written by the agents: only `outcome`, `result_ids`, and `questions` are schema-checked; everything else is free text. |
+| Compute results | Kept as lazy Ibis refs on the source backend. Stats and reads run as queries on the source backend; a read returns only the columns and rows it asks for. No local cache. |
+| Small tool outputs | Outputs of stats and data tools (aggregates, top-N, reads, profiles) are stored locally in `session.duckdb`. |
+| Tool results vs handoffs | Tool results are Pydantic models. An intake carries free-text `instructions`, typed `params` defined per role, and `result_ids` to reuse; launch tools take it as arguments. A handoff carries `outcome`, free-text `response`, `result_ids`, and `questions`; agents write it as YAML text, checked against its schema. Both are stored as YAML file artifacts. |
 | Spec persistence | Through core `SpecCache.save()` as YAML files. The spec coordinator saves to the session directory by default (no user-supplied path); the caller may pass a local path or an fsspec URL instead. |
 | Agent code placement | One package per agent role under `agent_roles/`, the main session included; each holds the role's `instructions.md` and `agent.py`. Separate from `tools/` (§3). |
 | Skills | Current choice: stand-alone tasks go to subagents instead of loaded skills. Each role's instructions are its own static prompt, and its `agent.py` lists the tools its job needs (§6.2). Skills may be added later where they help. |
@@ -133,18 +134,20 @@ aitaem/agent/
 ├── deps.py              # SessionDeps
 ├── artifacts.py         # ArtifactStore, ArtifactRef, kinds, manifest
 ├── history.py           # stubbing capability, tail state/index block
+├── trace.py             # Status, RunTrace
 ├── tools/               # every tool that operates on data, grouped by function
 │   ├── stats.py         # sort/rank, summary statistics, distributions, period-over-period
 │   ├── data.py          # list tables, describe schema, sample, date_range, column profile
 │   ├── aitaem.py        # connect, load specs, validate/commit/delete spec, compute_metrics
-│   └── artifacts.py     # list/describe/preview/drop artifacts
+│   └── artifacts.py     # list/describe/read/drop artifacts
 └── agent_roles/         # one package per agent role
+    ├── documents.py          # Intake, Handoff, Reply schemas; YAML output check
     ├── main_session/
     │   ├── instructions.md   # the role's static instructions
     │   └── agent.py          # Agent definition: model, tools, deps, output
     └── <role>/               # coordinators and executors
         ├── instructions.md
-        └── agent.py          # as above, plus its intake/handoff schema and the tool that launches it
+        └── agent.py          # as above, plus its intake params model and the tool that launches it
 ```
 
 Rules:
@@ -200,16 +203,16 @@ Every artifact has a typed record (Pydantic model, JSON-serializable):
 
 - **R1. Every tool call writes an artifact.** Even failures and no-ops write an `error`/`empty` artifact so the manifest is a complete trace. A single wrapper enforces this (a `Hooks`/capability `wrap_tool_execute` hook or a tool decorator); tools implement only the payload.
 - **R2. Tools return a small `ToolResult`:** `artifact_id`, `status`, `summary`, and optionally a handful of inline facts (≤ ~300 tokens). Never rows.
-- **R3. Agents exchange intake and handoff YAML documents, stored as `file` artifacts and passed by ID.** The documents themselves refer to results only by artifact ID.
-- **R4. Compute results are `ibis` artifacts; small tool outputs are `table` artifacts in `session.duckdb`.** Subagents receive the database **path** and open their own connection ([00-subagent-mechanics §2](../../research/agent_module/00-subagent-mechanics.md#2-concurrency)). Subagents write namespaced tables (`t_<artifact_id>`); the store registers them.
+- **R3. Agents exchange intake and handoff documents (§1), stored as YAML `file` artifacts and passed by ID.** The documents themselves refer to results only by artifact ID.
+- **R4. Compute results are `ibis` artifacts; small tool outputs are `table` artifacts in `session.duckdb`.** Subagents receive the database **path** and open their own connection ([42-subagent-mechanics §2](../../research/agent_module/42-subagent-mechanics.md#2-concurrency)). Subagents write namespaced tables (`t_<artifact_id>`); the store registers them.
 - **R5. Lineage is mandatory** (`parents`), so the history stubber and the user can trace any result.
 - **R6. The store is part of `SessionDeps`**, shared by identity between the main session and its subagents.
 
 ### 4.4 Compute results
 
 Compute results stay lazy on the source backend, so large results never leave the warehouse
-([00-result-storage](../../research/agent_module/00-result-storage.md)); stats and previews compile
-to backend SQL and only their small outputs come back. The warehouse-side distribution tools
+([42-result-storage](../../research/agent_module/42-result-storage.md)); stats and reads compile
+to backend SQL and only their outputs come back. The warehouse-side distribution tools
 move into the `data` and `stats` groups. Results spanning several backends are combined by
 core's existing cross-backend path in `ConnectionManager`. An `ibis` artifact does not survive
 session reload and is marked `lost` (§9.6); the agent recomputes it.
@@ -223,16 +226,16 @@ Tools are plain functions grouped into `FunctionToolset`s, exposed through pydan
 
 | Group | Examples | Touches |
 |---|---|---|
-| `stats` | `sort_rank`, `summary_stats`, `distribution`, `period_over_period`, `contribution_share`, `filter_threshold` | Result artifacts only (`ibis` and `table`); no `ConnectionManager` or aitaem objects. Stats on an `ibis` artifact run as a query on that result's backend. |
+| `stats` | `sort_rank`, `summary_stats`, `distribution`, `period_over_period`, `contribution_share`, `filter_threshold`, `filter_by_value`, `filter_by_result` | Result artifacts only (`ibis` and `table`); no `ConnectionManager` or aitaem objects. Stats on an `ibis` artifact run as a query on that result's backend. |
 | `data` | `list_tables`, `describe_table`, `sample_rows`, `column_profile`, `date_range` | Source backends via `ConnectionManager` (read-only). |
-| `aitaem` | `connect_source`, `list_specs`, `resolve_spec`, `validate_spec`, `commit_spec`, `delete_spec`, `compute_metrics` | aitaem core objects; `commit_spec` saves through `SpecCache.save()`. |
-| `artifact` | `list_artifacts`, `describe_artifact`, `preview_artifact`, `drop_artifact` | Store only. |
+| `aitaem` | `connect_source`, `list_specs`, `resolve_spec`, `check_compatibility`, `validate_spec`, `commit_spec`, `delete_spec`, `compute_metrics` | aitaem core objects; `commit_spec` saves through `SpecCache.save()`. |
+| `artifact` | `list_artifacts`, `describe_artifact`, `read_artifact`, `drop_artifact` | Store only. |
 
 Tools that launch agents are not a tool group; they live in `agent_roles/` (§3).
 
 Principles:
 
-- **Compute lock.** Every tool that executes an Ibis expression (`compute_metrics`, `data` tools, `stats` and `preview_artifact` on `ibis` artifacts) holds one process-wide lock whenever `ConnectionManager.requires_compute_lock` is true (DuckDB registered, or several backends configured), because Ibis DuckDB connections are not thread-safe and executors run in parallel. `SessionDeps` carries the lock, a no-op otherwise, so tools without a `ConnectionManager` can take it. Parallel executors on DuckDB sources therefore execute one at a time ([00-result-storage §5](../../research/agent_module/00-result-storage.md#5-concurrency)).
+- **Compute lock.** Every tool that executes an Ibis expression (`compute_metrics`, `check_compatibility`, `data` tools, `stats` and `read_artifact` on `ibis` artifacts) holds one process-wide lock whenever `ConnectionManager.requires_compute_lock` is true (DuckDB registered, or several backends configured), because Ibis DuckDB connections are not thread-safe and executors run in parallel. `SessionDeps` carries the lock, a no-op otherwise, so tools without a `ConnectionManager` can take it. Parallel executors on DuckDB sources therefore execute one at a time ([42-result-storage §5](../../research/agent_module/42-result-storage.md#5-concurrency)).
 - **Stable tool list.** The tool array is part of the cached prefix and is fixed and deterministically ordered for the whole session (§8).
 - **Semantics:** the Metric Precision Rule (no approximating a spec that doesn't precisely answer the question → `refused`); STANDARD_COLUMNS accessed by name; no raw spec YAML parsing in the agent module (specs go through aitaem's loaders; handoff YAML is parsed and checked against its schema).
 - Reuse existing implementations (distribution tools, `validate_spec`, `compute_metrics` internals) by moving them into the new groups; do not rewrite them.
@@ -258,7 +261,7 @@ design) has a structured output carrying `response` and `attachments`.
 
 Multi-turn state is carried as a pydantic-ai `Conversation`, passed as `conversation=` on each run,
 so `UsageLimits` persist across turns; serialized with `ConversationTypeAdapter`
-([mechanics §1](../../research/agent_module/00-pydantic-ai-2.55-mechanics.md#1-multi-turn-state-conversation)).
+([mechanics §1](../../research/agent_module/42-pydantic-ai-2.55-mechanics.md#1-multi-turn-state-conversation)).
 
 ### 6.2 Instructions and tools
 
@@ -286,16 +289,20 @@ sequenceDiagram
     participant E as Executors
     U->>M: request
     M->>C: launch (intake ID)
-    C->>C: check intake against specs
-    opt fan-out
-        C->>E: fan-out tool, awaits all executors
-        E-->>C: results (artifact IDs)
+    C->>C: plan steps, resolve named specs
+    opt spec discovery
+        C->>E: fan-out tool (one intake per set of combos), awaits all executors
+        E-->>C: compatible specs per combo (handoff IDs)
     end
+    C->>C: compute and stats chain, reads the values the answer needs
     C-->>M: handoff ID (complete / needs-input / inconclusive)
     alt needs-input
         M-->>U: questions
         U->>M: answers
         M->>C: launch new run (updated intake, earlier result IDs)
+        C-->>M: handoff ID
+    else answer falls short of the request
+        M->>C: launch new run (what is missing, earlier result IDs)
         C-->>M: handoff ID
     end
     M-->>U: answer
@@ -339,14 +346,14 @@ sequenceDiagram
 
 ### 7.1 Pattern
 
-Each coordinator with executors has one fan-out tool. The coordinator writes one task instruction
-per executor; the tool runs identical executors in parallel and awaits all of them (§1). Each
+Each coordinator with executors has one fan-out tool. The coordinator writes one intake per
+executor; the tool runs identical executors in parallel and awaits all of them (§1). Each
 executor writes its handoff as an artifact; the tool returns the handoff IDs with their checked
 fields. The coordinator compiles the results and resolves or flags conflicts
-([00-subagent-mechanics §4](../../research/agent_module/00-subagent-mechanics.md#4-code-driven-vs-llm-driven-fan-out)).
+([42-subagent-mechanics §4](../../research/agent_module/42-subagent-mechanics.md#4-code-driven-vs-llm-driven-fan-out)).
 
 ```
-async tool run_executors(ctx, tasks: list[str]) -> ToolResult
+async tool run_executors(ctx, tasks: list[Intake[P]]) -> ToolResult
     gather(executor.run(task_i, deps=child_deps_i, usage=ctx.usage))
         bounded by a semaphore, return_exceptions=True
     returns: handoff artifact ID + outcome per executor
@@ -360,21 +367,21 @@ async tool run_executors(ctx, tasks: list[str]) -> ToolResult
 - Concurrency is bounded by an `asyncio.Semaphore` in the fan-out tool. If model-level limiting is added, its limiter is used only by the executors. **†**
 - The coordinator's `CancellationToken` is passed to its executors.
 - Failures: `return_exceptions=True`; failed executors produce `error` artifacts, listed in the fan-out tool's result. Siblings are not cancelled by one failure.
-- Executors have no `message_history` and narrow toolsets; they return YAML handoffs (R3) checked by an output validator. **†**
+- Executors have no `message_history` and narrow toolsets; they return YAML handoffs (R3) checked by an output validator.
 - Every agent is named (`name=`) and instrumented.
 
 ### 7.3 Executor caching
 
 Executors use a short, self-contained prompt and run with `Caching(retention=…, messages=False)`;
 they do not try to share the coordinator's prefix
-([caching §7](../../research/agent_module/00-anthropic-prompt-caching.md#7-parallel-workers)).
+([caching §7](../../research/agent_module/42-anthropic-prompt-caching.md#7-parallel-workers)).
 
 ---
 
 ## 8. Caching
 
 Rules follow from the prefix order and invalidation behavior in
-[00-anthropic-prompt-caching](../../research/agent_module/00-anthropic-prompt-caching.md).
+[42-anthropic-prompt-caching](../../research/agent_module/42-anthropic-prompt-caching.md).
 
 - **Setting:** `Caching(retention='1h', messages=True)`; switch to `'5m'` if telemetry shows turns are typically seconds apart.
 - **Stable prefix, never mutated mid-session:**
@@ -396,7 +403,7 @@ Rules follow from the prefix order and invalidation behavior in
 Append-only by default. When a trigger fires, one batched rewrite runs and the result is persisted
 (via the `Conversation`), so the prefix is stable again until the next trigger. Because every tool
 result is already a short summary plus artifact ID (R2), growth is slow and rewrites are expected
-to be rare ([00-history-stubbing §1](../../research/agent_module/00-history-stubbing.md#1-why-rewrites-are-costly)).
+to be rare ([42-history-stubbing §1](../../research/agent_module/42-history-stubbing.md#1-why-rewrites-are-costly)).
 
 ### 9.2 Session-state block
 
@@ -408,11 +415,11 @@ user preferences, unresolved errors. Compact JSON, hard size cap.
 
 The manifest rendered compactly in the tail block (`a017 ibis metric_result "DAU by country"`),
 newest entries expanded, older ones collapsed to one line each, growing only by appended lines.
-`describe_artifact`/`preview_artifact` give just-in-time detail.
+`describe_artifact`/`read_artifact` give just-in-time detail.
 
 ### 9.4 Batched stubbing capability
 
-A custom `ProcessHistory` capability ([00-history-stubbing §2–4](../../research/agent_module/00-history-stubbing.md#2-pydantic-ai-hooks)):
+A custom `ProcessHistory` capability ([42-history-stubbing §2–4](../../research/agent_module/42-history-stubbing.md#2-pydantic-ai-hooks)):
 
 - **Trigger:** `ctx.context_window_used` ≥ ~0.6–0.7, or `prompt_cache_outlook(…) == 'cold'` combined with a smaller size threshold. A `min_clear_tokens`-style floor prevents small rewrites.
 - **Action:** replace old, bulky `ToolReturnPart.content` with `[artifact a017 · kind · summary · how to retrieve]` via `dataclasses.replace`. Keep every call/return pair. Leave the last N pairs and the current run untouched.
@@ -422,7 +429,7 @@ A custom `ProcessHistory` capability ([00-history-stubbing §2–4](../../resear
 ### 9.5 Thinking-block binding
 
 The main session runs with thinking off, so stubbing never breaks thinking-block binding on 5.x
-Claude models ([00-history-stubbing §5](../../research/agent_module/00-history-stubbing.md#5-thinking-block-binding)).
+Claude models ([42-history-stubbing §5](../../research/agent_module/42-history-stubbing.md#5-thinking-block-binding)).
 Coordinators and executors are never stubbed and may use thinking.
 
 ### 9.6 Persistence
@@ -456,7 +463,7 @@ OTel-compatible.
 
 **Testing:** `FunctionModel` for the main session and coordinators (deterministic delegation and
 fan-out), `TestModel` or `FunctionModel` per executor via `override`
-([mechanics §4](../../research/agent_module/00-pydantic-ai-2.55-mechanics.md#4-testing)).
+([mechanics §4](../../research/agent_module/42-pydantic-ai-2.55-mechanics.md#4-testing)).
 
 **Removal of the v2 bots (v3.0):**
 
@@ -467,5 +474,7 @@ fan-out), `TestModel` or `FunctionModel` per executor via `override`
 
 ## 12. Dependency floor
 
-- Set `pydantic-ai-slim>=2.55,<3` (currently `>=2.2.0,<3`): one clean baseline covering every feature used ([mechanics §7](../../research/agent_module/00-pydantic-ai-2.55-mechanics.md#7-minimum-versions-per-feature)).
+- Set `pydantic-ai-slim>=2.55,<3` (currently `>=2.2.0,<3`): one clean baseline covering every feature used ([mechanics §7](../../research/agent_module/42-pydantic-ai-2.55-mechanics.md#7-minimum-versions-per-feature)).
 - Update all five extras in `pyproject.toml` (lines ~46–74) together; CI must exercise the floor version.
+- pydantic-ai-slim 2.55 requires Python ≥ 3.11, so the agent extras do too; core `aitaem` stays on
+  Python ≥ 3.10 ([mechanics, Update 2026-11-10](../../research/agent_module/42-pydantic-ai-2.55-mechanics.md#update-2026-11-10-python-floor-and-mechanics-confirmed-by-execution)).
