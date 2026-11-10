@@ -125,3 +125,16 @@ forces an exact slim pin.
 - **`models.ALLOW_MODEL_REQUESTS`** exists in 2.55 (resolves the §4 **[verify]**).
 - **Tool schemas through a decorator:** a tool function wrapped with `functools.wraps` keeps its
   docstring as the tool description and its parameters as the tool's JSON schema.
+
+---
+
+## Update (2026-11-10): `functools.wraps` on a `RunContext` tool
+
+**Sources:** pydantic-ai-slim 2.55.0, executed with `FunctionModel` (Python 3.12); the tool
+module used `from __future__ import annotations` and the wrapper lived in another module.
+
+A `functools.wraps` wrapper around a tool whose first parameter is `RunContext[Deps]` is still
+detected as taking the context: the context is excluded from the schema, the docstring's first
+line becomes the description, Google-style `Args:` entries become parameter descriptions, and
+`Literal` and default values are kept. Covered by
+`tests/test_agent/test_artifact_tool.py::test_wrapped_schema_matches_unwrapped`.
