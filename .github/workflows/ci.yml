@@ -53,6 +53,9 @@ jobs:
       - name: Run ruff
         run: ruff check aitaem/ tests/
 
+      - name: Check formatting
+        run: ruff format --check .
+
   type-check:
     name: type-check
     runs-on: ubuntu-latest
