@@ -16,6 +16,7 @@ from aitaem.agent.agent_roles.spec_executor.agent import (
     make_run_spec_executors,
 )
 from aitaem.agent.deps import SessionDeps
+from aitaem.agent.history import TailBlock
 from aitaem.agent.tools.aitaem import commit_spec, delete_spec, list_specs, read_spec, validate_spec
 from aitaem.agent.tools.data import column_distribution, list_tables, sample_rows
 
@@ -45,7 +46,7 @@ def build_spec_coordinator(
             FunctionToolset([list_tables, sample_rows, column_distribution]),
             FunctionToolset([run_spec_executors]),
         ],
-        capabilities=[Caching(retention="1h", messages=True)],
+        capabilities=[Caching(retention="1h", messages=True), TailBlock()],
     )
     agent.output_validator(check_reply_or_handoff)
     return agent

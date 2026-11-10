@@ -188,14 +188,14 @@ def test_start_spec_design_defers_with_intake_id(deps: SessionDeps) -> None:
     assert yaml.safe_load(deps.store.read(intake_id))["params"]["names"] == ["cpc"]
 
 
-def test_spec_coordinator_tools() -> None:
+def test_spec_coordinator_tools(deps: SessionDeps) -> None:
     seen: list[str] = []
 
     def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         seen.extend(sorted(t.name for t in info.function_tools))
         return text(reply("hi"))
 
-    build_spec_coordinator(FunctionModel(model), spec_executor_model()).run_sync("x", deps=None)  # type: ignore[arg-type]
+    build_spec_coordinator(FunctionModel(model), spec_executor_model()).run_sync("x", deps=deps)
     assert seen == sorted(
         [
             "column_distribution",

@@ -13,6 +13,7 @@ from aitaem.agent.agent_roles.connections_coordinator.agent import make_run_conn
 from aitaem.agent.agent_roles.documents import check_reply
 from aitaem.agent.agent_roles.spec_coordinator.agent import start_spec_design
 from aitaem.agent.deps import SessionDeps
+from aitaem.agent.history import TailBlock
 from aitaem.agent.tools.artifacts import artifact_toolset
 from aitaem.agent.tools.stats import stats_toolset
 
@@ -40,7 +41,7 @@ def build_main_session(
         toolsets=[launch_tools, artifact_toolset, stats_toolset],
         # Thinking stays off so history stubbing never breaks thinking-block binding (§A9.5).
         model_settings=ModelSettings(thinking=False),
-        capabilities=[Caching(retention="1h", messages=True)],
+        capabilities=[Caching(retention="1h", messages=True), TailBlock()],
     )
     # Output validators receive the str output only, never DeferredToolRequests.
     agent.output_validator(check_reply)  # type: ignore[arg-type]
