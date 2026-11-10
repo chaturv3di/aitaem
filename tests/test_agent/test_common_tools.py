@@ -5,6 +5,7 @@ Moved here from test_query_tools.py (SF-1/SF-4 of Plan 36) since these are no
 longer QueryBot-only. New: _execute_metric_compute tests, dependent_metrics
 append-on-success-only tests, and the RunContext covariance regression test.
 """
+
 from __future__ import annotations
 
 import datetime
@@ -40,6 +41,7 @@ from aitaem.agent.common_tools import (
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_ctx(deps):
     ctx = MagicMock()
@@ -77,35 +79,39 @@ def _make_deps_with_table(table: pa.Table):
 
 
 def _multi_row_table():
-    return pa.table({
-        "metric_name": ["revenue"] * 5,
-        "metric_value": [100.0, 300.0, 50.0, 200.0, 150.0],
-        "period_type": ["all_time"] * 5,
-        "period_start_date": [None] * 5,
-        "period_end_date": [None] * 5,
-        "entity_id": ["A", "B", "C", "D", "E"],
-        "metric_format": [None] * 5,
-        "slice_type": [None] * 5,
-        "slice_value": [None] * 5,
-        "segment_name": [None] * 5,
-        "segment_value": [None] * 5,
-    })
+    return pa.table(
+        {
+            "metric_name": ["revenue"] * 5,
+            "metric_value": [100.0, 300.0, 50.0, 200.0, 150.0],
+            "period_type": ["all_time"] * 5,
+            "period_start_date": [None] * 5,
+            "period_end_date": [None] * 5,
+            "entity_id": ["A", "B", "C", "D", "E"],
+            "metric_format": [None] * 5,
+            "slice_type": [None] * 5,
+            "slice_value": [None] * 5,
+            "segment_name": [None] * 5,
+            "segment_value": [None] * 5,
+        }
+    )
 
 
 def _sample_table():
-    return pa.table({
-        "metric_name": ["revenue"],
-        "metric_value": [1000.0],
-        "period_type": ["all_time"],
-        "period_start_date": [None],
-        "period_end_date": [None],
-        "entity_id": [None],
-        "metric_format": [None],
-        "slice_type": [None],
-        "slice_value": [None],
-        "segment_name": [None],
-        "segment_value": [None],
-    })
+    return pa.table(
+        {
+            "metric_name": ["revenue"],
+            "metric_value": [1000.0],
+            "period_type": ["all_time"],
+            "period_start_date": [None],
+            "period_end_date": [None],
+            "entity_id": [None],
+            "metric_format": [None],
+            "slice_type": [None],
+            "slice_value": [None],
+            "segment_name": [None],
+            "segment_value": [None],
+        }
+    )
 
 
 def _make_mock_mc(arrow_table=None, raise_exc=None):
@@ -122,6 +128,7 @@ def _make_mock_mc(arrow_table=None, raise_exc=None):
 # ---------------------------------------------------------------------------
 # Type contract tests
 # ---------------------------------------------------------------------------
+
 
 def test_tool_result_base_payload_summary_defaults_none():
     assert ToolResult().payload_summary is None
@@ -141,6 +148,7 @@ def test_column_distribution_optional_stats():
 # distribution_summary
 # ---------------------------------------------------------------------------
 
+
 def test_distribution_summary_stats():
     deps, rid = _make_deps_with_table(_multi_row_table())
     ctx = _make_ctx(deps)
@@ -156,11 +164,13 @@ def test_distribution_summary_stats():
 
 
 def test_distribution_summary_custom_group_by():
-    table = pa.table({
-        "metric_name": ["revenue"] * 4,
-        "metric_value": [100.0, 300.0, 50.0, 200.0],
-        "slice_value": ["US", "US", "IN", "IN"],
-    })
+    table = pa.table(
+        {
+            "metric_name": ["revenue"] * 4,
+            "metric_value": [100.0, 300.0, 50.0, 200.0],
+            "slice_value": ["US", "US", "IN", "IN"],
+        }
+    )
     deps, rid = _make_deps_with_table(table)
     ctx = _make_ctx(deps)
     result = distribution_summary(ctx, result_id=rid, group_by=["metric_name", "slice_value"])
@@ -204,7 +214,9 @@ def test_distribution_summary_wrong_entry_kind_hits_aitaem_error_branch():
 def test_distribution_summary_aggregate_failure_returns_error_not_raised():
     deps, rid = _make_deps_with_table(_multi_row_table())
     ctx = _make_ctx(deps)
-    with patch("aitaem.agent.common_tools._build_distribution_agg", side_effect=RuntimeError("boom")):
+    with patch(
+        "aitaem.agent.common_tools._build_distribution_agg", side_effect=RuntimeError("boom")
+    ):
         result = distribution_summary(ctx, result_id=rid)
     assert result.error is not None
     assert "boom" in result.error
@@ -214,6 +226,7 @@ def test_distribution_summary_aggregate_failure_returns_error_not_raised():
 # ---------------------------------------------------------------------------
 # _build_distribution_agg / stringification helpers
 # ---------------------------------------------------------------------------
+
 
 def test_build_distribution_agg_numeric_ungrouped():
     t = ibis.memtable(pa.table({"v": [1.0, 2.0, 3.0, None]}))
@@ -285,13 +298,19 @@ def test_min_val_max_val_iso8601_not_backend_cast(ad_campaigns_connection_manage
 # column_distribution + _reject_unsafe_filter
 # ---------------------------------------------------------------------------
 
+
 def _make_column_distribution_deps(ad_campaigns_connection_manager, deps_cls=QueryDeps, **extra):
     sc = MagicMock()
     rev = MagicMock()
     rev.source = "duckdb://ad_campaigns.duckdb/ad_campaigns"
     rev.timestamp_col = "date"
     sc.metrics = {"total_revenue": rev}
-    return deps_cls(spec_cache=sc, connection_manager=ad_campaigns_connection_manager, store=ResultStore(), **extra)
+    return deps_cls(
+        spec_cache=sc,
+        connection_manager=ad_campaigns_connection_manager,
+        store=ResultStore(),
+        **extra,
+    )
 
 
 def test_column_distribution_default_column_is_timestamp_col(ad_campaigns_connection_manager):
@@ -340,10 +359,14 @@ def test_column_distribution_filter_narrows_results(ad_campaigns_connection_mana
     assert filtered.distribution.count < unfiltered.distribution.count
 
 
-def test_column_distribution_malformed_filter_returns_error_not_raised(ad_campaigns_connection_manager):
+def test_column_distribution_malformed_filter_returns_error_not_raised(
+    ad_campaigns_connection_manager,
+):
     deps = _make_column_distribution_deps(ad_campaigns_connection_manager)
     ctx = _make_ctx(deps)
-    result = column_distribution(ctx, metric_name="total_revenue", filter="x IN (SELECT y FROM dim_platforms)")
+    result = column_distribution(
+        ctx, metric_name="total_revenue", filter="x IN (SELECT y FROM dim_platforms)"
+    )
     assert result.error is not None
     assert result.result_id == ""
 
@@ -354,27 +377,35 @@ def test_column_distribution_no_column_no_timestamp_col_errors(ad_campaigns_conn
     rev.source = "duckdb://ad_campaigns.duckdb/ad_campaigns"
     rev.timestamp_col = ""
     sc.metrics = {"total_revenue": rev}
-    deps = QueryDeps(spec_cache=sc, connection_manager=ad_campaigns_connection_manager, store=ResultStore())
+    deps = QueryDeps(
+        spec_cache=sc, connection_manager=ad_campaigns_connection_manager, store=ResultStore()
+    )
     ctx = _make_ctx(deps)
     result = column_distribution(ctx, metric_name="total_revenue")
     assert result.error is not None
     assert "timestamp_col" in result.error
 
 
-def test_column_distribution_connection_resolution_failure_returns_error(ad_campaigns_connection_manager):
+def test_column_distribution_connection_resolution_failure_returns_error(
+    ad_campaigns_connection_manager,
+):
     sc = MagicMock()
     rev = MagicMock()
     rev.source = "bigquery://no-such-project/no_such_dataset.no_such_table"
     rev.timestamp_col = "date"
     sc.metrics = {"total_revenue": rev}
-    deps = QueryDeps(spec_cache=sc, connection_manager=ad_campaigns_connection_manager, store=ResultStore())
+    deps = QueryDeps(
+        spec_cache=sc, connection_manager=ad_campaigns_connection_manager, store=ResultStore()
+    )
     ctx = _make_ctx(deps)
     result = column_distribution(ctx, metric_name="total_revenue")
     assert result.error is not None
     assert result.result_id == ""
 
 
-def test_column_distribution_filter_references_unknown_column_returns_error(ad_campaigns_connection_manager):
+def test_column_distribution_filter_references_unknown_column_returns_error(
+    ad_campaigns_connection_manager,
+):
     """The filter parses as valid SQL but fails at execution (unknown column) — caught, not raised."""
     deps = _make_column_distribution_deps(ad_campaigns_connection_manager)
     ctx = _make_ctx(deps)
@@ -385,10 +416,14 @@ def test_column_distribution_filter_references_unknown_column_returns_error(ad_c
     assert result.result_id == ""
 
 
-def test_column_distribution_aggregate_execution_failure_returns_error(ad_campaigns_connection_manager):
+def test_column_distribution_aggregate_execution_failure_returns_error(
+    ad_campaigns_connection_manager,
+):
     deps = _make_column_distribution_deps(ad_campaigns_connection_manager)
     ctx = _make_ctx(deps)
-    with patch("aitaem.agent.common_tools._build_distribution_agg", side_effect=RuntimeError("boom")):
+    with patch(
+        "aitaem.agent.common_tools._build_distribution_agg", side_effect=RuntimeError("boom")
+    ):
         result = column_distribution(ctx, metric_name="total_revenue")
     assert result.error is not None
     assert "boom" in result.error
@@ -406,11 +441,14 @@ def test_column_distribution_stores_min_max_metadata(ad_campaigns_connection_man
 
 
 @pytest.mark.parametrize("dialect", ["duckdb", "bigquery", "postgres"])
-@pytest.mark.parametrize("bad_filter", [
-    "x IN (SELECT y FROM other)",
-    "EXISTS (SELECT 1 FROM other WHERE other.id = t.id)",
-    "x > (SELECT MAX(y) FROM other)",
-])
+@pytest.mark.parametrize(
+    "bad_filter",
+    [
+        "x IN (SELECT y FROM other)",
+        "EXISTS (SELECT 1 FROM other WHERE other.id = t.id)",
+        "x > (SELECT MAX(y) FROM other)",
+    ],
+)
 def test_reject_unsafe_filter_rejects_subqueries(dialect, bad_filter):
     with pytest.raises(ValueError, match="subquer"):
         _reject_unsafe_filter(bad_filter, dialect)
@@ -427,7 +465,9 @@ def test_reject_unsafe_filter_rejects_paren_breakout():
 
 
 def test_reject_unsafe_filter_accepts_legitimate_multi_condition_filter():
-    result = _reject_unsafe_filter("order_value > 1000 AND (country = 'US' OR country = 'IN')", "duckdb")
+    result = _reject_unsafe_filter(
+        "order_value > 1000 AND (country = 'US' OR country = 'IN')", "duckdb"
+    )
     assert "1000" in result
     assert "US" in result
 
@@ -443,6 +483,7 @@ def test_reject_unsafe_filter_neutralizes_comment_truncation():
 # ---------------------------------------------------------------------------
 # SF-2: column_distribution — dependent_metrics (DefinitionDeps only)
 # ---------------------------------------------------------------------------
+
 
 def test_column_distribution_appends_dependent_metrics_on_success(ad_campaigns_connection_manager):
     deps = _make_column_distribution_deps(ad_campaigns_connection_manager, deps_cls=DefinitionDeps)
@@ -460,7 +501,9 @@ def test_column_distribution_dependent_metrics_deduped(ad_campaigns_connection_m
     assert deps.dependent_metrics == ["total_revenue"]
 
 
-def test_column_distribution_unknown_metric_leaves_dependent_metrics_unmodified(ad_campaigns_connection_manager):
+def test_column_distribution_unknown_metric_leaves_dependent_metrics_unmodified(
+    ad_campaigns_connection_manager,
+):
     deps = _make_column_distribution_deps(ad_campaigns_connection_manager, deps_cls=DefinitionDeps)
     ctx = _make_ctx(deps)
     result = column_distribution(ctx, metric_name="bogus_metric")
@@ -468,7 +511,9 @@ def test_column_distribution_unknown_metric_leaves_dependent_metrics_unmodified(
     assert deps.dependent_metrics == []
 
 
-def test_column_distribution_unknown_column_leaves_dependent_metrics_unmodified(ad_campaigns_connection_manager):
+def test_column_distribution_unknown_column_leaves_dependent_metrics_unmodified(
+    ad_campaigns_connection_manager,
+):
     deps = _make_column_distribution_deps(ad_campaigns_connection_manager, deps_cls=DefinitionDeps)
     ctx = _make_ctx(deps)
     result = column_distribution(ctx, metric_name="total_revenue", column="bogus_col")
@@ -476,7 +521,9 @@ def test_column_distribution_unknown_column_leaves_dependent_metrics_unmodified(
     assert deps.dependent_metrics == []
 
 
-def test_column_distribution_rejected_filter_leaves_dependent_metrics_unmodified(ad_campaigns_connection_manager):
+def test_column_distribution_rejected_filter_leaves_dependent_metrics_unmodified(
+    ad_campaigns_connection_manager,
+):
     deps = _make_column_distribution_deps(ad_campaigns_connection_manager, deps_cls=DefinitionDeps)
     ctx = _make_ctx(deps)
     result = column_distribution(
@@ -486,7 +533,9 @@ def test_column_distribution_rejected_filter_leaves_dependent_metrics_unmodified
     assert deps.dependent_metrics == []
 
 
-def test_column_distribution_query_deps_without_dependent_metrics_field_is_noop(ad_campaigns_connection_manager):
+def test_column_distribution_query_deps_without_dependent_metrics_field_is_noop(
+    ad_campaigns_connection_manager,
+):
     """QueryDeps has no dependent_metrics field — getattr-based guard must no-op, not raise."""
     deps = _make_column_distribution_deps(ad_campaigns_connection_manager)
     ctx = _make_ctx(deps)
@@ -499,12 +548,21 @@ def test_column_distribution_query_deps_without_dependent_metrics_field_is_noop(
 # SF-2: _execute_metric_compute
 # ---------------------------------------------------------------------------
 
+
 def test_execute_metric_compute_success():
     sc = _make_spec_cache()
     store = ResultStore()
     with patch("aitaem.agent.common_tools.MetricCompute", return_value=_make_mock_mc()):
         result_id, row_count, sample, columns, format_hints = _execute_metric_compute(
-            sc, MagicMock(), store, "revenue", [], None, None, "all_time", None,
+            sc,
+            MagicMock(),
+            store,
+            "revenue",
+            [],
+            None,
+            None,
+            "all_time",
+            None,
         )
     assert result_id in store.ids()
     assert row_count == 1
@@ -518,7 +576,15 @@ def test_execute_metric_compute_format_hints():
     store = ResultStore()
     with patch("aitaem.agent.common_tools.MetricCompute", return_value=_make_mock_mc()):
         _, _, _, _, format_hints = _execute_metric_compute(
-            sc, MagicMock(), store, "revenue", [], None, None, "all_time", None,
+            sc,
+            MagicMock(),
+            store,
+            "revenue",
+            [],
+            None,
+            None,
+            "all_time",
+            None,
         )
     assert format_hints == {"revenue": "currency:USD"}
 
@@ -534,7 +600,15 @@ def test_execute_metric_compute_raises_on_failure():
     with patch("aitaem.agent.common_tools.MetricCompute", return_value=mc):
         with pytest.raises(SpecNotFoundError):
             _execute_metric_compute(
-                sc, MagicMock(), store, "revenue", [], None, None, "all_time", None,
+                sc,
+                MagicMock(),
+                store,
+                "revenue",
+                [],
+                None,
+                None,
+                "all_time",
+                None,
             )
 
 
@@ -543,7 +617,15 @@ def test_execute_metric_compute_ibis_ref_stored():
     store = ResultStore()
     with patch("aitaem.agent.common_tools.MetricCompute", return_value=_make_mock_mc()):
         result_id, *_ = _execute_metric_compute(
-            sc, MagicMock(), store, "revenue", [], None, None, "all_time", None,
+            sc,
+            MagicMock(),
+            store,
+            "revenue",
+            [],
+            None,
+            None,
+            "all_time",
+            None,
         )
     entry = store.get_tabular(result_id)
     assert entry.ibis_ref is not None

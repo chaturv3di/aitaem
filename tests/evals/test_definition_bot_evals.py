@@ -80,7 +80,9 @@ class StatusIs(Evaluator[DefinitionEvalInput, DefinitionEvalOutput, None]):
 
     expected: Status
 
-    def evaluate(self, ctx: EvaluatorContext[DefinitionEvalInput, DefinitionEvalOutput, None]) -> bool:
+    def evaluate(
+        self, ctx: EvaluatorContext[DefinitionEvalInput, DefinitionEvalOutput, None]
+    ) -> bool:
         return ctx.output.response.status == self.expected
 
 
@@ -90,7 +92,9 @@ class StatusIsNot(Evaluator[DefinitionEvalInput, DefinitionEvalOutput, None]):
 
     not_expected: Status
 
-    def evaluate(self, ctx: EvaluatorContext[DefinitionEvalInput, DefinitionEvalOutput, None]) -> bool:
+    def evaluate(
+        self, ctx: EvaluatorContext[DefinitionEvalInput, DefinitionEvalOutput, None]
+    ) -> bool:
         return ctx.output.response.status != self.not_expected
 
 
@@ -99,7 +103,9 @@ class MintedSpecDraftToken(Evaluator[DefinitionEvalInput, DefinitionEvalOutput, 
     """Asserts payload.spec_draft_token is not None, and that the
     validate_spec trace entry has a matching non-None result_id."""
 
-    def evaluate(self, ctx: EvaluatorContext[DefinitionEvalInput, DefinitionEvalOutput, None]) -> bool:
+    def evaluate(
+        self, ctx: EvaluatorContext[DefinitionEvalInput, DefinitionEvalOutput, None]
+    ) -> bool:
         payload = ctx.output.response.payload
         if payload is None or payload.spec_draft_token is None:
             return False
@@ -115,7 +121,9 @@ class MintedSpecDraftToken(Evaluator[DefinitionEvalInput, DefinitionEvalOutput, 
 class SpecDraftTokenIsNone(Evaluator[DefinitionEvalInput, DefinitionEvalOutput, None]):
     """Asserts payload.spec_draft_token is None (the failed-gate case)."""
 
-    def evaluate(self, ctx: EvaluatorContext[DefinitionEvalInput, DefinitionEvalOutput, None]) -> bool:
+    def evaluate(
+        self, ctx: EvaluatorContext[DefinitionEvalInput, DefinitionEvalOutput, None]
+    ) -> bool:
         payload = ctx.output.response.payload
         return payload is None or payload.spec_draft_token is None
 
@@ -126,7 +134,9 @@ class DependentMetricsContains(Evaluator[DefinitionEvalInput, DefinitionEvalOutp
 
     metric_name: str
 
-    def evaluate(self, ctx: EvaluatorContext[DefinitionEvalInput, DefinitionEvalOutput, None]) -> bool:
+    def evaluate(
+        self, ctx: EvaluatorContext[DefinitionEvalInput, DefinitionEvalOutput, None]
+    ) -> bool:
         payload = ctx.output.response.payload
         return payload is not None and self.metric_name in payload.dependent_metrics
 
@@ -139,7 +149,9 @@ class ToolCallHasResultId(Evaluator[DefinitionEvalInput, DefinitionEvalOutput, N
 
     tool_name: str
 
-    def evaluate(self, ctx: EvaluatorContext[DefinitionEvalInput, DefinitionEvalOutput, None]) -> bool:
+    def evaluate(
+        self, ctx: EvaluatorContext[DefinitionEvalInput, DefinitionEvalOutput, None]
+    ) -> bool:
         tc = next(
             (t for t in ctx.output.response.trace.tool_calls if t.name == self.tool_name), None
         )
@@ -181,36 +193,56 @@ def _full_flow_model(yaml_string: str) -> FunctionModel:
         returns = _collect_tool_returns(messages)
 
         if "record_definition_intent" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="record_definition_intent",
-                args=json.dumps({"spec_type": "metric", "description": "Test spec"}),
-                tool_call_id="tc-1",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="record_definition_intent",
+                        args=json.dumps({"spec_type": "metric", "description": "Test spec"}),
+                        tool_call_id="tc-1",
+                    )
+                ]
+            )
         if "list_tables" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="list_tables",
-                args=json.dumps({}),
-                tool_call_id="tc-2",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="list_tables",
+                        args=json.dumps({}),
+                        tool_call_id="tc-2",
+                    )
+                ]
+            )
         if "describe_table" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="describe_table",
-                args=json.dumps({"source": "duckdb://analytics.db/transactions"}),
-                tool_call_id="tc-3",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="describe_table",
+                        args=json.dumps({"source": "duckdb://analytics.db/transactions"}),
+                        tool_call_id="tc-3",
+                    )
+                ]
+            )
         if "draft_spec" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="draft_spec",
-                args=json.dumps({"spec_type": "metric", "yaml_string": yaml_string}),
-                tool_call_id="tc-4",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="draft_spec",
+                        args=json.dumps({"spec_type": "metric", "yaml_string": yaml_string}),
+                        tool_call_id="tc-4",
+                    )
+                ]
+            )
         if "validate_spec" not in returns:
             draft_id = returns["draft_spec"].get("draft_id", "")
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="validate_spec",
-                args=json.dumps({"draft_id": draft_id}),
-                tool_call_id="tc-5",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="validate_spec",
+                        args=json.dumps({"draft_id": draft_id}),
+                        tool_call_id="tc-5",
+                    )
+                ]
+            )
 
         validate_data = returns["validate_spec"]
         token = validate_data.get("spec_draft_token")
@@ -247,30 +279,50 @@ def _grounding_flow_model() -> FunctionModel:
         returns = _collect_tool_returns(messages)
 
         if "record_definition_intent" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="record_definition_intent",
-                args=json.dumps({"spec_type": "slice", "description": "High-value transactions"}),
-                tool_call_id="tc-1",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="record_definition_intent",
+                        args=json.dumps(
+                            {"spec_type": "slice", "description": "High-value transactions"}
+                        ),
+                        tool_call_id="tc-1",
+                    )
+                ]
+            )
         if "column_distribution" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="column_distribution",
-                args=json.dumps({"metric_name": "revenue", "column": "amount"}),
-                tool_call_id="tc-2",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="column_distribution",
+                        args=json.dumps({"metric_name": "revenue", "column": "amount"}),
+                        tool_call_id="tc-2",
+                    )
+                ]
+            )
         if "draft_spec" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="draft_spec",
-                args=json.dumps({"spec_type": "slice", "yaml_string": _HIGH_VALUE_SLICE_YAML}),
-                tool_call_id="tc-3",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="draft_spec",
+                        args=json.dumps(
+                            {"spec_type": "slice", "yaml_string": _HIGH_VALUE_SLICE_YAML}
+                        ),
+                        tool_call_id="tc-3",
+                    )
+                ]
+            )
         if "validate_spec" not in returns:
             draft_id = returns["draft_spec"].get("draft_id", "")
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="validate_spec",
-                args=json.dumps({"draft_id": draft_id}),
-                tool_call_id="tc-4",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="validate_spec",
+                        args=json.dumps({"draft_id": draft_id}),
+                        tool_call_id="tc-4",
+                    )
+                ]
+            )
 
         validate_data = returns["validate_spec"]
         token = validate_data.get("spec_draft_token")

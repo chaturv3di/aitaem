@@ -146,9 +146,7 @@ def test_definition_payload_empty_defaults():
 
 
 def test_validate_spec_result_with_errors_has_no_token():
-    result = ValidateSpecResult(
-        errors=[ValidationIssue(field="name", message="Name conflict")]
-    )
+    result = ValidateSpecResult(errors=[ValidationIssue(field="name", message="Name conflict")])
     assert result.spec_draft_token is None
     assert len(result.errors) == 1
 

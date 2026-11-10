@@ -41,16 +41,14 @@ MODEL = "anthropic:claude-haiku-4-5-20251001"
 QUESTIONS = [
     "What was the total revenue and ROAS across all campaigns?",
     "Which campaign type had the highest CTR?",
-    (
-        "How did total revenue change between H1 2024 (Jan–Jun) "
-        "and H2 2024 (Jul–Dec)?"
-    ),
+    ("How did total revenue change between H1 2024 (Jan–Jun) and H2 2024 (Jul–Dec)?"),
 ]
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def check_api_key(exit_on_missing: bool = True) -> str:
     """Read ANTHROPIC_API_KEY. exit_on_missing=True (script default) prints to
@@ -75,7 +73,9 @@ def print_response(turn: int, question: str, response: QueryResponse) -> None:
     print(f"Turn {turn}: {question}")
     print(f"{'─' * 70}")
     print(f"Status   : {response.status.value}")
-    print(f"Narrative: {textwrap.fill(response.narrative, width=70, subsequent_indent='           ')}")
+    print(
+        f"Narrative: {textwrap.fill(response.narrative, width=70, subsequent_indent='           ')}"
+    )
 
     if response.status == Status.error and response.reason:
         print(f"Error    : {response.reason}")
@@ -87,8 +87,10 @@ def print_response(turn: int, question: str, response: QueryResponse) -> None:
 
     print(f"Metrics  : {', '.join(p.metrics_used) or '—'}")
     print(f"Slices   : {', '.join(p.slices_used) or '—'}")
-    print(f"Period   : {p.period_type}"
-          + (f"  {p.time_window[0]} → {p.time_window[1]}" if p.time_window else ""))
+    print(
+        f"Period   : {p.period_type}"
+        + (f"  {p.time_window[0]} → {p.time_window[1]}" if p.time_window else "")
+    )
     if p.format_hints:
         hints = ", ".join(f"{k}={v}" for k, v in p.format_hints.items())
         print(f"Formats  : {hints}")
@@ -112,7 +114,9 @@ def fmt_arg(v: Any) -> str:
 
 
 def print_trace(trace: RunTrace) -> None:
-    print(f"\nTrace    : run={trace.run_id[:8]}  conv={trace.conversation_id[:8]}  {trace.duration_ms:.0f}ms")
+    print(
+        f"\nTrace    : run={trace.run_id[:8]}  conv={trace.conversation_id[:8]}  {trace.duration_ms:.0f}ms"
+    )
     for tc in trace.tool_calls:
         non_null = {k: v for k, v in tc.args.items() if v is not None}
         args_str = ", ".join(f"{k}={fmt_arg(v)}" for k, v in non_null.items())
@@ -125,6 +129,7 @@ def print_trace(trace: RunTrace) -> None:
 # ---------------------------------------------------------------------------
 # Setup
 # ---------------------------------------------------------------------------
+
 
 def setup(base_path: str = ".") -> tuple[SpecCache, ConnectionManager]:
     """Load the spec catalog and connect to DuckDB, creating it from the
@@ -141,6 +146,7 @@ def setup(base_path: str = ".") -> tuple[SpecCache, ConnectionManager]:
     db_path = os.path.join(base_path, "examples/data/ad_campaigns.duckdb")
     if not os.path.exists(db_path):
         from aitaem.helpers import load_csvs_to_duckdb
+
         csv_path = os.path.join(base_path, "examples/data/ad_campaigns.csv")
         load_csvs_to_duckdb(csv_path, db_path)
 
@@ -154,6 +160,7 @@ def setup(base_path: str = ".") -> tuple[SpecCache, ConnectionManager]:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 async def main(base_path: str = ".", exit_on_missing_key: bool = True) -> None:
     check_api_key(exit_on_missing=exit_on_missing_key)

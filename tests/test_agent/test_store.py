@@ -163,7 +163,9 @@ def test_invalidate_all_ibis_refs_only_touches_tabular():
 
 def test_store_text_preserves_metadata():
     store = ResultStore()
-    rid = store.store_text("yaml", "application/yaml", metadata={"spec_type": "metric", "spec_name": "revenue"})
+    rid = store.store_text(
+        "yaml", "application/yaml", metadata={"spec_type": "metric", "spec_name": "revenue"}
+    )
     entry = store.get_text(rid)
     assert entry.metadata["spec_type"] == "metric"
     assert entry.metadata["spec_name"] == "revenue"

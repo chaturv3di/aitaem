@@ -5,6 +5,7 @@ Skipped automatically when ANTHROPIC_API_KEY is unset.
 Regular CI  : collected, skipped (no secret).
 Dedicated CI: pytest tests/test_agent/test_definition_bot_smoke.py -v
 """
+
 from __future__ import annotations
 
 import asyncio

@@ -263,6 +263,7 @@ def test_bot_chat_raises_not_implemented():
 
 def test_public_exports_include_query_bot():
     from aitaem.agent import QueryBot, QueryResponse, QueryPayload
+
     assert all(x is not None for x in [QueryBot, QueryResponse, QueryPayload])
 
 

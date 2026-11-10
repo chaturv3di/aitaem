@@ -16,8 +16,13 @@ from pydantic_ai.models.function import FunctionModel, AgentInfo
 from pydantic_ai.models.test import TestModel
 
 from aitaem.agent.query_bot import (
-    QueryBot, QueryResponse, _build_layer_a, _build_layer_b, _LARGE_CATALOG_THRESHOLD,
-    _permission_fingerprint, _provider_cache_config,
+    QueryBot,
+    QueryResponse,
+    _build_layer_a,
+    _build_layer_b,
+    _LARGE_CATALOG_THRESHOLD,
+    _permission_fingerprint,
+    _provider_cache_config,
 )
 from aitaem.agent.query_tools import compute_metrics, record_intent, resolve_intent
 from aitaem.agent.query_types import QueryDeps, QueryOutput
@@ -30,10 +35,13 @@ from aitaem.agent.trace import RunTrace, ToolCall, Usage, Status
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_spec_cache():
     sc = MagicMock()
     sc.metrics = {
-        "revenue": MagicMock(description="Total revenue", entities=["user_id"], format="currency:USD"),
+        "revenue": MagicMock(
+            description="Total revenue", entities=["user_id"], format="currency:USD"
+        ),
         "ctr": MagicMock(description="Click-through rate", entities=None, format="percentage"),
     }
     sc.slices = {"by_country": MagicMock(description="By country")}
@@ -49,19 +57,21 @@ def _make_bot(model=None):
 
 def _revenue_mock_mc():
     mc = MagicMock()
-    table = pa.table({
-        "metric_name": ["revenue"],
-        "metric_value": [1000.0],
-        "period_type": ["all_time"],
-        "period_start_date": [None],
-        "period_end_date": [None],
-        "entity_id": [None],
-        "metric_format": [None],
-        "slice_type": [None],
-        "slice_value": [None],
-        "segment_name": [None],
-        "segment_value": [None],
-    })
+    table = pa.table(
+        {
+            "metric_name": ["revenue"],
+            "metric_value": [1000.0],
+            "period_type": ["all_time"],
+            "period_start_date": [None],
+            "period_end_date": [None],
+            "entity_id": [None],
+            "metric_format": [None],
+            "slice_type": [None],
+            "slice_value": [None],
+            "segment_name": [None],
+            "segment_value": [None],
+        }
+    )
     mock_ibis = MagicMock()
     mock_ibis.to_pyarrow.return_value = table
     mc.compute.return_value = mock_ibis
@@ -77,6 +87,7 @@ def _make_bot_with_model(model):
 # ---------------------------------------------------------------------------
 # FunctionModel helpers — 3-step flow
 # ---------------------------------------------------------------------------
+
 
 def _make_three_step_model(metric: str = "revenue"):
     """FunctionModel: record_intent → resolve_intent → compute_metrics → QueryOutput."""
@@ -101,18 +112,26 @@ def _make_three_step_model(metric: str = "revenue"):
                             returns[name] = p.model_response_object()
 
         if "record_intent" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="record_intent",
-                args=json.dumps({"metric_concept": metric, "scope": "overall"}),
-                tool_call_id="tc-1",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="record_intent",
+                        args=json.dumps({"metric_concept": metric, "scope": "overall"}),
+                        tool_call_id="tc-1",
+                    )
+                ]
+            )
         elif "resolve_intent" not in returns:
             intent_id = returns["record_intent"].get("intent_id", 0)
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="resolve_intent",
-                args=json.dumps({"intent_id": intent_id, "metric_name": metric}),
-                tool_call_id="tc-2",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="resolve_intent",
+                        args=json.dumps({"intent_id": intent_id, "metric_name": metric}),
+                        tool_call_id="tc-2",
+                    )
+                ]
+            )
         elif "compute_metrics" not in returns:
             exact = returns["resolve_intent"].get("exact_match")
             if exact is None:
@@ -124,11 +143,15 @@ def _make_three_step_model(metric: str = "revenue"):
                 )
                 return ModelResponse(parts=[TextPart(content=output.model_dump_json())])
             token = exact["spec_token"]
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="compute_metrics",
-                args=json.dumps({"spec_token": token}),
-                tool_call_id="tc-3",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="compute_metrics",
+                        args=json.dumps({"spec_token": token}),
+                        tool_call_id="tc-3",
+                    )
+                ]
+            )
         else:
             compute_data = returns["compute_metrics"]
             result_id = compute_data.get("result_id", "")
@@ -161,6 +184,7 @@ def _make_refused_model():
 # Autouse fixture: patch MetricCompute for all integration tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def patch_metric_compute():
     with patch("aitaem.agent.common_tools.MetricCompute", return_value=_revenue_mock_mc()):
@@ -170,6 +194,7 @@ def patch_metric_compute():
 # ---------------------------------------------------------------------------
 # SF-6: System prompt layer tests
 # ---------------------------------------------------------------------------
+
 
 def test_system_prompt_layer_a_contains_workflow():
     layer_a = _build_layer_a()
@@ -287,6 +312,7 @@ def test_build_agent_has_record_resolve_compute():
 # Plan 28 / SF-3: constructor tools= composition
 # ---------------------------------------------------------------------------
 
+
 def custom_tool_sync() -> str:
     return "sync-value"
 
@@ -324,9 +350,15 @@ def test_constructor_tools_registered_alongside_defaults():
         tools=[custom_tool_sync],
     )
     expected_defaults = {
-        "record_intent", "resolve_intent", "compute_metrics",
-        "rank_by_value", "filter_by_threshold", "distribution_summary",
-        "column_distribution", "period_over_period", "contribution_share",
+        "record_intent",
+        "resolve_intent",
+        "compute_metrics",
+        "rank_by_value",
+        "filter_by_threshold",
+        "distribution_summary",
+        "column_distribution",
+        "period_over_period",
+        "contribution_share",
     }
     assert "custom_tool_sync" in bot._toolset.tools
     assert expected_defaults.issubset(bot._toolset.tools.keys())
@@ -378,6 +410,7 @@ def test_constructor_tools_two_entries_collide_with_each_other():
 # QueryBot construction tests
 # ---------------------------------------------------------------------------
 
+
 def test_query_bot_has_result_store():
     bot = _make_bot()
     assert bot.store is not None
@@ -394,13 +427,16 @@ def test_query_response_is_bot_response_subtype():
 
 def test_query_bot_tenant_id_stored():
     sc = _make_spec_cache()
-    bot = QueryBot(model=TestModel(), spec_cache=sc, connection_manager=MagicMock(), tenant_id="org-1")
+    bot = QueryBot(
+        model=TestModel(), spec_cache=sc, connection_manager=MagicMock(), tenant_id="org-1"
+    )
     assert bot._tenant_id == "org-1"
 
 
 # ---------------------------------------------------------------------------
 # _assemble_payload unit tests
 # ---------------------------------------------------------------------------
+
 
 def _minimal_trace(tool_calls=None):
     return RunTrace(
@@ -437,14 +473,20 @@ def test_assemble_payload_refused_empty_result_ids():
 
 def test_assemble_payload_extracts_from_payload_summary():
     output = QueryOutput(status=Status.ok, narrative="Done.", result_ids=["r1"])
-    trace = _minimal_trace(tool_calls=[
-        _tc_with_payload("tc1", "compute_metrics", payload_summary={
-            "metrics_used": ["revenue"],
-            "slices_used": ["by_country"],
-            "period_type": "monthly",
-            "time_window": ["2024-01-01", "2024-03-31"],
-        }),
-    ])
+    trace = _minimal_trace(
+        tool_calls=[
+            _tc_with_payload(
+                "tc1",
+                "compute_metrics",
+                payload_summary={
+                    "metrics_used": ["revenue"],
+                    "slices_used": ["by_country"],
+                    "period_type": "monthly",
+                    "time_window": ["2024-01-01", "2024-03-31"],
+                },
+            ),
+        ]
+    )
     payload = QueryBot._assemble_payload(output, trace)
     assert payload.metrics_used == ["revenue"]
     assert payload.slices_used == ["by_country"]
@@ -455,13 +497,19 @@ def test_assemble_payload_extracts_from_payload_summary():
 def test_assemble_payload_sample_from_primary_result():
     rows = [{"metric_name": "revenue", "metric_value": 100.0}]
     output = QueryOutput(status=Status.ok, narrative="Done.", result_ids=["r1"])
-    trace = _minimal_trace(tool_calls=[
-        _tc_with_payload("tc1", "compute_metrics", payload_summary={
-            "result_id": "r1",
-            "metrics_used": ["revenue"],
-            "sample": rows,
-        }),
-    ])
+    trace = _minimal_trace(
+        tool_calls=[
+            _tc_with_payload(
+                "tc1",
+                "compute_metrics",
+                payload_summary={
+                    "result_id": "r1",
+                    "metrics_used": ["revenue"],
+                    "sample": rows,
+                },
+            ),
+        ]
+    )
     payload = QueryBot._assemble_payload(output, trace)
     assert payload.sample == rows
 
@@ -470,18 +518,28 @@ def test_assemble_payload_sample_only_from_primary_not_secondary():
     rows_primary = [{"metric_name": "revenue", "metric_value": 100.0}]
     rows_other = [{"metric_name": "ctr", "metric_value": 0.05}]
     output = QueryOutput(status=Status.ok, narrative="Done.", result_ids=["r1", "r2"])
-    trace = _minimal_trace(tool_calls=[
-        _tc_with_payload("tc1", "compute_metrics", payload_summary={
-            "result_id": "r1",
-            "metrics_used": ["revenue"],
-            "sample": rows_primary,
-        }),
-        _tc_with_payload("tc2", "compute_metrics", payload_summary={
-            "result_id": "r2",
-            "metrics_used": ["ctr"],
-            "sample": rows_other,
-        }),
-    ])
+    trace = _minimal_trace(
+        tool_calls=[
+            _tc_with_payload(
+                "tc1",
+                "compute_metrics",
+                payload_summary={
+                    "result_id": "r1",
+                    "metrics_used": ["revenue"],
+                    "sample": rows_primary,
+                },
+            ),
+            _tc_with_payload(
+                "tc2",
+                "compute_metrics",
+                payload_summary={
+                    "result_id": "r2",
+                    "metrics_used": ["ctr"],
+                    "sample": rows_other,
+                },
+            ),
+        ]
+    )
     payload = QueryBot._assemble_payload(output, trace)
     assert payload.sample == rows_primary
 
@@ -495,16 +553,26 @@ def test_assemble_payload_sample_none_when_no_results():
 
 def test_assemble_payload_list_fields_union_dedup():
     output = QueryOutput(status=Status.ok, narrative="Done.", result_ids=["r1"])
-    trace = _minimal_trace(tool_calls=[
-        _tc_with_payload("tc1", "compute_metrics", payload_summary={
-            "metrics_used": ["revenue", "ctr"],
-            "period_type": "monthly",
-        }),
-        _tc_with_payload("tc2", "compute_metrics", payload_summary={
-            "metrics_used": ["revenue"],
-            "period_type": "weekly",
-        }),
-    ])
+    trace = _minimal_trace(
+        tool_calls=[
+            _tc_with_payload(
+                "tc1",
+                "compute_metrics",
+                payload_summary={
+                    "metrics_used": ["revenue", "ctr"],
+                    "period_type": "monthly",
+                },
+            ),
+            _tc_with_payload(
+                "tc2",
+                "compute_metrics",
+                payload_summary={
+                    "metrics_used": ["revenue"],
+                    "period_type": "weekly",
+                },
+            ),
+        ]
+    )
     payload = QueryBot._assemble_payload(output, trace)
     assert payload.metrics_used == ["revenue", "ctr"]
     assert payload.metrics_used.count("revenue") == 1
@@ -513,17 +581,27 @@ def test_assemble_payload_list_fields_union_dedup():
 
 def test_assemble_payload_scalar_first_write_wins():
     output = QueryOutput(status=Status.ok, narrative="Done.", result_ids=["r1"])
-    trace = _minimal_trace(tool_calls=[
-        _tc_with_payload("tc1", "compute_metrics", payload_summary={
-            "metrics_used": ["revenue"],
-            "period_type": "monthly",
-            "time_window": ["2024-01-01", "2024-03-31"],
-        }),
-        _tc_with_payload("tc2", "compute_metrics", payload_summary={
-            "metrics_used": ["refund_rate"],
-            "period_type": "weekly",
-        }),
-    ])
+    trace = _minimal_trace(
+        tool_calls=[
+            _tc_with_payload(
+                "tc1",
+                "compute_metrics",
+                payload_summary={
+                    "metrics_used": ["revenue"],
+                    "period_type": "monthly",
+                    "time_window": ["2024-01-01", "2024-03-31"],
+                },
+            ),
+            _tc_with_payload(
+                "tc2",
+                "compute_metrics",
+                payload_summary={
+                    "metrics_used": ["refund_rate"],
+                    "period_type": "weekly",
+                },
+            ),
+        ]
+    )
     payload = QueryBot._assemble_payload(output, trace)
     assert payload.period_type == "monthly"
     assert set(payload.metrics_used) == {"revenue", "refund_rate"}
@@ -531,47 +609,71 @@ def test_assemble_payload_scalar_first_write_wins():
 
 def test_assemble_payload_propagates_format_hints():
     output = QueryOutput(status=Status.ok, narrative="Done.", result_ids=["r1"])
-    trace = _minimal_trace(tool_calls=[
-        _tc_with_payload("tc1", "compute_metrics", payload_summary={
-            "metrics_used": ["revenue", "ctr"],
-            "format_hints": {"revenue": "currency:USD", "ctr": "percentage"},
-        }),
-    ])
+    trace = _minimal_trace(
+        tool_calls=[
+            _tc_with_payload(
+                "tc1",
+                "compute_metrics",
+                payload_summary={
+                    "metrics_used": ["revenue", "ctr"],
+                    "format_hints": {"revenue": "currency:USD", "ctr": "percentage"},
+                },
+            ),
+        ]
+    )
     payload = QueryBot._assemble_payload(output, trace)
     assert payload.format_hints == {"revenue": "currency:USD", "ctr": "percentage"}
 
 
 def test_assemble_payload_format_hints_first_write_wins():
     output = QueryOutput(status=Status.ok, narrative="Done.", result_ids=["r1"])
-    trace = _minimal_trace(tool_calls=[
-        _tc_with_payload("tc1", "compute_metrics", payload_summary={
-            "metrics_used": ["revenue"],
-            "format_hints": {"revenue": "currency:USD"},
-        }),
-        _tc_with_payload("tc2", "compute_metrics", payload_summary={
-            "metrics_used": ["revenue"],
-            "format_hints": {"revenue": "currency:EUR"},
-        }),
-    ])
+    trace = _minimal_trace(
+        tool_calls=[
+            _tc_with_payload(
+                "tc1",
+                "compute_metrics",
+                payload_summary={
+                    "metrics_used": ["revenue"],
+                    "format_hints": {"revenue": "currency:USD"},
+                },
+            ),
+            _tc_with_payload(
+                "tc2",
+                "compute_metrics",
+                payload_summary={
+                    "metrics_used": ["revenue"],
+                    "format_hints": {"revenue": "currency:EUR"},
+                },
+            ),
+        ]
+    )
     payload = QueryBot._assemble_payload(output, trace)
     assert payload.format_hints["revenue"] == "currency:USD"
 
 
 def test_assemble_payload_ignores_tools_without_payload_summary():
     output = QueryOutput(status=Status.ok, narrative="Done.", result_ids=["r2"])
-    trace = _minimal_trace(tool_calls=[
-        _tc_with_payload("tc1", "rank_by_value", payload_summary=None),
-    ])
+    trace = _minimal_trace(
+        tool_calls=[
+            _tc_with_payload("tc1", "rank_by_value", payload_summary=None),
+        ]
+    )
     payload = QueryBot._assemble_payload(output, trace)
     assert payload.metrics_used == []
 
 
 def test_assemble_payload_ignores_non_json_llm_summary():
     output = QueryOutput(status=Status.ok, narrative="Done.", result_ids=[])
-    trace = _minimal_trace(tool_calls=[
-        ToolCall(tool_call_id="tc1", name="compute_metrics",
-                 args={}, llm_summary="Computed 1 metric."),
-    ])
+    trace = _minimal_trace(
+        tool_calls=[
+            ToolCall(
+                tool_call_id="tc1",
+                name="compute_metrics",
+                args={},
+                llm_summary="Computed 1 metric.",
+            ),
+        ]
+    )
     payload = QueryBot._assemble_payload(output, trace)
     assert payload.metrics_used == []
 
@@ -579,6 +681,7 @@ def test_assemble_payload_ignores_non_json_llm_summary():
 # ---------------------------------------------------------------------------
 # SF-7: chat() and ask() integration tests (3-step flow)
 # ---------------------------------------------------------------------------
+
 
 def test_chat_returns_query_response():
     bot = _make_bot_with_model(_make_three_step_model())
@@ -651,9 +754,7 @@ def test_trace_usage_populated():
 def test_trace_compute_metrics_result_id_and_duration_populated():
     bot = _make_bot_with_model(_make_three_step_model())
     response = asyncio.run(bot.chat("What was revenue?"))
-    compute_call = next(
-        tc for tc in response.trace.tool_calls if tc.name == "compute_metrics"
-    )
+    compute_call = next(tc for tc in response.trace.tool_calls if tc.name == "compute_metrics")
     assert compute_call.result_id == response.payload.primary_result_id
     assert compute_call.duration_ms is not None
     assert compute_call.duration_ms >= 0
@@ -743,6 +844,7 @@ def test_chat_extra_tools_collision_surfaces_as_error_status():
 # _error_response and conversation_id correlation
 # ---------------------------------------------------------------------------
 
+
 def test_error_response_on_first_turn_uses_fresh_uuid():
     exc = RuntimeError("network timeout")
     run_start = datetime.now(timezone.utc)
@@ -771,6 +873,7 @@ def test_error_response_trace_has_error_field():
 # ---------------------------------------------------------------------------
 # History round-trip tests
 # ---------------------------------------------------------------------------
+
 
 def test_dump_history_captures_result_store():
     bot = _make_bot_with_model(_make_three_step_model())
@@ -856,7 +959,10 @@ def test_compute_metrics_restores_token_on_failure_for_retry():
     ctx = _make_ctx(deps)
     token = _mint_token(ctx)
 
-    with patch("aitaem.agent.common_tools.MetricCompute", return_value=_mock_mc_raising(RuntimeError("boom"))):
+    with patch(
+        "aitaem.agent.common_tools.MetricCompute",
+        return_value=_mock_mc_raising(RuntimeError("boom")),
+    ):
         first = compute_metrics(ctx, spec_token=token)
     assert first.result_id == ""
     assert first.error is not None
@@ -925,7 +1031,9 @@ def test_compute_metrics_concurrent_race_never_double_executes():
                 about_to_restore.set()
                 raise RuntimeError("simulated transient failure")
             mock_ibis = MagicMock()
-            mock_ibis.to_pyarrow.return_value = _revenue_mock_mc().compute.return_value.to_pyarrow.return_value
+            mock_ibis.to_pyarrow.return_value = (
+                _revenue_mock_mc().compute.return_value.to_pyarrow.return_value
+            )
             return mock_ibis
         finally:
             with depth_lock:
@@ -1049,9 +1157,7 @@ def test_query_bot_rebuild_preserves_runtime_added_tool():
     bot.add_tool(custom_tool)
     assert "custom_tool" in bot._toolset.tools
 
-    cache.add(
-        MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
-    )
+    cache.add(MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"))
     asyncio.run(bot.chat("hello"))  # triggers a rebuild
 
     assert "custom_tool" in bot._toolset.tools

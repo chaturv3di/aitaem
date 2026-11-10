@@ -36,6 +36,7 @@ from aitaem.agent.trace import Status
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_ctx(deps):
     ctx = MagicMock()
     ctx.deps = deps
@@ -43,19 +44,21 @@ def _make_ctx(deps):
 
 
 def _sample_table():
-    return pa.table({
-        "metric_name": ["revenue"],
-        "metric_value": [1000.0],
-        "period_type": ["all_time"],
-        "period_start_date": [None],
-        "period_end_date": [None],
-        "entity_id": [None],
-        "metric_format": [None],
-        "slice_type": [None],
-        "slice_value": [None],
-        "segment_name": [None],
-        "segment_value": [None],
-    })
+    return pa.table(
+        {
+            "metric_name": ["revenue"],
+            "metric_value": [1000.0],
+            "period_type": ["all_time"],
+            "period_start_date": [None],
+            "period_end_date": [None],
+            "entity_id": [None],
+            "metric_format": [None],
+            "slice_type": [None],
+            "slice_value": [None],
+            "segment_name": [None],
+            "segment_value": [None],
+        }
+    )
 
 
 def _make_spec_cache():
@@ -99,19 +102,21 @@ def _make_deps_with_table(table: pa.Table):
 
 
 def _multi_row_table():
-    return pa.table({
-        "metric_name": ["revenue"] * 5,
-        "metric_value": [100.0, 300.0, 50.0, 200.0, 150.0],
-        "period_type": ["all_time"] * 5,
-        "period_start_date": [None] * 5,
-        "period_end_date": [None] * 5,
-        "entity_id": ["A", "B", "C", "D", "E"],
-        "metric_format": [None] * 5,
-        "slice_type": [None] * 5,
-        "slice_value": [None] * 5,
-        "segment_name": [None] * 5,
-        "segment_value": [None] * 5,
-    })
+    return pa.table(
+        {
+            "metric_name": ["revenue"] * 5,
+            "metric_value": [100.0, 300.0, 50.0, 200.0, 150.0],
+            "period_type": ["all_time"] * 5,
+            "period_start_date": [None] * 5,
+            "period_end_date": [None] * 5,
+            "entity_id": ["A", "B", "C", "D", "E"],
+            "metric_format": [None] * 5,
+            "slice_type": [None] * 5,
+            "slice_value": [None] * 5,
+            "segment_name": [None] * 5,
+            "segment_value": [None] * 5,
+        }
+    )
 
 
 def _setup_resolved_token(deps, ctx):
@@ -125,6 +130,7 @@ def _setup_resolved_token(deps, ctx):
 # Type contract tests
 # ---------------------------------------------------------------------------
 
+
 def test_tool_result_base_payload_summary_defaults_none():
     assert ToolResult().payload_summary is None
 
@@ -134,12 +140,18 @@ def test_compute_metrics_result_is_tool_result():
 
 
 def test_all_result_models_are_tool_results():
-    for cls in [RankByValueResult, FilterByThresholdResult, PeriodOverPeriodResult, ContributionShareResult]:
+    for cls in [
+        RankByValueResult,
+        FilterByThresholdResult,
+        PeriodOverPeriodResult,
+        ContributionShareResult,
+    ]:
         assert issubclass(cls, ToolResult), f"{cls.__name__} must inherit ToolResult"
 
 
 def test_query_output_frozen():
     from pydantic import ValidationError
+
     out = QueryOutput(status=Status.ok, narrative="Done.", result_ids=["r1"])
     with pytest.raises(ValidationError):
         out.status = Status.error
@@ -154,6 +166,7 @@ def test_query_output_refused_has_reason():
 # ---------------------------------------------------------------------------
 # SF-3: record_intent tests
 # ---------------------------------------------------------------------------
+
 
 def test_record_intent_appends_to_deps():
     deps = _make_deps()
@@ -177,8 +190,11 @@ def test_record_intent_stores_time_window():
     deps = _make_deps()
     ctx = _make_ctx(deps)
     record_intent(
-        ctx, metric_concept="revenue", scope="overall",
-        period_type="monthly", time_window=("2024-01-01", "2024-03-31"),
+        ctx,
+        metric_concept="revenue",
+        scope="overall",
+        period_type="monthly",
+        time_window=("2024-01-01", "2024-03-31"),
     )
     assert deps.intents[0].time_window == ("2024-01-01", "2024-03-31")
     assert deps.intents[0].period_type == "monthly"
@@ -195,6 +211,7 @@ def test_record_intent_scope_subset():
 # ---------------------------------------------------------------------------
 # SF-4: resolve_intent tests
 # ---------------------------------------------------------------------------
+
 
 def test_resolve_intent_exact_match_mints_token():
     deps = _make_deps()
@@ -277,11 +294,15 @@ def test_resolve_intent_uses_exact_match_not_raw_arguments():
     record_intent(ctx, metric_concept="revenue", scope="overall")
 
     diverging_match = ExactMatch(
-        spec_token="", metric_name="canonical_revenue", slices=["by_country"], segment=None,
+        spec_token="",
+        metric_name="canonical_revenue",
+        slices=["by_country"],
+        segment=None,
     )
     with patch("aitaem.agent.query_tools.SpecResolver") as mock_resolver_cls:
         mock_resolver_cls.return_value.resolve.return_value = SpecMatchResult(
-            exact_match=diverging_match, near_misses=[],
+            exact_match=diverging_match,
+            near_misses=[],
         )
         result = resolve_intent(ctx, intent_id=0, metric_name="revenue")
 
@@ -305,17 +326,22 @@ def test_resolve_intent_column_distribution_mismatch_check_uses_exact_match():
     deps = _make_deps()
     ctx = _make_ctx(deps)
     rid = deps.store.store_tabular(
-        None, None,
+        None,
+        None,
         metadata={"metric_name": "revenue", "min_val": "2024-01-01", "max_val": "2024-12-31"},
     )
     record_intent(ctx, metric_concept="revenue", scope="overall", column_distribution_result_id=rid)
 
     diverging_match = ExactMatch(
-        spec_token="", metric_name="canonical_revenue", slices=[], segment=None,
+        spec_token="",
+        metric_name="canonical_revenue",
+        slices=[],
+        segment=None,
     )
     with patch("aitaem.agent.query_tools.SpecResolver") as mock_resolver_cls:
         mock_resolver_cls.return_value.resolve.return_value = SpecMatchResult(
-            exact_match=diverging_match, near_misses=[],
+            exact_match=diverging_match,
+            near_misses=[],
         )
         # Argument says "revenue" (matches the stored column_distribution's
         # metric_name), but exact_match diverges to "canonical_revenue" — the
@@ -323,14 +349,13 @@ def test_resolve_intent_column_distribution_mismatch_check_uses_exact_match():
         result = resolve_intent(ctx, intent_id=0, metric_name="revenue")
 
     assert result.exact_match is None
-    assert any(
-        nm.why_not == "column_distribution_metric_mismatch" for nm in result.near_misses
-    )
+    assert any(nm.why_not == "column_distribution_metric_mismatch" for nm in result.near_misses)
 
 
 # ---------------------------------------------------------------------------
 # SF-5: compute_metrics (token-based) tests
 # ---------------------------------------------------------------------------
+
 
 def test_compute_metrics_success_via_token():
     deps = _make_deps()
@@ -368,6 +393,7 @@ def test_compute_metrics_token_consumed_on_use():
 
 def test_compute_metrics_spec_not_found():
     from aitaem.utils.exceptions import SpecNotFoundError
+
     deps = _make_deps()
     ctx = _make_ctx(deps)
     token = _setup_resolved_token(deps, ctx)
@@ -422,6 +448,7 @@ def test_compute_metrics_format_hints():
 # Analysis tool tests (unchanged from Phase 2)
 # ---------------------------------------------------------------------------
 
+
 def test_rank_by_value_top2_descending():
     deps, rid = _make_deps_with_table(_multi_row_table())
     ctx = _make_ctx(deps)
@@ -461,21 +488,23 @@ def test_filter_by_threshold_invalid_op():
 
 
 def test_filter_by_threshold_custom_column():
-    pop_table = pa.table({
-        "metric_name": ["revenue", "revenue"],
-        "metric_value": [100.0, 120.0],
-        "period_type": ["monthly", "monthly"],
-        "period_start_date": [datetime.date(2024, 1, 1), datetime.date(2024, 2, 1)],
-        "period_end_date": [datetime.date(2024, 1, 31), datetime.date(2024, 2, 29)],
-        "entity_id": [None, None],
-        "metric_format": [None, None],
-        "slice_type": [None, None],
-        "slice_value": [None, None],
-        "segment_name": [None, None],
-        "segment_value": [None, None],
-        "delta": [None, 20.0],
-        "pct_change": [None, 20.0],
-    })
+    pop_table = pa.table(
+        {
+            "metric_name": ["revenue", "revenue"],
+            "metric_value": [100.0, 120.0],
+            "period_type": ["monthly", "monthly"],
+            "period_start_date": [datetime.date(2024, 1, 1), datetime.date(2024, 2, 1)],
+            "period_end_date": [datetime.date(2024, 1, 31), datetime.date(2024, 2, 29)],
+            "entity_id": [None, None],
+            "metric_format": [None, None],
+            "slice_type": [None, None],
+            "slice_value": [None, None],
+            "segment_name": [None, None],
+            "segment_value": [None, None],
+            "delta": [None, 20.0],
+            "pct_change": [None, 20.0],
+        }
+    )
     deps, rid = _make_deps_with_table(pop_table)
     ctx = _make_ctx(deps)
     result = filter_by_threshold(ctx, result_id=rid, threshold=10.0, op=">", column="pct_change")
@@ -497,12 +526,16 @@ def test_filter_by_threshold_missing_column_returns_error():
 # SF-6: record_intent / resolve_intent — column_distribution_result_id
 # ---------------------------------------------------------------------------
 
+
 def test_record_intent_both_time_window_and_column_distribution_result_id_errors():
     deps = _make_deps()
     ctx = _make_ctx(deps)
     result = record_intent(
-        ctx, metric_concept="revenue", scope="overall",
-        time_window=("2024-01-01", "2024-02-01"), column_distribution_result_id="r1",
+        ctx,
+        metric_concept="revenue",
+        scope="overall",
+        time_window=("2024-01-01", "2024-02-01"),
+        column_distribution_result_id="r1",
     )
     assert result.intent_id is None
     assert result.error is not None
@@ -513,10 +546,17 @@ def test_record_intent_derives_time_window_from_column_distribution_result():
     deps = _make_deps()
     ctx = _make_ctx(deps)
     rid = deps.store.store_tabular(
-        None, None,
-        metadata={"metric_name": "revenue", "min_val": "2024-01-01T00:00:00", "max_val": "2024-12-31T00:00:00"},
+        None,
+        None,
+        metadata={
+            "metric_name": "revenue",
+            "min_val": "2024-01-01T00:00:00",
+            "max_val": "2024-12-31T00:00:00",
+        },
     )
-    result = record_intent(ctx, metric_concept="revenue", scope="overall", column_distribution_result_id=rid)
+    result = record_intent(
+        ctx, metric_concept="revenue", scope="overall", column_distribution_result_id=rid
+    )
     assert result.error is None
     intent = deps.intents[result.intent_id]
     assert intent.time_window == ("2024-01-01T00:00:00", "2024-12-31T00:00:00")
@@ -526,7 +566,9 @@ def test_record_intent_derives_time_window_from_column_distribution_result():
 def test_record_intent_unknown_column_distribution_result_id_errors():
     deps = _make_deps()
     ctx = _make_ctx(deps)
-    result = record_intent(ctx, metric_concept="revenue", scope="overall", column_distribution_result_id="bogus")
+    result = record_intent(
+        ctx, metric_concept="revenue", scope="overall", column_distribution_result_id="bogus"
+    )
     assert result.intent_id is None
     assert result.error is not None
     assert deps.intents == []
@@ -536,7 +578,9 @@ def test_record_intent_column_distribution_result_id_missing_metadata_errors():
     deps = _make_deps()
     ctx = _make_ctx(deps)
     rid = deps.store.store_tabular(None, None, metadata={"metric_name": "revenue"})
-    result = record_intent(ctx, metric_concept="revenue", scope="overall", column_distribution_result_id=rid)
+    result = record_intent(
+        ctx, metric_concept="revenue", scope="overall", column_distribution_result_id=rid
+    )
     assert result.intent_id is None
     assert result.error is not None
 
@@ -545,7 +589,8 @@ def test_resolve_intent_column_distribution_metric_match_resolves():
     deps = _make_deps()
     ctx = _make_ctx(deps)
     rid = deps.store.store_tabular(
-        None, None,
+        None,
+        None,
         metadata={"metric_name": "revenue", "min_val": "2024-01-01", "max_val": "2024-12-31"},
     )
     record_intent(ctx, metric_concept="revenue", scope="overall", column_distribution_result_id=rid)
@@ -565,39 +610,44 @@ def test_resolve_intent_column_distribution_metric_mismatch_blocks():
     sc.metrics["sales_volume"] = other
     ctx = _make_ctx(deps)
     rid = deps.store.store_tabular(
-        None, None,
+        None,
+        None,
         metadata={"metric_name": "daily_sales", "min_val": "2024-01-01", "max_val": "2024-12-31"},
     )
     record_intent(ctx, metric_concept="sales", scope="overall", column_distribution_result_id=rid)
     result = resolve_intent(ctx, intent_id=0, metric_name="sales_volume")
     assert result.exact_match is None
     assert any(nm.why_not == "column_distribution_metric_mismatch" for nm in result.near_misses)
-    mismatch = next(nm for nm in result.near_misses if nm.why_not == "column_distribution_metric_mismatch")
+    mismatch = next(
+        nm for nm in result.near_misses if nm.why_not == "column_distribution_metric_mismatch"
+    )
     assert mismatch.suggestions == ["daily_sales"]
 
 
 def _time_series_table():
-    return pa.table({
-        "metric_name": ["revenue"] * 3,
-        "metric_value": [100.0, 120.0, 150.0],
-        "period_type": ["monthly"] * 3,
-        "period_start_date": [
-            datetime.date(2024, 1, 1),
-            datetime.date(2024, 2, 1),
-            datetime.date(2024, 3, 1),
-        ],
-        "period_end_date": [
-            datetime.date(2024, 1, 31),
-            datetime.date(2024, 2, 29),
-            datetime.date(2024, 3, 31),
-        ],
-        "entity_id": [None] * 3,
-        "metric_format": [None] * 3,
-        "slice_type": [None] * 3,
-        "slice_value": [None] * 3,
-        "segment_name": [None] * 3,
-        "segment_value": [None] * 3,
-    })
+    return pa.table(
+        {
+            "metric_name": ["revenue"] * 3,
+            "metric_value": [100.0, 120.0, 150.0],
+            "period_type": ["monthly"] * 3,
+            "period_start_date": [
+                datetime.date(2024, 1, 1),
+                datetime.date(2024, 2, 1),
+                datetime.date(2024, 3, 1),
+            ],
+            "period_end_date": [
+                datetime.date(2024, 1, 31),
+                datetime.date(2024, 2, 29),
+                datetime.date(2024, 3, 31),
+            ],
+            "entity_id": [None] * 3,
+            "metric_format": [None] * 3,
+            "slice_type": [None] * 3,
+            "slice_value": [None] * 3,
+            "segment_name": [None] * 3,
+            "segment_value": [None] * 3,
+        }
+    )
 
 
 def test_period_over_period_computes_delta():
@@ -624,19 +674,21 @@ def test_contribution_share_sums_to_one():
 
 
 def test_period_over_period_single_period_returns_error():
-    single_row = pa.table({
-        "metric_name": ["revenue"],
-        "metric_value": [1000.0],
-        "period_type": ["all_time"],
-        "period_start_date": [None],
-        "period_end_date": [None],
-        "entity_id": [None],
-        "metric_format": [None],
-        "slice_type": [None],
-        "slice_value": [None],
-        "segment_name": [None],
-        "segment_value": [None],
-    })
+    single_row = pa.table(
+        {
+            "metric_name": ["revenue"],
+            "metric_value": [1000.0],
+            "period_type": ["all_time"],
+            "period_start_date": [None],
+            "period_end_date": [None],
+            "entity_id": [None],
+            "metric_format": [None],
+            "slice_type": [None],
+            "slice_value": [None],
+            "segment_name": [None],
+            "segment_value": [None],
+        }
+    )
     deps, rid = _make_deps_with_table(single_row)
     ctx = _make_ctx(deps)
     result = period_over_period(ctx, result_id=rid)
@@ -646,19 +698,21 @@ def test_period_over_period_single_period_returns_error():
 
 
 def test_contribution_share_all_zero_returns_error():
-    zero_table = pa.table({
-        "metric_name": ["revenue"] * 3,
-        "metric_value": [0.0, 0.0, 0.0],
-        "period_type": ["all_time"] * 3,
-        "period_start_date": [None] * 3,
-        "period_end_date": [None] * 3,
-        "entity_id": ["A", "B", "C"],
-        "metric_format": [None] * 3,
-        "slice_type": [None] * 3,
-        "slice_value": [None] * 3,
-        "segment_name": [None] * 3,
-        "segment_value": [None] * 3,
-    })
+    zero_table = pa.table(
+        {
+            "metric_name": ["revenue"] * 3,
+            "metric_value": [0.0, 0.0, 0.0],
+            "period_type": ["all_time"] * 3,
+            "period_start_date": [None] * 3,
+            "period_end_date": [None] * 3,
+            "entity_id": ["A", "B", "C"],
+            "metric_format": [None] * 3,
+            "slice_type": [None] * 3,
+            "slice_value": [None] * 3,
+            "segment_name": [None] * 3,
+            "segment_value": [None] * 3,
+        }
+    )
     deps, rid = _make_deps_with_table(zero_table)
     ctx = _make_ctx(deps)
     result = contribution_share(ctx, result_id=rid)

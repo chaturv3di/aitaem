@@ -85,7 +85,9 @@ def _tool_spans(spans: list[ReadableSpan]) -> list[ReadableSpan]:
 def _query_bot_spec_cache():
     sc = MagicMock()
     sc.metrics = {
-        "revenue": MagicMock(description="Total revenue", entities=["user_id"], format="currency:USD"),
+        "revenue": MagicMock(
+            description="Total revenue", entities=["user_id"], format="currency:USD"
+        ),
     }
     sc.slices = {}
     sc.segments = {}
@@ -94,19 +96,21 @@ def _query_bot_spec_cache():
 
 def _revenue_mock_mc():
     mc = MagicMock()
-    table = pa.table({
-        "metric_name": ["revenue"],
-        "metric_value": [1000.0],
-        "period_type": ["all_time"],
-        "period_start_date": [None],
-        "period_end_date": [None],
-        "entity_id": [None],
-        "metric_format": [None],
-        "slice_type": [None],
-        "slice_value": [None],
-        "segment_name": [None],
-        "segment_value": [None],
-    })
+    table = pa.table(
+        {
+            "metric_name": ["revenue"],
+            "metric_value": [1000.0],
+            "period_type": ["all_time"],
+            "period_start_date": [None],
+            "period_end_date": [None],
+            "entity_id": [None],
+            "metric_format": [None],
+            "slice_type": [None],
+            "slice_value": [None],
+            "segment_name": [None],
+            "segment_value": [None],
+        }
+    )
     mock_ibis = MagicMock()
     mock_ibis.to_pyarrow.return_value = table
     mc.compute.return_value = mock_ibis
@@ -134,26 +138,38 @@ def _three_step_model(metric: str = "revenue") -> FunctionModel:
                             returns[name] = p.model_response_object()
 
         if "record_intent" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="record_intent",
-                args=json.dumps({"metric_concept": metric, "scope": "overall"}),
-                tool_call_id="tc-1",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="record_intent",
+                        args=json.dumps({"metric_concept": metric, "scope": "overall"}),
+                        tool_call_id="tc-1",
+                    )
+                ]
+            )
         elif "resolve_intent" not in returns:
             intent_id = returns["record_intent"].get("intent_id", 0)
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="resolve_intent",
-                args=json.dumps({"intent_id": intent_id, "metric_name": metric}),
-                tool_call_id="tc-2",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="resolve_intent",
+                        args=json.dumps({"intent_id": intent_id, "metric_name": metric}),
+                        tool_call_id="tc-2",
+                    )
+                ]
+            )
         elif "compute_metrics" not in returns:
             exact = returns["resolve_intent"].get("exact_match")
             token = exact["spec_token"]
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="compute_metrics",
-                args=json.dumps({"spec_token": token}),
-                tool_call_id="tc-3",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="compute_metrics",
+                        args=json.dumps({"spec_token": token}),
+                        tool_call_id="tc-3",
+                    )
+                ]
+            )
         else:
             compute_data = returns["compute_metrics"]
             result_id = compute_data.get("result_id", "")
@@ -247,36 +263,56 @@ def _full_flow_model() -> FunctionModel:
                             returns[name] = p.model_response_object()
 
         if "record_definition_intent" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="record_definition_intent",
-                args=json.dumps({"spec_type": "metric", "description": "Test spec"}),
-                tool_call_id="tc-1",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="record_definition_intent",
+                        args=json.dumps({"spec_type": "metric", "description": "Test spec"}),
+                        tool_call_id="tc-1",
+                    )
+                ]
+            )
         if "list_tables" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="list_tables",
-                args=json.dumps({}),
-                tool_call_id="tc-2",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="list_tables",
+                        args=json.dumps({}),
+                        tool_call_id="tc-2",
+                    )
+                ]
+            )
         if "describe_table" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="describe_table",
-                args=json.dumps({"source": "duckdb://analytics.db/transactions"}),
-                tool_call_id="tc-3",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="describe_table",
+                        args=json.dumps({"source": "duckdb://analytics.db/transactions"}),
+                        tool_call_id="tc-3",
+                    )
+                ]
+            )
         if "draft_spec" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="draft_spec",
-                args=json.dumps({"spec_type": "metric", "yaml_string": _VALID_METRIC_YAML}),
-                tool_call_id="tc-4",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="draft_spec",
+                        args=json.dumps({"spec_type": "metric", "yaml_string": _VALID_METRIC_YAML}),
+                        tool_call_id="tc-4",
+                    )
+                ]
+            )
         if "validate_spec" not in returns:
             draft_id = returns["draft_spec"].get("draft_id", "")
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="validate_spec",
-                args=json.dumps({"draft_id": draft_id}),
-                tool_call_id="tc-5",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="validate_spec",
+                        args=json.dumps({"draft_id": draft_id}),
+                        tool_call_id="tc-5",
+                    )
+                ]
+            )
 
         validate_data = returns["validate_spec"]
         token = validate_data.get("spec_draft_token")

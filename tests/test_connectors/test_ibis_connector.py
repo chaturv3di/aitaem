@@ -236,9 +236,7 @@ class TestGetTable:
 
         table = connector.get_table("table", database="other-project.other_dataset")
         assert table is not None
-        mock_backend.table.assert_called_once_with(
-            "table", database="other-project.other_dataset"
-        )
+        mock_backend.table.assert_called_once_with("table", database="other-project.other_dataset")
 
         connector.close()
 

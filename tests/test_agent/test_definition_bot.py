@@ -90,7 +90,13 @@ def _make_bot(model=None, spec_cache=None, connection_manager=None):
 
 def test_layer_a_contains_tool_names():
     layer_a = _build_layer_a_definition()
-    for tool in ["record_definition_intent", "list_tables", "describe_table", "draft_spec", "validate_spec"]:
+    for tool in [
+        "record_definition_intent",
+        "list_tables",
+        "describe_table",
+        "draft_spec",
+        "validate_spec",
+    ]:
         assert tool in layer_a, f"Tool {tool!r} missing from Layer A"
 
 
@@ -154,7 +160,7 @@ def test_layer_a_contains_grounding_section():
 
 def test_layer_a_grounding_section_documents_refusal_guidance():
     layer_a = _build_layer_a_definition()
-    assert "status=\"refused\"" in layer_a or "status='refused'" in layer_a
+    assert 'status="refused"' in layer_a or "status='refused'" in layer_a
     assert "define a metric" in layer_a.lower()
 
 
@@ -166,7 +172,9 @@ def test_layer_a_grounding_section_documents_refusal_guidance():
 def test_layer_b_always_lists_all_names_small_catalog():
     sc = _make_spec_cache(
         metrics={"revenue": MagicMock(description="Revenue", source="duckdb://db/t")},
-        slices={"by_country": MagicMock(description="Country", is_composite=False, is_wildcard=False)},
+        slices={
+            "by_country": MagicMock(description="Country", is_composite=False, is_wildcard=False)
+        },
         segments={"tier": MagicMock(description="Tier", source="duckdb://db/c")},
     )
     layer_b = _build_layer_b_definition(sc)
@@ -199,11 +207,13 @@ def test_layer_b_marks_slice_subtypes():
     leaf_slice.is_wildcard = False
     leaf_slice.description = "Leaf"
 
-    sc = _make_spec_cache(slices={
-        "by_composite": composite_slice,
-        "by_wildcard": wildcard_slice,
-        "by_leaf": leaf_slice,
-    })
+    sc = _make_spec_cache(
+        slices={
+            "by_composite": composite_slice,
+            "by_wildcard": wildcard_slice,
+            "by_leaf": leaf_slice,
+        }
+    )
     layer_b = _build_layer_b_definition(sc)
 
     assert "(composite)" in layer_b
@@ -221,7 +231,10 @@ def test_layer_b_shows_details_below_threshold():
 
 
 def test_layer_b_omits_details_above_threshold():
-    metrics = {f"m_{i}": MagicMock(description=f"desc{i}", source=f"src{i}") for i in range(_LARGE_CATALOG_THRESHOLD + 1)}
+    metrics = {
+        f"m_{i}": MagicMock(description=f"desc{i}", source=f"src{i}")
+        for i in range(_LARGE_CATALOG_THRESHOLD + 1)
+    }
     sc = _make_spec_cache(metrics=metrics)
     layer_b = _build_layer_b_definition(sc)
     # Names are present but source URIs and descriptions are omitted
@@ -255,9 +268,7 @@ def test_definition_response_is_subtype_of_bot_response():
 
 
 def test_provider_cache_config_definition_anthropic():
-    cfg = _provider_cache_config_definition(
-        "anthropic:claude-haiku-4-5-20251001", "t1"
-    )
+    cfg = _provider_cache_config_definition("anthropic:claude-haiku-4-5-20251001", "t1")
     assert cfg == {"anthropic_cache_instructions": "5m"}
 
 
@@ -315,8 +326,11 @@ def test_definition_constructor_tools_registered_alongside_defaults():
         tools=[def_custom_tool_sync],
     )
     expected_defaults = {
-        "record_definition_intent", "list_tables", "describe_table",
-        "draft_spec", "validate_spec",
+        "record_definition_intent",
+        "list_tables",
+        "describe_table",
+        "draft_spec",
+        "validate_spec",
     }
     assert "def_custom_tool_sync" in bot._toolset.tools
     assert expected_defaults.issubset(bot._toolset.tools.keys())
@@ -334,9 +348,7 @@ def test_definition_constructor_tools_invoked(tool_fn, expected):
         connection_manager=MagicMock(),
         tools=[tool_fn],
     )
-    response = asyncio.run(
-        bot.ask("use the custom tool")
-    )
+    response = asyncio.run(bot.ask("use the custom tool"))
     assert expected in response.narrative
 
 
@@ -373,9 +385,7 @@ def test_definition_constructor_tools_two_entries_collide_with_each_other():
 
 def test_ask_returns_definition_response():
     bot = _make_bot()
-    response = asyncio.run(
-        bot.ask("Define a metric for revenue")
-    )
+    response = asyncio.run(bot.ask("Define a metric for revenue"))
     assert isinstance(response, DefinitionResponse)
 
 
@@ -397,7 +407,9 @@ def test_chat_accumulates_history():
 
 def test_assemble_payload_refused_returns_empty():
     store = ResultStore()
-    output = DefinitionOutput(status=Status.refused, narrative="Out of scope", reason="No such data")
+    output = DefinitionOutput(
+        status=Status.refused, narrative="Out of scope", reason="No such data"
+    )
     payload = DefinitionBot._assemble_payload(output, store)
     assert payload.spec_type is None
     assert payload.yaml_string is None
@@ -471,40 +483,60 @@ def _make_full_flow_model(yaml_string: str = _VALID_METRIC_YAML, spec_type: str 
         returns = _collect_tool_returns(messages)
 
         if "record_definition_intent" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="record_definition_intent",
-                args=json.dumps({"spec_type": spec_type, "description": "Test spec"}),
-                tool_call_id="tc-1",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="record_definition_intent",
+                        args=json.dumps({"spec_type": spec_type, "description": "Test spec"}),
+                        tool_call_id="tc-1",
+                    )
+                ]
+            )
 
         if "list_tables" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="list_tables",
-                args=json.dumps({}),
-                tool_call_id="tc-2",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="list_tables",
+                        args=json.dumps({}),
+                        tool_call_id="tc-2",
+                    )
+                ]
+            )
 
         if "describe_table" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="describe_table",
-                args=json.dumps({"source": "duckdb://analytics.db/transactions"}),
-                tool_call_id="tc-3",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="describe_table",
+                        args=json.dumps({"source": "duckdb://analytics.db/transactions"}),
+                        tool_call_id="tc-3",
+                    )
+                ]
+            )
 
         if "draft_spec" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="draft_spec",
-                args=json.dumps({"spec_type": spec_type, "yaml_string": yaml_string}),
-                tool_call_id="tc-4",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="draft_spec",
+                        args=json.dumps({"spec_type": spec_type, "yaml_string": yaml_string}),
+                        tool_call_id="tc-4",
+                    )
+                ]
+            )
 
         if "validate_spec" not in returns:
             draft_id = returns["draft_spec"].get("draft_id", "")
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="validate_spec",
-                args=json.dumps({"draft_id": draft_id}),
-                tool_call_id="tc-5",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="validate_spec",
+                        args=json.dumps({"draft_id": draft_id}),
+                        tool_call_id="tc-5",
+                    )
+                ]
+            )
 
         validate_data = returns["validate_spec"]
         token = validate_data.get("spec_draft_token")
@@ -542,39 +574,55 @@ metric:
 
         # Step 0: record intent
         if "record_definition_intent" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="record_definition_intent",
-                args=json.dumps({"spec_type": "metric", "description": "Revenue"}),
-                tool_call_id="tc-1",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="record_definition_intent",
+                        args=json.dumps({"spec_type": "metric", "description": "Revenue"}),
+                        tool_call_id="tc-1",
+                    )
+                ]
+            )
 
         # Step 1: first (bad) draft
         if state["first_draft_id"] is None:
             if "draft_spec" not in returns:
-                return ModelResponse(parts=[ToolCallPart(
-                    tool_name="draft_spec",
-                    args=json.dumps({"spec_type": "metric", "yaml_string": invalid_yaml}),
-                    tool_call_id="tc-2",
-                )])
+                return ModelResponse(
+                    parts=[
+                        ToolCallPart(
+                            tool_name="draft_spec",
+                            args=json.dumps({"spec_type": "metric", "yaml_string": invalid_yaml}),
+                            tool_call_id="tc-2",
+                        )
+                    ]
+                )
             state["first_draft_id"] = returns["draft_spec"].get("draft_id", "")
 
         # Step 2: validate first (bad) draft
         if state["step"] == 0:
             state["step"] = 1
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="validate_spec",
-                args=json.dumps({"draft_id": state["first_draft_id"]}),
-                tool_call_id="tc-3",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="validate_spec",
+                        args=json.dumps({"draft_id": state["first_draft_id"]}),
+                        tool_call_id="tc-3",
+                    )
+                ]
+            )
 
         # Step 3: first validate returned errors — re-draft
         if state["step"] == 1:
             state["step"] = 2
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="draft_spec",
-                args=json.dumps({"spec_type": "metric", "yaml_string": _VALID_METRIC_YAML}),
-                tool_call_id="tc-4",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="draft_spec",
+                        args=json.dumps({"spec_type": "metric", "yaml_string": _VALID_METRIC_YAML}),
+                        tool_call_id="tc-4",
+                    )
+                ]
+            )
 
         # Step 4: get second draft id from most recent draft_spec return
         if state["step"] == 2:
@@ -596,11 +644,15 @@ metric:
             if len(all_draft_returns) >= 2:
                 state["second_draft_id"] = all_draft_returns[-1].get("draft_id", "")
                 state["step"] = 3
-                return ModelResponse(parts=[ToolCallPart(
-                    tool_name="validate_spec",
-                    args=json.dumps({"draft_id": state["second_draft_id"]}),
-                    tool_call_id="tc-5",
-                )])
+                return ModelResponse(
+                    parts=[
+                        ToolCallPart(
+                            tool_name="validate_spec",
+                            args=json.dumps({"draft_id": state["second_draft_id"]}),
+                            tool_call_id="tc-5",
+                        )
+                    ]
+                )
 
         # Step 5: second validate returned token
         all_validate_returns = [
@@ -642,27 +694,38 @@ def _make_name_lock_model():
 
         if "record_definition_intent" not in returns:
             call_sequence.append("record")
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="record_definition_intent",
-                args=json.dumps({
-                    "spec_type": "metric",
-                    "description": "Update revenue metric",
-                    "existing_yaml": existing_yaml,
-                }),
-                tool_call_id="tc-1",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="record_definition_intent",
+                        args=json.dumps(
+                            {
+                                "spec_type": "metric",
+                                "description": "Update revenue metric",
+                                "existing_yaml": existing_yaml,
+                            }
+                        ),
+                        tool_call_id="tc-1",
+                    )
+                ]
+            )
 
         if "draft_spec" not in returns:
             call_sequence.append("draft1")
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="draft_spec",
-                args=json.dumps({"spec_type": "metric", "yaml_string": wrong_name_yaml}),
-                tool_call_id="tc-2",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="draft_spec",
+                        args=json.dumps({"spec_type": "metric", "yaml_string": wrong_name_yaml}),
+                        tool_call_id="tc-2",
+                    )
+                ]
+            )
 
         # Count draft_spec calls
         draft_calls = [
-            p for m in messages
+            p
+            for m in messages
             if isinstance(m, ModelRequest)
             for p in m.parts
             if isinstance(p, ToolReturnPart)
@@ -694,11 +757,15 @@ def _make_name_lock_model():
             # First validate: should get name-lock error
             draft_id = returns["draft_spec"].get("draft_id", "")
             call_sequence.append("validate1")
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="validate_spec",
-                args=json.dumps({"draft_id": draft_id}),
-                tool_call_id="tc-3",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="validate_spec",
+                        args=json.dumps({"draft_id": draft_id}),
+                        tool_call_id="tc-3",
+                    )
+                ]
+            )
 
         last_validate = validate_returns[-1]
         if last_validate.get("spec_draft_token"):
@@ -714,22 +781,30 @@ def _make_name_lock_model():
         # Name-lock error — re-draft with correct name
         if len(draft_calls) == 1:
             call_sequence.append("draft2")
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="draft_spec",
-                args=json.dumps({"spec_type": "metric", "yaml_string": _VALID_METRIC_YAML}),
-                tool_call_id="tc-4",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="draft_spec",
+                        args=json.dumps({"spec_type": "metric", "yaml_string": _VALID_METRIC_YAML}),
+                        tool_call_id="tc-4",
+                    )
+                ]
+            )
 
         if len(draft_calls) >= 2:
             # Get the latest draft_id
             last_draft_return = draft_calls[-1].model_response_object()
             second_draft_id = last_draft_return.get("draft_id", "")
             call_sequence.append("validate2")
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="validate_spec",
-                args=json.dumps({"draft_id": second_draft_id}),
-                tool_call_id="tc-5",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="validate_spec",
+                        args=json.dumps({"draft_id": second_draft_id}),
+                        tool_call_id="tc-5",
+                    )
+                ]
+            )
 
         output = DefinitionOutput(status=Status.error, narrative="Unexpected state.")
         return ModelResponse(parts=[TextPart(content=output.model_dump_json())])
@@ -746,7 +821,9 @@ def test_full_flow_returns_status_ok():
     mock_connector = MagicMock()
     mock_connector.list_tables.return_value = ["transactions"]
     mock_ibis_table = MagicMock()
-    mock_ibis_table.schema.return_value = MagicMock(names=["amount", "transaction_date"], types=["float64", "date"])
+    mock_ibis_table.schema.return_value = MagicMock(
+        names=["amount", "transaction_date"], types=["float64", "date"]
+    )
     mock_ibis_table.columns = ["amount", "transaction_date"]
     mock_connector.get_table.return_value = mock_ibis_table
     mock_cm.get_connection.return_value = mock_connector
@@ -761,9 +838,7 @@ def test_full_flow_returns_status_ok():
         connection_manager=mock_cm,
     )
 
-    response = asyncio.run(
-        bot.ask("Define a revenue metric on the transactions table")
-    )
+    response = asyncio.run(bot.ask("Define a revenue metric on the transactions table"))
 
     assert response.status == Status.ok
     assert response.payload.yaml_string is not None
@@ -775,7 +850,9 @@ def test_full_flow_validate_spec_trace_result_id_and_duration_populated():
     mock_connector = MagicMock()
     mock_connector.list_tables.return_value = ["transactions"]
     mock_ibis_table = MagicMock()
-    mock_ibis_table.schema.return_value = MagicMock(names=["amount", "transaction_date"], types=["float64", "date"])
+    mock_ibis_table.schema.return_value = MagicMock(
+        names=["amount", "transaction_date"], types=["float64", "date"]
+    )
     mock_ibis_table.columns = ["amount", "transaction_date"]
     mock_connector.get_table.return_value = mock_ibis_table
     mock_cm.get_connection.return_value = mock_connector
@@ -790,13 +867,9 @@ def test_full_flow_validate_spec_trace_result_id_and_duration_populated():
         connection_manager=mock_cm,
     )
 
-    response = asyncio.run(
-        bot.ask("Define a revenue metric on the transactions table")
-    )
+    response = asyncio.run(bot.ask("Define a revenue metric on the transactions table"))
 
-    validate_call = next(
-        tc for tc in response.trace.tool_calls if tc.name == "validate_spec"
-    )
+    validate_call = next(tc for tc in response.trace.tool_calls if tc.name == "validate_spec")
     assert validate_call.result_id == response.payload.spec_draft_token
     assert validate_call.duration_ms is not None
 
@@ -808,7 +881,9 @@ def test_full_flow_payload_metric_spec_populated():
     mock_connector.list_tables.return_value = ["transactions"]
     mock_ibis = MagicMock()
     mock_ibis.columns = ["amount", "transaction_date"]
-    mock_ibis.schema.return_value = MagicMock(names=["amount", "transaction_date"], types=["float64", "date"])
+    mock_ibis.schema.return_value = MagicMock(
+        names=["amount", "transaction_date"], types=["float64", "date"]
+    )
     mock_connector.get_table.return_value = mock_ibis
     mock_cm.get_connection.return_value = mock_connector
     mock_cm.get_connection_for_source.return_value = mock_connector
@@ -822,9 +897,7 @@ def test_full_flow_payload_metric_spec_populated():
         connection_manager=mock_cm,
     )
 
-    response = asyncio.run(
-        bot.ask("Define a revenue metric")
-    )
+    response = asyncio.run(bot.ask("Define a revenue metric"))
 
     assert isinstance(response.payload.metric_spec, MetricSpec)
     assert response.payload.metric_spec.name == "revenue"
@@ -837,7 +910,9 @@ def test_full_flow_get_result_returns_text_entry():
     mock_connector.list_tables.return_value = ["transactions"]
     mock_ibis = MagicMock()
     mock_ibis.columns = ["amount", "transaction_date"]
-    mock_ibis.schema.return_value = MagicMock(names=["amount", "transaction_date"], types=["float64", "date"])
+    mock_ibis.schema.return_value = MagicMock(
+        names=["amount", "transaction_date"], types=["float64", "date"]
+    )
     mock_connector.get_table.return_value = mock_ibis
     mock_cm.get_connection.return_value = mock_connector
     mock_cm.get_connection_for_source.return_value = mock_connector
@@ -851,9 +926,7 @@ def test_full_flow_get_result_returns_text_entry():
         connection_manager=mock_cm,
     )
 
-    response = asyncio.run(
-        bot.ask("Define a revenue metric")
-    )
+    response = asyncio.run(bot.ask("Define a revenue metric"))
 
     assert response.payload.spec_draft_token is not None
     entry = bot.get_result(response.payload.spec_draft_token)
@@ -867,7 +940,9 @@ def test_ask_does_not_accumulate_history_on_full_flow():
     mock_connector.list_tables.return_value = ["transactions"]
     mock_ibis = MagicMock()
     mock_ibis.columns = ["amount", "transaction_date"]
-    mock_ibis.schema.return_value = MagicMock(names=["amount", "transaction_date"], types=["float64", "date"])
+    mock_ibis.schema.return_value = MagicMock(
+        names=["amount", "transaction_date"], types=["float64", "date"]
+    )
     mock_connector.get_table.return_value = mock_ibis
     mock_cm.get_connection.return_value = mock_connector
     mock_cm.get_connection_for_source.return_value = mock_connector
@@ -894,7 +969,9 @@ def test_trace_contains_all_five_tool_names():
     mock_connector.list_tables.return_value = ["transactions"]
     mock_ibis = MagicMock()
     mock_ibis.columns = ["amount", "transaction_date"]
-    mock_ibis.schema.return_value = MagicMock(names=["amount", "transaction_date"], types=["float64", "date"])
+    mock_ibis.schema.return_value = MagicMock(
+        names=["amount", "transaction_date"], types=["float64", "date"]
+    )
     mock_connector.get_table.return_value = mock_ibis
     mock_cm.get_connection.return_value = mock_connector
     mock_cm.get_connection_for_source.return_value = mock_connector
@@ -908,9 +985,7 @@ def test_trace_contains_all_five_tool_names():
         connection_manager=mock_cm,
     )
 
-    response = asyncio.run(
-        bot.ask("Define a revenue metric")
-    )
+    response = asyncio.run(bot.ask("Define a revenue metric"))
 
     tool_names = {tc.name for tc in response.trace.tool_calls}
     expected = {
@@ -947,9 +1022,7 @@ def test_correction_loop_final_status_ok():
         connection_manager=mock_cm,
     )
 
-    response = asyncio.run(
-        bot.ask("Define a revenue metric")
-    )
+    response = asyncio.run(bot.ask("Define a revenue metric"))
 
     assert response.status == Status.ok
     assert response.payload.spec_draft_token is not None
@@ -981,9 +1054,7 @@ def test_is_update_rename_conflict_name_lock_fires():
         connection_manager=mock_cm,
     )
 
-    response = asyncio.run(
-        bot.ask("Update the revenue metric")
-    )
+    response = asyncio.run(bot.ask("Update the revenue metric"))
 
     # Should ultimately succeed after correction
     assert response.status == Status.ok
@@ -1003,7 +1074,9 @@ def test_chat_accumulates_history_on_full_flow():
     mock_connector.list_tables.return_value = ["transactions"]
     mock_ibis = MagicMock()
     mock_ibis.columns = ["amount", "transaction_date"]
-    mock_ibis.schema.return_value = MagicMock(names=["amount", "transaction_date"], types=["float64", "date"])
+    mock_ibis.schema.return_value = MagicMock(
+        names=["amount", "transaction_date"], types=["float64", "date"]
+    )
     mock_connector.get_table.return_value = mock_ibis
     mock_cm.get_connection.return_value = mock_connector
     mock_cm.get_connection_for_source.return_value = mock_connector
@@ -1048,18 +1121,14 @@ def _def_visibility_recording_model(recorder: list) -> FunctionModel:
 )
 def test_definition_ask_extra_tools_invoked(tool_fn, expected):
     bot = _make_bot(model=_make_def_custom_tool_model(tool_fn.__name__))
-    response = asyncio.run(
-        bot.ask("use the extra tool", extra_tools=[tool_fn])
-    )
+    response = asyncio.run(bot.ask("use the extra tool", extra_tools=[tool_fn]))
     assert expected in response.narrative
 
 
 def test_definition_chat_extra_tools_ephemeral_not_visible_next_turn():
     seen: list = []
     bot = _make_bot(model=_def_visibility_recording_model(seen))
-    asyncio.run(
-        bot.chat("first", extra_tools=[def_custom_tool_sync])
-    )
+    asyncio.run(bot.chat("first", extra_tools=[def_custom_tool_sync]))
     asyncio.run(bot.chat("second"))
     assert "def_custom_tool_sync" in seen[0]
     assert "def_custom_tool_sync" not in seen[1]
@@ -1078,9 +1147,7 @@ def test_definition_extra_tools_collision_surfaces_as_error_status():
         return "x"
 
     bot = _make_bot()
-    response = asyncio.run(
-        bot.ask("hello", extra_tools=[validate_spec])
-    )
+    response = asyncio.run(bot.ask("hello", extra_tools=[validate_spec]))
     assert response.status == Status.error
     assert "conflicts with existing tool" in (response.reason or "")
 
@@ -1246,9 +1313,7 @@ def test_layer_b_rebuild_preserves_runtime_added_tool():
     bot.add_tool(custom_tool)
     assert "custom_tool" in bot._toolset.tools
 
-    cache.add(
-        MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
-    )
+    cache.add(MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"))
     asyncio.run(bot.chat("hello"))  # triggers a rebuild
 
     assert "custom_tool" in bot._toolset.tools
@@ -1287,38 +1352,56 @@ def _make_multi_turn_commit_model() -> FunctionModel:
         returns = _collect_tool_returns(messages)
 
         if "record_definition_intent" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="record_definition_intent",
-                args=json.dumps({"spec_type": "metric", "description": "Revenue"}),
-                tool_call_id="tc-1",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="record_definition_intent",
+                        args=json.dumps({"spec_type": "metric", "description": "Revenue"}),
+                        tool_call_id="tc-1",
+                    )
+                ]
+            )
         if "draft_spec" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="draft_spec",
-                args=json.dumps({"spec_type": "metric", "yaml_string": _VALID_METRIC_YAML}),
-                tool_call_id="tc-2",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="draft_spec",
+                        args=json.dumps({"spec_type": "metric", "yaml_string": _VALID_METRIC_YAML}),
+                        tool_call_id="tc-2",
+                    )
+                ]
+            )
         if "validate_spec" not in returns:
             draft_id = returns["draft_spec"].get("draft_id", "")
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="validate_spec",
-                args=json.dumps({"draft_id": draft_id}),
-                tool_call_id="tc-3",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="validate_spec",
+                        args=json.dumps({"draft_id": draft_id}),
+                        tool_call_id="tc-3",
+                    )
+                ]
+            )
 
         token = returns["validate_spec"].get("spec_draft_token")
         if not state["turn1_done"]:
             state["turn1_done"] = True
-            output = DefinitionOutput(status=Status.ok, narrative="Validated.", spec_draft_token=token)
+            output = DefinitionOutput(
+                status=Status.ok, narrative="Validated.", spec_draft_token=token
+            )
             return ModelResponse(parts=[TextPart(content=output.model_dump_json())])
 
         commit_data = returns.get("commit_spec")
         if commit_data is None:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="commit_spec",
-                args=json.dumps({"spec_draft_token": token}),
-                tool_call_id="tc-commit",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="commit_spec",
+                        args=json.dumps({"spec_draft_token": token}),
+                        tool_call_id="tc-commit",
+                    )
+                ]
+            )
 
         output = DefinitionOutput(
             status=Status.ok,
@@ -1385,18 +1468,28 @@ def _make_grounding_flow_model():
         returns = _collect_tool_returns(messages)
 
         if "record_definition_intent" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="record_definition_intent",
-                args=json.dumps({"spec_type": "slice", "description": "high value transactions"}),
-                tool_call_id="tc-1",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="record_definition_intent",
+                        args=json.dumps(
+                            {"spec_type": "slice", "description": "high value transactions"}
+                        ),
+                        tool_call_id="tc-1",
+                    )
+                ]
+            )
 
         if "column_distribution" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="column_distribution",
-                args=json.dumps({"metric_name": "total_revenue"}),
-                tool_call_id="tc-2",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="column_distribution",
+                        args=json.dumps({"metric_name": "total_revenue"}),
+                        tool_call_id="tc-2",
+                    )
+                ]
+            )
 
         output = DefinitionOutput(status=Status.ok, narrative="Grounded in real data.")
         return ModelResponse(parts=[TextPart(content=output.model_dump_json())])

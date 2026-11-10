@@ -1,4 +1,5 @@
 """SF-1: Type model tests for the v0.2 resolution types."""
+
 from __future__ import annotations
 
 from aitaem.agent.query_types import (
@@ -27,8 +28,10 @@ def test_metric_intent_defaults():
 
 def test_metric_intent_subset_scope():
     intent = MetricIntent(
-        metric_concept="ctr", scope="subset",
-        slice_type="by_country", slice_value="US",
+        metric_concept="ctr",
+        scope="subset",
+        slice_type="by_country",
+        slice_value="US",
     )
     assert intent.scope == "subset"
     assert intent.slice_value == "US"
@@ -85,7 +88,11 @@ def test_compute_metrics_result_no_old_input_fields():
     """The old per-call input fields (metrics, slices, segment, period_type, etc.) are gone."""
     r = Q_ComputeMetricsResult(
         spec_token="sm_tok",
-        result_id="r1", row_count=1, sample=[], columns=[], format_hints={},
+        result_id="r1",
+        row_count=1,
+        sample=[],
+        columns=[],
+        format_hints={},
     )
     assert not hasattr(r, "metrics")
     assert not hasattr(r, "slices")
@@ -98,7 +105,11 @@ def test_compute_metrics_result_no_old_input_fields():
 def test_compute_metrics_result_has_spec_token():
     r = Q_ComputeMetricsResult(
         spec_token="sm_tok",
-        result_id="r1", row_count=0, sample=[], columns=[], format_hints={},
+        result_id="r1",
+        row_count=0,
+        sample=[],
+        columns=[],
+        format_hints={},
     )
     assert r.spec_token == "sm_tok"
 
@@ -143,7 +154,8 @@ def test_record_intent_result_error_with_no_intent_id():
 
 def test_near_miss_column_distribution_metric_mismatch():
     nm = NearMiss(
-        name="sales_volume", why_not="column_distribution_metric_mismatch",
+        name="sales_volume",
+        why_not="column_distribution_metric_mismatch",
         suggestions=["daily_sales"],
     )
     assert nm.suggestions == ["daily_sales"]
@@ -157,7 +169,9 @@ def test_column_distribution_field_shape():
 
 
 def test_column_distribution_min_max_are_strings():
-    d = ColumnDistribution(group_key={}, count=1, min_val="2024-01-01T00:00:00", max_val="2024-12-31T00:00:00")
+    d = ColumnDistribution(
+        group_key={}, count=1, min_val="2024-01-01T00:00:00", max_val="2024-12-31T00:00:00"
+    )
     assert isinstance(d.min_val, str)
     assert isinstance(d.max_val, str)
 

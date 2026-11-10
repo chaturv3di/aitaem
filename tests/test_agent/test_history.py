@@ -111,9 +111,7 @@ def test_load_history_no_warning_when_tool_repassed():
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        restored = _StubBot.load_history(
-            bundle, model="claude-sonnet-4-6", tools=[_probe_tool]
-        )
+        restored = _StubBot.load_history(bundle, model="claude-sonnet-4-6", tools=[_probe_tool])
     assert "_probe_tool" in restored._toolset.tools
 
 

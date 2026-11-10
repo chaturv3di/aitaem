@@ -1,4 +1,5 @@
 """SF-2: SpecResolver unit tests."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -24,8 +25,10 @@ def _make_cache(
 
 def _intent(scope="overall", period_type="all_time", by_entity=None):
     return MetricIntent(
-        metric_concept="revenue", scope=scope,
-        period_type=period_type, by_entity=by_entity,
+        metric_concept="revenue",
+        scope=scope,
+        period_type=period_type,
+        by_entity=by_entity,
     )
 
 
@@ -178,6 +181,7 @@ def test_unknown_metric_early_return_no_slice_validation():
 # ---------------------------------------------------------------------------
 # SF-5: SpecResolver.resolve_metric_name (extracted, callable without a MetricIntent)
 # ---------------------------------------------------------------------------
+
 
 def test_resolve_metric_name_success():
     sc = _make_cache()

@@ -64,6 +64,7 @@ MODEL = "anthropic:claude-haiku-4-5-20251001"
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def check_api_key(exit_on_missing: bool = True) -> str:
     """Read ANTHROPIC_API_KEY. exit_on_missing=True (script default) prints to
     stderr and calls sys.exit(1); pass False (notebook use) to raise
@@ -95,6 +96,7 @@ def print_pass_rate(rates: dict[str, dict[str, float]]) -> None:
 # Setup
 # ---------------------------------------------------------------------------
 
+
 def setup(base_path: str = ".") -> tuple[SpecCache, ConnectionManager]:
     """Load the spec catalog and connect to DuckDB, creating it from the
     bundled CSV if needed. base_path is the aitaem repo root — "." when run
@@ -108,6 +110,7 @@ def setup(base_path: str = ".") -> tuple[SpecCache, ConnectionManager]:
     db_path = os.path.join(base_path, "examples/data/ad_campaigns.duckdb")
     if not os.path.exists(db_path):
         from aitaem.helpers import load_csvs_to_duckdb
+
         csv_path = os.path.join(base_path, "examples/data/ad_campaigns.csv")
         load_csvs_to_duckdb(csv_path, db_path)
 
@@ -120,6 +123,7 @@ def setup(base_path: str = ".") -> tuple[SpecCache, ConnectionManager]:
 # Task + I/O types
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class QIn:
     question: str
@@ -127,8 +131,8 @@ class QIn:
 
 @dataclass
 class QOut:
-    response: QueryResponse   # aitaem.agent.QueryResponse
-    bot: QueryBot             # kept so evaluators can call get_result()
+    response: QueryResponse  # aitaem.agent.QueryResponse
+    bot: QueryBot  # kept so evaluators can call get_result()
 
 
 def make_query_task(
@@ -159,6 +163,7 @@ def make_query_task(
 # Evaluators
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class StatusIs(Evaluator[QIn, QOut, None]):
     expected: Status
@@ -172,9 +177,7 @@ class CalledTool(Evaluator[QIn, QOut, None]):
     tool_name: str
 
     def evaluate(self, ctx: EvaluatorContext[QIn, QOut, None]) -> bool:
-        return any(
-            tc.name == self.tool_name for tc in ctx.output.response.trace.tool_calls
-        )
+        return any(tc.name == self.tool_name for tc in ctx.output.response.trace.tool_calls)
 
 
 @dataclass
@@ -234,7 +237,7 @@ dataset: Dataset[QIn, QOut, None] = Dataset(
                 CalledTool("resolve_intent"),  # it must try, then refuse
             ),
         ),
-    ]
+    ],
 )
 
 
@@ -242,6 +245,7 @@ dataset: Dataset[QIn, QOut, None] = Dataset(
 # Repeated-run confidence — a live model is non-deterministic, so a single
 # dataset.evaluate() run tells you much less than a distribution does.
 # ---------------------------------------------------------------------------
+
 
 async def pass_rate(
     dataset: Dataset[QIn, QOut, None],
@@ -285,6 +289,7 @@ async def pass_rate(
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 async def main(base_path: str = ".", exit_on_missing_key: bool = True) -> None:
     check_api_key(exit_on_missing=exit_on_missing_key)

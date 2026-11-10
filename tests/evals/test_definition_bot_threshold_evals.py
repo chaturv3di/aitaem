@@ -72,7 +72,9 @@ class CalledOneOf(Evaluator[ThresholdEvalInput, ThresholdEvalOutput, None]):
 
     tool_names: tuple[str, ...]
 
-    def evaluate(self, ctx: EvaluatorContext[ThresholdEvalInput, ThresholdEvalOutput, None]) -> bool:
+    def evaluate(
+        self, ctx: EvaluatorContext[ThresholdEvalInput, ThresholdEvalOutput, None]
+    ) -> bool:
         return bool(_tool_names(ctx.output) & set(self.tool_names))
 
 
@@ -82,7 +84,9 @@ class NotCalled(Evaluator[ThresholdEvalInput, ThresholdEvalOutput, None]):
 
     tool_name: str
 
-    def evaluate(self, ctx: EvaluatorContext[ThresholdEvalInput, ThresholdEvalOutput, None]) -> bool:
+    def evaluate(
+        self, ctx: EvaluatorContext[ThresholdEvalInput, ThresholdEvalOutput, None]
+    ) -> bool:
         return self.tool_name not in _tool_names(ctx.output)
 
 
@@ -95,12 +99,15 @@ class NoFabricatedToken(Evaluator[ThresholdEvalInput, ThresholdEvalOutput, None]
     surfaces as ToolCall.result_id=None (per the ToolResult protocol) — either
     way, nothing downstream used a fabricated number."""
 
-    def evaluate(self, ctx: EvaluatorContext[ThresholdEvalInput, ThresholdEvalOutput, None]) -> bool:
+    def evaluate(
+        self, ctx: EvaluatorContext[ThresholdEvalInput, ThresholdEvalOutput, None]
+    ) -> bool:
         response = ctx.output.response
         if response.status == Status.refused:
             return True
         governed_calls = [
-            tc for tc in response.trace.tool_calls
+            tc
+            for tc in response.trace.tool_calls
             if tc.name in ("column_distribution", "compute_metrics")
         ]
         return any(tc.result_id is None for tc in governed_calls)

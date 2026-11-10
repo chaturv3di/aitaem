@@ -22,19 +22,21 @@ import pyarrow as pa
 from aitaem.agent.definition_bot import DefinitionBot
 from aitaem.agent.query_bot import QueryBot
 
-GROUND_TRUTH_REVENUE_TABLE: pa.Table = pa.table({
-    "metric_name": ["revenue"],
-    "metric_value": [1000.0],
-    "period_type": ["all_time"],
-    "period_start_date": [None],
-    "period_end_date": [None],
-    "entity_id": [None],
-    "metric_format": [None],
-    "slice_type": [None],
-    "slice_value": [None],
-    "segment_name": [None],
-    "segment_value": [None],
-})
+GROUND_TRUTH_REVENUE_TABLE: pa.Table = pa.table(
+    {
+        "metric_name": ["revenue"],
+        "metric_value": [1000.0],
+        "period_type": ["all_time"],
+        "period_start_date": [None],
+        "period_end_date": [None],
+        "entity_id": [None],
+        "metric_format": [None],
+        "slice_type": [None],
+        "slice_value": [None],
+        "segment_name": [None],
+        "segment_value": [None],
+    }
+)
 # Fixed ground-truth Arrow table for the deterministic-correctness eval case.
 # Small, hand-constructed (a handful of rows) — not derived from any real backend.
 
@@ -60,7 +62,9 @@ patch(
 def _query_bot_spec_cache() -> Any:
     sc = MagicMock()
     sc.metrics = {
-        "revenue": MagicMock(description="Total revenue", entities=["user_id"], format="currency:USD"),
+        "revenue": MagicMock(
+            description="Total revenue", entities=["user_id"], format="currency:USD"
+        ),
     }
     sc.slices = {}
     sc.segments = {}
@@ -128,16 +132,20 @@ def make_definition_bot_fixture(model: Any) -> DefinitionBot:
 # on an aggregate expression.
 # ---------------------------------------------------------------------------
 
-GROUNDING_TRANSACTIONS_TABLE = ibis.memtable(pa.table({
-    "amount": [100.0, 250.0, 400.0, 999.0, 1500.0],
-    "transaction_date": [
-        datetime.date(2024, 1, 1),
-        datetime.date(2024, 3, 1),
-        datetime.date(2024, 6, 1),
-        datetime.date(2024, 9, 1),
-        datetime.date(2024, 12, 1),
-    ],
-}))
+GROUNDING_TRANSACTIONS_TABLE = ibis.memtable(
+    pa.table(
+        {
+            "amount": [100.0, 250.0, 400.0, 999.0, 1500.0],
+            "transaction_date": [
+                datetime.date(2024, 1, 1),
+                datetime.date(2024, 3, 1),
+                datetime.date(2024, 6, 1),
+                datetime.date(2024, 9, 1),
+                datetime.date(2024, 12, 1),
+            ],
+        }
+    )
+)
 # Small, hand-constructed — not derived from any real backend. Same spirit as
 # GROUND_TRUTH_REVENUE_TABLE above.
 

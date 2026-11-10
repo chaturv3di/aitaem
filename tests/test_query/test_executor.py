@@ -49,9 +49,7 @@ class TestUnionQueries:
         result = executor._union_queries([expr])
         assert isinstance(result, ibis.Table)
 
-    def test_union_queries_multiple_exprs_returns_ibis_table(
-        self, ad_campaigns_connection_manager
-    ):
+    def test_union_queries_multiple_exprs_returns_ibis_table(self, ad_campaigns_connection_manager):
         connector = ad_campaigns_connection_manager.get_connection("duckdb")
         executor = QueryExecutor(connection_manager=ad_campaigns_connection_manager)
         exprs = [

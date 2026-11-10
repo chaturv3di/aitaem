@@ -72,7 +72,10 @@ def _make_query_bot(model: Any, tools: list[Any] | None = None) -> QueryBot:
 
 def _make_definition_bot(model: Any, tools: list[Any] | None = None) -> DefinitionBot:
     return DefinitionBot(
-        model=model, spec_cache=_definition_spec_cache(), connection_manager=MagicMock(), tools=tools
+        model=model,
+        spec_cache=_definition_spec_cache(),
+        connection_manager=MagicMock(),
+        tools=tools,
     )
 
 
@@ -111,11 +114,19 @@ _QUERY_SPEC = _BotSpec(
     label="QueryBot",
     make_bot=_make_query_bot,
     make_output=_query_output,
-    default_tool_names=frozenset({
-        "record_intent", "resolve_intent", "compute_metrics",
-        "rank_by_value", "filter_by_threshold", "distribution_summary",
-        "column_distribution", "period_over_period", "contribution_share",
-    }),
+    default_tool_names=frozenset(
+        {
+            "record_intent",
+            "resolve_intent",
+            "compute_metrics",
+            "rank_by_value",
+            "filter_by_threshold",
+            "distribution_summary",
+            "column_distribution",
+            "period_over_period",
+            "contribution_share",
+        }
+    ),
     colliding_tool_factory=_make_compute_metrics_collider,
 )
 
@@ -123,17 +134,24 @@ _DEFINITION_SPEC = _BotSpec(
     label="DefinitionBot",
     make_bot=_make_definition_bot,
     make_output=_definition_output,
-    default_tool_names=frozenset({
-        "record_definition_intent", "list_tables", "describe_table",
-        "draft_spec", "validate_spec",
-    }),
+    default_tool_names=frozenset(
+        {
+            "record_definition_intent",
+            "list_tables",
+            "describe_table",
+            "draft_spec",
+            "validate_spec",
+        }
+    ),
     colliding_tool_factory=_make_validate_spec_collider,
 )
 
 _BOT_SPECS = [_QUERY_SPEC, _DEFINITION_SPEC]
 _bot_spec_params = pytest.mark.parametrize("spec", _BOT_SPECS, ids=lambda s: s.label)
 _sync_async_params = pytest.mark.parametrize(
-    "probe,expected", [(probe_sync, "sync-value"), (probe_async, "async-value")], ids=["sync", "async"]
+    "probe,expected",
+    [(probe_sync, "sync-value"), (probe_async, "async-value")],
+    ids=["sync", "async"],
 )
 
 

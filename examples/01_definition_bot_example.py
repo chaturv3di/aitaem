@@ -58,6 +58,7 @@ MODEL = "anthropic:claude-haiku-4-5-20251001"
 
 # ── Pretty-printers ─────────────────────────────────────────────────────────
 
+
 def fmt_arg(v: Any) -> str:
     if isinstance(v, str) and len(v) > 14:
         return f"'{v[:10]}…'"
@@ -181,6 +182,7 @@ def cache_summary(label: str, response: DefinitionResponse) -> None:
 
 # ── Setup ────────────────────────────────────────────────────────────────────
 
+
 def setup(base_path: str = ".") -> tuple[SpecCache, str]:
     """Load the full spec catalog and ensure the bundled DuckDB exists, creating
     it from the CSV if needed. base_path is the aitaem repo root — "." when run
@@ -205,6 +207,7 @@ def setup(base_path: str = ".") -> tuple[SpecCache, str]:
 
 
 # ── Part 1: direct YAML spec parsing ────────────────────────────────────────
+
 
 def run_part1(spec_cache: SpecCache) -> None:
     """
@@ -272,6 +275,7 @@ metric:
 
 # ── Parts 2 & 3: DefinitionBot ───────────────────────────────────────────────
 
+
 async def run_parts2_and_3(spec_cache: SpecCache, db_path: str) -> None:
     """
     Part 2: two DefinitionBot.ask() calls.  Each trace shows the four mandatory
@@ -283,9 +287,11 @@ async def run_parts2_and_3(spec_cache: SpecCache, db_path: str) -> None:
     """
     if not os.environ.get("ANTHROPIC_API_KEY"):
         print(
-            "\n" + "═" * 70
+            "\n"
+            + "═" * 70
             + "\nPARTS 2 & 3 skipped — set ANTHROPIC_API_KEY to run the LLM turns."
-            + "\n" + "═" * 70
+            + "\n"
+            + "═" * 70
         )
         return
 
@@ -340,9 +346,7 @@ async def run_parts2_and_3(spec_cache: SpecCache, db_path: str) -> None:
         cache_summary("Ask 2 (Layers A+B should be cached)", response2)
 
     total = sum(
-        r.trace.usage.total_tokens
-        for r in (response1, response2)
-        if r.trace.usage.total_tokens
+        r.trace.usage.total_tokens for r in (response1, response2) if r.trace.usage.total_tokens
     )
     print(f"\n{'─' * 70}")
     conv = (response2.trace.conversation_id or "")[:8] or "?"
@@ -351,6 +355,7 @@ async def run_parts2_and_3(spec_cache: SpecCache, db_path: str) -> None:
 
 
 # ── Entry point ──────────────────────────────────────────────────────────────
+
 
 async def main(base_path: str = ".") -> None:
     print("Loading specs …")

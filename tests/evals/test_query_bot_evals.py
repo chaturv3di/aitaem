@@ -46,7 +46,7 @@ class QueryEvalInput:
 @dataclass
 class QueryEvalOutput:
     response: QueryResponse
-    bot: QueryBot          # for get_result() lookups in evaluators
+    bot: QueryBot  # for get_result() lookups in evaluators
 
 
 async def query_bot_task(inputs: QueryEvalInput) -> QueryEvalOutput:
@@ -130,25 +130,37 @@ def _tool_selection_model(metric: str = "revenue") -> FunctionModel:
                             returns[name] = return_part.model_response_object()
 
         if "record_intent" not in returns:
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="record_intent",
-                args=json.dumps({"metric_concept": metric, "scope": "overall"}),
-                tool_call_id="tc-1",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="record_intent",
+                        args=json.dumps({"metric_concept": metric, "scope": "overall"}),
+                        tool_call_id="tc-1",
+                    )
+                ]
+            )
         elif "resolve_intent" not in returns:
             intent_id = returns["record_intent"].get("intent_id", 0)
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="resolve_intent",
-                args=json.dumps({"intent_id": intent_id, "metric_name": metric}),
-                tool_call_id="tc-2",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="resolve_intent",
+                        args=json.dumps({"intent_id": intent_id, "metric_name": metric}),
+                        tool_call_id="tc-2",
+                    )
+                ]
+            )
         elif "compute_metrics" not in returns:
             token = returns["resolve_intent"]["exact_match"]["spec_token"]
-            return ModelResponse(parts=[ToolCallPart(
-                tool_name="compute_metrics",
-                args=json.dumps({"spec_token": token}),
-                tool_call_id="tc-3",
-            )])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="compute_metrics",
+                        args=json.dumps({"spec_token": token}),
+                        tool_call_id="tc-3",
+                    )
+                ]
+            )
         else:
             compute_data = returns["compute_metrics"]
             result_id = compute_data.get("result_id", "")
@@ -192,7 +204,9 @@ dataset: Dataset[QueryEvalInput, QueryEvalOutput, None] = Dataset(
     cases=[
         Case(
             name="tool_selection_wiring",
-            inputs=QueryEvalInput(question="What was total revenue?", model=_tool_selection_model()),
+            inputs=QueryEvalInput(
+                question="What was total revenue?", model=_tool_selection_model()
+            ),
             evaluators=(CalledTool(tool_name="compute_metrics"),),
         ),
         Case(
@@ -202,7 +216,9 @@ dataset: Dataset[QueryEvalInput, QueryEvalOutput, None] = Dataset(
         ),
         Case(
             name="deterministic_correctness_wiring",
-            inputs=QueryEvalInput(question="What was total revenue?", model=_tool_selection_model()),
+            inputs=QueryEvalInput(
+                question="What was total revenue?", model=_tool_selection_model()
+            ),
             evaluators=(ResultMatchesGroundTruth(),),
         ),
     ],

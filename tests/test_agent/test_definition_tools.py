@@ -478,7 +478,11 @@ def test_validate_spec_unknown_draft_id_returns_error():
 
 def test_validate_spec_invalid_yaml_returns_errors():
     deps = _make_deps()
-    draft_id = _store_draft(deps, "metric", "metric:\n  name: broken\n  source: duckdb://db/t\n  numerator: amount\n  timestamp_col: ts\n")
+    draft_id = _store_draft(
+        deps,
+        "metric",
+        "metric:\n  name: broken\n  source: duckdb://db/t\n  numerator: amount\n  timestamp_col: ts\n",
+    )
     ctx = _make_ctx(deps)
 
     result = validate_spec(ctx, draft_id=draft_id)
@@ -778,7 +782,7 @@ def test_normalize_source_in_yaml_rewrites_source():
         "metric:\n"
         "  name: revenue\n"
         "  source: bigquery://myproject/ds/sales\n"
-        "  numerator: \"SUM(amount)\"\n"
+        '  numerator: "SUM(amount)"\n'
         "  timestamp_col: ts\n"
     )
     result = _normalize_source_in_yaml(yaml_text)
@@ -798,7 +802,9 @@ def test_normalize_source_in_yaml_noop_malformed_yaml():
 def test_normalize_source_in_yaml_noop_missing_source_key():
     from aitaem.agent.definition_tools import _normalize_source_in_yaml
 
-    yaml_text = "slice:\n  name: by_country\n  values:\n    - name: US\n      where: \"country = 'US'\"\n"
+    yaml_text = (
+        "slice:\n  name: by_country\n  values:\n    - name: US\n      where: \"country = 'US'\"\n"
+    )
     assert _normalize_source_in_yaml(yaml_text) == yaml_text
 
 
@@ -814,7 +820,7 @@ def test_validate_spec_normalizes_bigquery_source_in_stored_draft():
         "metric:\n"
         "  name: revenue\n"
         "  source: bigquery://myproject/ds/sales\n"
-        "  numerator: \"SUM(amount)\"\n"
+        '  numerator: "SUM(amount)"\n'
         "  timestamp_col: transaction_date\n"
     )
     deps = _make_deps()
@@ -1068,7 +1074,9 @@ def test_date_range_unknown_source_returns_error_not_raised(ad_campaigns_connect
     deps = _make_deps(connection_manager=ad_campaigns_connection_manager)
     ctx = _make_ctx(deps)
 
-    result = date_range(ctx, source="bigquery://no-such-project/no_such_dataset.no_such_table", date_column="date")
+    result = date_range(
+        ctx, source="bigquery://no-such-project/no_such_dataset.no_such_table", date_column="date"
+    )
 
     assert result.error is not None
     assert result.result_id == ""
@@ -1079,7 +1087,9 @@ def test_date_range_filter_narrows_results(ad_campaigns_connection_manager):
     ctx = _make_ctx(deps)
 
     unfiltered = date_range(ctx, source=_AD_CAMPAIGNS_SOURCE, date_column="date")
-    filtered = date_range(ctx, source=_AD_CAMPAIGNS_SOURCE, date_column="date", filter="revenue > 1000")
+    filtered = date_range(
+        ctx, source=_AD_CAMPAIGNS_SOURCE, date_column="date", filter="revenue > 1000"
+    )
 
     assert filtered.error is None
     assert filtered.count < unfiltered.count
@@ -1090,7 +1100,9 @@ def test_date_range_malformed_filter_returns_error_not_raised(ad_campaigns_conne
     ctx = _make_ctx(deps)
 
     result = date_range(
-        ctx, source=_AD_CAMPAIGNS_SOURCE, date_column="date",
+        ctx,
+        source=_AD_CAMPAIGNS_SOURCE,
+        date_column="date",
         filter="x IN (SELECT y FROM dim_platforms)",
     )
 
@@ -1098,7 +1110,9 @@ def test_date_range_malformed_filter_returns_error_not_raised(ad_campaigns_conne
     assert result.result_id == ""
 
 
-def test_date_range_filter_execution_failure_returns_error_not_raised(ad_campaigns_connection_manager):
+def test_date_range_filter_execution_failure_returns_error_not_raised(
+    ad_campaigns_connection_manager,
+):
     """The filter parses as valid SQL but fails at execution (unknown column) — caught, not raised."""
     deps = _make_deps(connection_manager=ad_campaigns_connection_manager)
     ctx = _make_ctx(deps)
@@ -1111,7 +1125,9 @@ def test_date_range_filter_execution_failure_returns_error_not_raised(ad_campaig
     assert result.result_id == ""
 
 
-def test_date_range_aggregate_execution_failure_returns_error_not_raised(ad_campaigns_connection_manager):
+def test_date_range_aggregate_execution_failure_returns_error_not_raised(
+    ad_campaigns_connection_manager,
+):
     deps = _make_deps(connection_manager=ad_campaigns_connection_manager)
     ctx = _make_ctx(deps)
 
@@ -1184,9 +1200,12 @@ def _mock_mc(arrow_table=None):
 
     mc = MagicMock()
     mock_ibis = MagicMock()
-    mock_ibis.to_pyarrow.return_value = arrow_table or pa.table({
-        "metric_name": ["revenue"], "metric_value": [1000.0],
-    })
+    mock_ibis.to_pyarrow.return_value = arrow_table or pa.table(
+        {
+            "metric_name": ["revenue"],
+            "metric_value": [1000.0],
+        }
+    )
     mc.compute.return_value = mock_ibis
     return mc
 
@@ -1324,12 +1343,18 @@ def test_definition_compute_metrics_uses_exact_match_not_raw_arguments():
     ctx = _make_ctx(deps)
 
     diverging_match = ExactMatch(
-        spec_token="", metric_name="canonical_revenue", slices=["by_country"], segment=None,
+        spec_token="",
+        metric_name="canonical_revenue",
+        slices=["by_country"],
+        segment=None,
     )
-    with patch("aitaem.agent.definition_tools.SpecResolver") as mock_resolver_cls, \
-         patch("aitaem.agent.common_tools.MetricCompute", return_value=_mock_mc()) as mock_mc_cls:
+    with (
+        patch("aitaem.agent.definition_tools.SpecResolver") as mock_resolver_cls,
+        patch("aitaem.agent.common_tools.MetricCompute", return_value=_mock_mc()) as mock_mc_cls,
+    ):
         mock_resolver_cls.return_value.resolve.return_value = SpecMatchResult(
-            exact_match=diverging_match, near_misses=[],
+            exact_match=diverging_match,
+            near_misses=[],
         )
         result = definition_compute_metrics(ctx, metric_name="revenue")
 

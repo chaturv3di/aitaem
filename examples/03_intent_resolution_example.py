@@ -70,6 +70,7 @@ QUESTIONS = [
 
 # ── Pretty-printers ─────────────────────────────────────────────────────────
 
+
 def fmt_arg(v: Any) -> str:
     if isinstance(v, str) and len(v) > 14:
         return f"'{v[:10]}…'"
@@ -167,6 +168,7 @@ def cache_summary(label: str, response: QueryResponse) -> None:
 
 # ── Setup ────────────────────────────────────────────────────────────────────
 
+
 def setup(base_path: str = ".") -> tuple[SpecCache, SpecCache, str]:
     """Load both spec catalogs and ensure the bundled DuckDB exists, creating
     it from the CSV if needed. base_path is the aitaem repo root — "." when
@@ -195,6 +197,7 @@ def setup(base_path: str = ".") -> tuple[SpecCache, SpecCache, str]:
 
 
 # ── Part 1: SpecResolver — catalog validation without an LLM ────────────────
+
 
 def run_part1(spec_cache_full: SpecCache) -> None:
     """
@@ -251,7 +254,7 @@ def run_part1(spec_cache_full: SpecCache) -> None:
     # The LLM does NOT auto-substitute — the user must confirm on the next turn.
     result = resolver.resolve(
         _intent("total revenue"),
-        proposed_metric_name="total_revenu",   # missing trailing 'e'
+        proposed_metric_name="total_revenu",  # missing trailing 'e'
         proposed_slices=[],
         proposed_segment=None,
         spec_cache=spec_cache_full,
@@ -268,7 +271,7 @@ def run_part1(spec_cache_full: SpecCache) -> None:
     result = resolver.resolve(
         _intent("CTR"),
         proposed_metric_name="ctr",
-        proposed_slices=["platform"],   # platform is a segment spec
+        proposed_slices=["platform"],  # platform is a segment spec
         proposed_segment=None,
         spec_cache=spec_cache_full,
     )
@@ -295,6 +298,7 @@ def run_part1(spec_cache_full: SpecCache) -> None:
 
 # ── Part 2 & 3: QueryBot conversation ───────────────────────────────────────
 
+
 async def run_parts2_and_3(spec_cache: SpecCache, db_path: str) -> None:
     """
     Part 2: three-turn QueryBot conversation.  Each trace shows the mandatory
@@ -306,9 +310,11 @@ async def run_parts2_and_3(spec_cache: SpecCache, db_path: str) -> None:
     """
     if not os.environ.get("ANTHROPIC_API_KEY"):
         print(
-            "\n" + "═" * 70
+            "\n"
+            + "═" * 70
             + "\nPARTS 2 & 3 skipped — set ANTHROPIC_API_KEY to run the LLM turns."
-            + "\n" + "═" * 70
+            + "\n"
+            + "═" * 70
         )
         return
 
@@ -362,6 +368,7 @@ async def run_parts2_and_3(spec_cache: SpecCache, db_path: str) -> None:
 
 
 # ── Entry point ──────────────────────────────────────────────────────────────
+
 
 async def main(base_path: str = ".") -> None:
     print("Loading specs …")

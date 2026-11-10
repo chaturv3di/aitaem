@@ -5,6 +5,7 @@ Skipped automatically when ANTHROPIC_API_KEY is unset.
 Regular CI  : collected, skipped (no secret).
 Dedicated CI: pytest tests/test_agent/test_query_bot_smoke.py -v
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -38,19 +39,21 @@ def _smoke_spec_cache():
 
 def _smoke_mc():
     mc = MagicMock()
-    table = pa.table({
-        "metric_name": ["revenue"],
-        "metric_value": [125_000.0],
-        "period_type": ["all_time"],
-        "period_start_date": [None],
-        "period_end_date": [None],
-        "entity_id": [None],
-        "metric_format": ["currency:USD"],
-        "slice_type": ["none"],
-        "slice_value": ["all"],
-        "segment_name": ["none"],
-        "segment_value": ["all"],
-    })
+    table = pa.table(
+        {
+            "metric_name": ["revenue"],
+            "metric_value": [125_000.0],
+            "period_type": ["all_time"],
+            "period_start_date": [None],
+            "period_end_date": [None],
+            "entity_id": [None],
+            "metric_format": ["currency:USD"],
+            "slice_type": ["none"],
+            "slice_value": ["all"],
+            "segment_name": ["none"],
+            "segment_value": ["all"],
+        }
+    )
     mock_ibis = MagicMock()
     mock_ibis.to_pyarrow.return_value = table
     mc.compute.return_value = mock_ibis
