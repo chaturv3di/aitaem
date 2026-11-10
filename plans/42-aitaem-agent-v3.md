@@ -27,7 +27,7 @@ its sub-feature.
 1. **Keep it simple.** The instructions state the role's core directive: the steps it takes in
    the sequence diagrams of §A6.3, listed per role in §4.
 2. **Write steps in active voice.** The instructions are a numbered list of steps addressed to the
-   agent ("Resolve each metric with `resolve_spec`."). Each step names the tool it uses.
+   agent ("Find each metric with `find_specs`."). Each step names the tool it uses.
 3. **State what to do.** Leave out contrast phrasing such as "Do X, not Y" and "This is X, not Y".
 4. **Trust the agent and the user with ambiguity.** Leave corner cases out. An agent that meets an
    unclear case asks the user (main session, spec coordinator) or writes a needs-input handoff
@@ -76,7 +76,7 @@ class ConnectionParams(BaseModel):               # connect_source; connections c
     config: dict[str, str | int | bool]          # ConnectionManager.add_connection keywords
 
 class MetricComputeParams(BaseModel):            # compute_metrics; analysis coordinator
-    metrics: list[str]                           # as the user named them
+    metrics: list[str]
     slices: list[str] = []
     segment: str | None = None
     time_window: tuple[str, str] | None = None   # description: needed when period_type is not "all_time"
@@ -165,10 +165,10 @@ class Response(BaseModel):
 |---|---|---|---|
 | `main_session` | `model` | `Reply` | `run_connections`, `run_analysis`, `start_spec_design`; `list_artifacts`, `describe_artifact`, `read_artifact`; stats group |
 | `connections_coordinator` | `model` | `Handoff` | `connect_source`, `list_tables`, `describe_table` |
-| `analysis_coordinator` | `model` | `Handoff` | `resolve_spec`, `compute_metrics`; stats group; `describe_artifact`, `read_artifact`; `run_analysis_executors` |
-| `analysis_executor` | `executor_model` | `Handoff` | `list_specs`, `resolve_spec`, `check_compatibility` |
-| `spec_coordinator` | `model` | `Reply` or `Handoff` | `list_specs`, `resolve_spec`, `validate_spec`, `commit_spec`, `delete_spec`; `list_tables`, `describe_table`, `sample_rows`, `date_range`, `column_distribution`; `run_spec_executors` |
-| `spec_executor` | `executor_model` | `Handoff` | `describe_table`, `sample_rows`, `date_range` |
+| `analysis_coordinator` | `model` | `Handoff` | `compute_metrics`; stats group; `describe_artifact`, `read_artifact`; `run_analysis_executors` |
+| `analysis_executor` | `executor_model` | `Handoff` | `find_specs`, `read_spec`, `check_compatibility` |
+| `spec_coordinator` | `model` | `Reply` or `Handoff` | `list_specs`, `read_spec`, `validate_spec`, `commit_spec`, `delete_spec`; `list_tables`, `sample_rows`, `column_distribution`; `run_spec_executors` |
+| `spec_executor` | `executor_model` | `Handoff` | `describe_table`, `date_range` |
 
 Core directives, the skeleton of each `instructions.md` (§1):
 
@@ -194,10 +194,9 @@ Core directives, the skeleton of each `instructions.md` (§1):
 **Analysis coordinator**
 1. Plan the steps that answer the intake: the metrics to compute and the stats to run on each
    result.
-2. Resolve the specs the intake names with `resolve_spec`. For each other metric, write the slices
-   and segment it must support as a combo, and find the specs with `run_analysis_executors`. Choose
-   among the specs the handoffs offer; when none fits, write a `needs-input` handoff that offers
-   the closest ones.
+2. Write each metric the plan needs as a combo with the slices and segment it must support, and
+   find their specs with `run_analysis_executors`. Choose among the specs the handoffs offer; when
+   none fits, write a `needs-input` handoff.
 3. Run the steps with `compute_metrics` and the stats tools, passing each result's ID to the next
    step.
 4. Read the values the answer needs with `read_artifact`, keeping to the columns and rows you need.
@@ -205,15 +204,16 @@ Core directives, the skeleton of each `instructions.md` (§1):
    results support no answer. List the supporting result IDs.
 
 **Analysis executor**
-1. Find the candidate specs for each combo in the intake with `list_specs` and `resolve_spec`.
-2. Check that each candidate metric supports its combo's slices and segment with
-   `check_compatibility`.
-3. Write the handoff: for each combo, the compatible spec names and the reason each fits.
+1. Find candidate metrics, slices, and segments for each combo in the intake with `find_specs`.
+2. Read the promising candidates with `read_spec`.
+3. Check the candidates together with `check_compatibility`.
+4. Write the handoff with the combos you are confident fulfill the request.
 
 **Spec coordinator**
-1. Research the tables in the intake with `describe_table`, `sample_rows`, and `date_range`. For
-   several tables, write one intake per table and run them with `run_spec_executors`.
-2. Draft each spec with the user. Check each draft with `validate_spec` and show it to the user.
+1. Research the tables in the intake with `run_spec_executors`.
+2. Draft each spec with the user. Ask the user for thresholds; run `sample_rows` and
+   `column_distribution` only on the tables and columns the user names. Check each draft with
+   `validate_spec` and show it to the user.
 3. When the user agrees to a spec, save it with `commit_spec`.
 4. When the specs are done, write the handoff listing the saved specs.
 5. When the user leaves the task, list the specs you saved, delete the ones the user wants removed
@@ -221,7 +221,7 @@ Core directives, the skeleton of each `instructions.md` (§1):
 
 **Spec executor**
 1. Describe each table in the intake with `describe_table`.
-2. Sample its rows with `sample_rows` and find the bounds of its date columns with `date_range`.
+2. Find the bounds of its date columns with `date_range`.
 3. Write the handoff: for each table, the columns that can serve as entities, timestamps,
    measures, and slice dimensions.
 
@@ -247,8 +247,9 @@ registry, and `ResultStore` are replaced by artifacts.
 | data | `date_range(source, date_column, filter=None)` | object, `date_range` | v2 `definition_tools`; bounds-only, temporal columns only (Plan 37) |
 | aitaem | `connect_source(params: ConnectionParams)` | object, `connection` | New; `ConnectionManager.add_connection` |
 | aitaem | `list_specs(spec_type=None)` | object, `spec_list` | New; names and descriptions from `SpecCache` |
-| aitaem | `resolve_spec(spec_type, name)` | object, `spec_match` | v2 `SpecResolver.resolve_metric_name`, extended to slices and segments; the match carries the spec's YAML |
-| aitaem | `check_compatibility(metric, slices=[], segments=[])` | object, `compatibility` | New; `MetricCompute.scan()` on a `SpecCache` holding the named specs |
+| aitaem | `find_specs(spec_type, query, limit=10)` | object, `spec_matches` | New; names and descriptions of the specs that best match `query`, by case-insensitive keyword match over each spec's name, description, entities, and source |
+| aitaem | `read_spec(spec_type, name)` | object, `spec` | New; the full spec as YAML, from `SpecCache` |
+| aitaem | `check_compatibility(metrics, slices=[], segments=[])` | object, `compatibility` | New; `MetricCompute.scan()` on a `SpecCache` holding the named specs: every metric against every slice and segment |
 | aitaem | `validate_spec(spec_type, yaml_text)` | object, `spec_draft` | v2 `validate_spec` checks |
 | aitaem | `commit_spec(draft_id)` | object, `spec_commit` | v2 `commit_spec` add-or-update rule, plus `SpecCache.save()` |
 | aitaem | `delete_spec(spec_type, name)` | object, `spec_delete` | v2 `delete_spec`, plus `SpecCache.save()` |
@@ -262,11 +263,10 @@ Rules:
 - Stats with bounded output (aggregates, top-N) produce `table` artifacts in `session.duckdb`.
   Row-preserving stats keep their input's kind: an `ibis` input yields a lazy `ibis` result on the
   same backend; a `table` input yields a new table in `session.duckdb`.
-- `filter_by_result` needs both inputs on one backend; otherwise it returns `error`.
+- `filter_by_result` joins on the inputs' backend when they share one; otherwise it copies both
+  into `session.duckdb` and joins there, as `MetricCompute.compute()` does across backends.
 - `check_compatibility` uses core's check: a slice fits when its columns exist in the metric's
   source table, a segment when one of its join keys does.
-- `resolve_spec` returns `ok` with the exact match, or `refused` with up to three close names
-  (`difflib`, as v2), which applies the Metric Precision Rule (§A5).
 - `validate_spec` runs v2's checks (structure through `*Spec.from_yaml`, name conflicts, composite
   slice references, column existence) and stores the draft and its issues as the artifact;
   `status` is `ok` when every check passes. `commit_spec` re-runs those checks against the current
@@ -401,8 +401,9 @@ metrics only; `date_range` rejects non-temporal columns.
 **[verify]** first: `SpecCache.add()` accepts a composite slice without the slices it references,
 and `scan()` on that cache gives the same verdicts as on the full cache.
 **Tests:** `connect_source` for DuckDB, an existing backend (`error`), and Postgres (`refused`);
-`resolve_spec` exact and near matches for each spec type; `check_compatibility` verdicts match
-`MetricCompute.scan()` on the full cache; `validate_spec` on each check;
+`find_specs` ranks matches on each field for each spec type; `read_spec` returns the spec and
+`error` for an unknown name; `check_compatibility` verdicts match `MetricCompute.scan()` on the
+full cache; `validate_spec` on each check;
 `commit_spec` adds, updates, saves to a `tmp_path` and a `memory://` `spec_dir`, and leaves the
 cache unchanged on an invalid draft; `delete_spec` removes the spec and its file;
 `compute_metrics` stores a lazy result whose `to_pyarrow()` equals a direct `MetricCompute` call.
@@ -413,7 +414,7 @@ cache unchanged on an invalid draft; `delete_spec` removes the spec and its file
 **Tests:** carried-over tests; `period_over_period` and `contribution_share` match the v2 pandas
 results on the same fixture; row-preserving tools keep their input's kind; bounded tools write
 tables; `rank_by_value` with `group_by` keeps the top N in each group; `filter_by_value` and
-`filter_by_result` on ibis and table inputs; `filter_by_result` across backends returns `error`.
+`filter_by_result` on ibis and table inputs and across backends.
 
 ### Phase 4 — Agent roles
 
@@ -463,10 +464,10 @@ artifact and the launch tool's facts.
 #### SF-12 — Analysis coordinator
 
 **Files:** `aitaem/agent/agent_roles/analysis_coordinator/` (`run_analysis` launch tool).
-**Tests:** named specs resolved without a fan-out; a fan-out of combos whose handoffs supply the
-spec names for `compute_metrics`; no compatible spec → `needs-input` with the closest ones, before
-any compute; a chain of compute and stats calls, each taking the previous result's ID → `complete`;
-a relaunch with earlier `result_ids` reuses them.
+**Tests:** a fan-out of combos whose handoffs supply the spec names for `compute_metrics`; no
+compatible spec → `needs-input`, before any compute; a chain of compute and
+stats calls, each taking the previous result's ID → `complete`; a relaunch with earlier
+`result_ids` reuses them.
 
 #### SF-13 — Spec coordinator
 

@@ -53,7 +53,7 @@ Decisions (justified in [42-workflow-options](../../research/agent_module/42-wor
 | Spec design workflow | The main session suspends; the spec coordinator converses with the user directly until it writes its handoff and returns control. Each spec is saved when the coordinator commits it; there is no save step at the end of the flow. If the user leaves the flow, the coordinator lists the saved specs, deletes any the user doesn't want, then ends with its handoff. |
 | Connections and analysis workflows | The coordinator never talks to the user. Its handoff is **complete** (answer + result IDs), **needs-input** (questions + result IDs), or **inconclusive** (reason + result IDs). On needs-input, the main session asks the user and re-spawns the coordinator with an updated intake that reuses the earlier results by ID. On complete, the main session checks that the answer meets the request and re-spawns the coordinator with what is missing when it falls short. |
 | When a coordinator may stop | Never while executors are running; only before dispatch or after all executors have returned and their results are reviewed. Enforced structurally: the fan-out tool awaits every executor. Applies to all coordinators, including the spec coordinator's dialogue with the user. |
-| Coordinator → executors | Executors research and coordinators decide. Analysis executors find the specs for metric + slice + segment combos and check that each metric supports its combo; spec executors research tables. Coordinators fan out identical executors via written task instructions; executors return results individually; the coordinator compiles them and resolves or flags conflicts. The analysis coordinator plans the computation and runs `compute_metrics` and the stats tools itself, chaining results by artifact ID. |
+| Coordinator → executors | Executors research and coordinators decide. Analysis executors find the specs for metric + slice + segment combos and check that each metric supports its combo; spec executors research tables. Coordinators fan out identical executors via written task instructions; executors return results individually; the coordinator compiles them and resolves or flags conflicts. The analysis coordinator plans the computation, finds every spec through its executors, chooses among the specs they return, and runs `compute_metrics` and the stats tools itself, chaining results by artifact ID. |
 | Requests spanning several coordinators | Run one after the other. The main session reads each coordinator's handoff before writing the next intake. Coordinators never hand off to each other. |
 | Compute results | Kept as lazy Ibis refs on the source backend. Stats and reads run as queries on the source backend; a read returns only the columns and rows it asks for. No local cache. |
 | Small tool outputs | Outputs of stats and data tools (aggregates, top-N, reads, profiles) are stored locally in `session.duckdb`. |
@@ -147,7 +147,7 @@ aitaem/agent/
     │   └── agent.py          # Agent definition: model, tools, deps, output
     └── <role>/               # coordinators and executors
         ├── instructions.md
-        └── agent.py          # as above, plus its intake params model and the tool that launches it
+        └── agent.py          # the role's agent and the tool that launches it
 ```
 
 Rules:
@@ -228,7 +228,7 @@ Tools are plain functions grouped into `FunctionToolset`s, exposed through pydan
 |---|---|---|
 | `stats` | `sort_rank`, `summary_stats`, `distribution`, `period_over_period`, `contribution_share`, `filter_threshold`, `filter_by_value`, `filter_by_result` | Result artifacts only (`ibis` and `table`); no `ConnectionManager` or aitaem objects. Stats on an `ibis` artifact run as a query on that result's backend. |
 | `data` | `list_tables`, `describe_table`, `sample_rows`, `column_profile`, `date_range` | Source backends via `ConnectionManager` (read-only). |
-| `aitaem` | `connect_source`, `list_specs`, `resolve_spec`, `check_compatibility`, `validate_spec`, `commit_spec`, `delete_spec`, `compute_metrics` | aitaem core objects; `commit_spec` saves through `SpecCache.save()`. |
+| `aitaem` | `connect_source`, `list_specs`, `find_specs`, `read_spec`, `check_compatibility`, `validate_spec`, `commit_spec`, `delete_spec`, `compute_metrics` | aitaem core objects; `commit_spec` saves through `SpecCache.save()`. |
 | `artifact` | `list_artifacts`, `describe_artifact`, `read_artifact`, `drop_artifact` | Store only. |
 
 Tools that launch agents are not a tool group; they live in `agent_roles/` (§3).
@@ -238,7 +238,7 @@ Principles:
 - **Compute lock.** Every tool that executes an Ibis expression (`compute_metrics`, `check_compatibility`, `data` tools, `stats` and `read_artifact` on `ibis` artifacts) holds one process-wide lock whenever `ConnectionManager.requires_compute_lock` is true (DuckDB registered, or several backends configured), because Ibis DuckDB connections are not thread-safe and executors run in parallel. `SessionDeps` carries the lock, a no-op otherwise, so tools without a `ConnectionManager` can take it. Parallel executors on DuckDB sources therefore execute one at a time ([42-result-storage §5](../../research/agent_module/42-result-storage.md#5-concurrency)).
 - **Stable tool list.** The tool array is part of the cached prefix and is fixed and deterministically ordered for the whole session (§8).
 - **Semantics:** the Metric Precision Rule (no approximating a spec that doesn't precisely answer the question → `refused`); STANDARD_COLUMNS accessed by name; no raw spec YAML parsing in the agent module (specs go through aitaem's loaders; handoff YAML is parsed and checked against its schema).
-- Reuse existing implementations (distribution tools, `validate_spec`, `compute_metrics` internals) by moving them into the new groups; do not rewrite them.
+- Reuse core aitaem functionality (`MetricCompute`, `SpecCache`, `ConnectionManager`, `MetricCompute.scan()`) instead of reimplementing it in the agent module. v2 agent code is a reference only.
 
 ---
 
@@ -289,12 +289,10 @@ sequenceDiagram
     participant E as Executors
     U->>M: request
     M->>C: launch (intake ID)
-    C->>C: plan steps, resolve named specs
-    opt spec discovery
-        C->>E: fan-out tool (one intake per set of combos), awaits all executors
-        E-->>C: compatible specs per combo (handoff IDs)
-    end
-    C->>C: compute and stats chain, reads the values the answer needs
+    C->>C: plan steps, write the combos they need
+    C->>E: fan-out tool (one intake per set of combos), awaits all executors
+    E-->>C: compatible specs per combo (handoff IDs)
+    C->>C: choose specs, compute and stats chain, read the values the answer needs
     C-->>M: handoff ID (complete / needs-input / inconclusive)
     alt needs-input
         M-->>U: questions
@@ -409,7 +407,7 @@ to be rare ([42-history-stubbing §1](../../research/agent_module/42-history-stu
 
 Small structured object, updated deterministically from tool results (not by an LLM), rendered
 in the tail block each request: current goal, connected sources, active specs, pending question,
-user preferences, unresolved errors. Compact JSON, hard size cap.
+unresolved errors. Compact JSON, hard size cap.
 
 ### 9.3 Artifact index
 
