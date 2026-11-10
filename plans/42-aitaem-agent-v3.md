@@ -17,6 +17,7 @@ Research ([research/agent_module/](../research/agent_module/)):
 | [42-result-storage](../research/agent_module/42-result-storage.md) | Lazy compute results, compute lock (SF-3, SF-7, SF-8) |
 | [specs/41-spec-yaml-persistence](../research/specs/41-spec-yaml-persistence.md) | `SpecCache.save()` (SF-7) |
 | [42-spec-subcache-scan](../research/agent_module/42-spec-subcache-scan.md) | `check_compatibility` sub-cache (SF-7) |
+| [42-implementation-checks](../research/agent_module/42-implementation-checks.md) | Checks executed during implementation (SF-9, SF-10, SF-14) |
 
 ---
 
@@ -452,10 +453,12 @@ script flags each rule on a fixture tree.
   `gather(…, return_exceptions=True)`, passes child deps and `usage=ctx.usage`, stores each
   handoff (or an `error` artifact for a failed executor), and returns each executor's handoff ID,
   outcome, and response (§A7.2).
-- **[verify]** first: how a tool reads its run's `CancellationToken` to pass it to executors.
+- No token is passed: cancelling the coordinator's run cancels the fan-out tool's `gather`, and
+  with it every executor run ([implementation checks](../research/agent_module/42-implementation-checks.md#sf-10-passing-the-coordinators-cancellationtoken-to-executors)).
 
 **Tests:** at most four executors run at once; one failure leaves its siblings' handoffs intact;
-usage accumulates on the parent run; handoff parents link the intake and results.
+usage accumulates on the parent run; handoff parents link the intake and results; cancelling the
+coordinator cancels its executors.
 
 #### SF-11 — Connections coordinator
 

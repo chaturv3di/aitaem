@@ -363,7 +363,7 @@ async tool run_executors(ctx, tasks: list[Intake[P]]) -> ToolResult
 - Each executor gets a child `SessionDeps` and `usage=ctx.usage`, so the coordinator's `UsageLimits` bound the whole tree.
 - Executors default to a cheaper model tier than their coordinator.
 - Concurrency is bounded by an `asyncio.Semaphore` in the fan-out tool. If model-level limiting is added, its limiter is used only by the executors. **†**
-- The coordinator's `CancellationToken` is passed to its executors.
+- A cancelled coordinator cancels its executors: cancelling the run cancels the fan-out tool's `gather`, and with it every executor run ([implementation checks, SF-10](../../research/agent_module/42-implementation-checks.md#sf-10-passing-the-coordinators-cancellationtoken-to-executors)).
 - Failures: `return_exceptions=True`; failed executors produce `error` artifacts, listed in the fan-out tool's result. Siblings are not cancelled by one failure.
 - Executors have no `message_history` and narrow toolsets; they return YAML handoffs (R3) checked by an output validator.
 - Every agent is named (`name=`) and instrumented.

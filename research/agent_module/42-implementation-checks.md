@@ -16,3 +16,15 @@ result of each check executed during implementation. (SF-4 is recorded in
 `__init__.py` and `instructions.md` produced a wheel listing
 `aitaem/agent/agent_roles/_probe/instructions.md`. Hatchling's default wheel target includes
 non-Python files inside the package, so no build configuration is needed.
+
+## SF-10: passing the coordinator's `CancellationToken` to executors
+
+- `Agent.run(..., cancellation_token=...)` takes a token, but `RunContext` exposes none: the run's
+  tokens sit in the private `ctx._cancellation._tokens`. The public `ctx.cancel()` cancels the
+  current run only.
+- Executed: a parent run started with a token, whose `async` tool awaits
+  `asyncio.gather(child.run(...) × 3, return_exceptions=True)`. Cancelling the token while the
+  children were waiting on their model ended the parent with `RunCancelled`, and all three
+  children received `CancelledError` (3 started, 3 cancelled, 0 finished). Cancellation reaches
+  the executors through asyncio task cancellation of the fan-out tool's `gather`, without passing
+  the token.
