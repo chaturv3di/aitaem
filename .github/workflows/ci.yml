@@ -98,7 +98,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        # The agent extras need Python >= 3.11 (pydantic-ai-slim 2.55). 3.11 runs the floor version.
+        include:
+          - python-version: "3.11"
+            pydantic-ai: "pydantic-ai-slim[anthropic,evals]==2.55.0"
+          - python-version: "3.12"
+            pydantic-ai: ""
 
     steps:
       - uses: actions/checkout@v4
@@ -113,6 +118,10 @@ jobs:
 
       - name: Install agent dependencies
         run: uv pip install --system -e ".[agent-anthropic,dev]"
+
+      - name: Pin the pydantic-ai floor
+        if: matrix.pydantic-ai != ''
+        run: uv pip install --system "${{ matrix.pydantic-ai }}"
 
       - name: Run agent tests
         run: python -m pytest tests/test_agent/ --cov=aitaem/agent

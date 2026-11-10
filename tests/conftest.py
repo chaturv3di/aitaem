@@ -5,6 +5,7 @@ Provides a session-scoped in-memory DuckDB connection loaded with the
 ad_campaigns dataset from examples/data/ad_campaigns.csv.
 """
 
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,9 @@ from aitaem.connectors.ibis_connector import IbisConnector
 
 EXAMPLES_DATA_DIR = Path(__file__).parent.parent / "examples" / "data"
 AD_CAMPAIGNS_CSV = EXAMPLES_DATA_DIR / "ad_campaigns.csv"
+
+# The agent extras need pydantic-ai (Python >= 3.11); core-only installs skip the agent tests.
+collect_ignore_glob = [] if importlib.util.find_spec("pydantic_ai") else ["test_agent/*", "evals/*"]
 
 # Source URI used in all example metric/segment specs
 AD_CAMPAIGNS_SOURCE_URI = "duckdb://ad_campaigns.duckdb/ad_campaigns"
