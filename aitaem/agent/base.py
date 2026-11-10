@@ -111,9 +111,7 @@ class Bot(ABC):
         extra_tools: list[Any] | None = None,
     ) -> BotResponse:
         """Send a message and accumulate history (multi-turn entry point)."""
-        raise NotImplementedError(
-            "chat() must be implemented by the convenience bot subclass."
-        )
+        raise NotImplementedError("chat() must be implemented by the convenience bot subclass.")
 
     async def ask(
         self,
@@ -122,9 +120,7 @@ class Bot(ABC):
         extra_tools: list[Any] | None = None,
     ) -> BotResponse:
         """Send a single-turn message without accumulating history."""
-        raise NotImplementedError(
-            "ask() must be implemented by the convenience bot subclass."
-        )
+        raise NotImplementedError("ask() must be implemented by the convenience bot subclass.")
 
     def add_tool(self, tool: Any) -> None:
         """Add a tool to this bot's persistent tool set at runtime.
@@ -164,9 +160,7 @@ class Bot(ABC):
         """
         from aitaem.agent.history import make_bundle
 
-        return make_bundle(
-            self._message_history, self._store, self._runtime_added_tool_names
-        )
+        return make_bundle(self._message_history, self._store, self._runtime_added_tool_names)
 
     @classmethod
     def load_history(cls, data: dict[str, Any], **kwargs: Any) -> Bot:

@@ -651,7 +651,9 @@ def validate_segment_spec(spec_dict: dict) -> ValidationResult:
                         )
         elif where is not None:
             where_columns = where if isinstance(where, list) else [where]
-            col_map["where"] = [c.strip() for c in where_columns if isinstance(c, str) and c.strip()]
+            col_map["where"] = [
+                c.strip() for c in where_columns if isinstance(c, str) and c.strip()
+            ]
         referenced_columns = col_map
 
     return ValidationResult(

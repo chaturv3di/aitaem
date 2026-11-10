@@ -55,7 +55,11 @@ from aitaem.agent.definition_types import (
     ValidateSpecResult,
     ValidationIssue,
 )
-from aitaem.agent.common_tools import _execute_metric_compute, _reject_unsafe_filter, _stringify_bound
+from aitaem.agent.common_tools import (
+    _execute_metric_compute,
+    _reject_unsafe_filter,
+    _stringify_bound,
+)
 from aitaem.agent.resolver import MetricIntent, SpecResolver
 from aitaem.utils.exceptions import AitaemError
 
@@ -148,9 +152,7 @@ def list_tables(
             connector = cm.get_connection(bt)
             raw_names = connector.list_tables()
             tables[bt] = [
-                uri
-                for name in raw_names
-                if (uri := connector.build_source_uri(name)) is not None
+                uri for name in raw_names if (uri := connector.build_source_uri(name)) is not None
             ]
         except Exception as exc:
             errors[bt] = f"{type(exc).__name__}: {exc}"
@@ -390,12 +392,11 @@ def validate_spec(
     # Check 4: composite cross-reference (slice only)
     if draft.spec_type == "slice":
         from aitaem.specs.slice import SliceSpec as _SliceSpec
+
         slice_spec = cast(_SliceSpec, spec)
     if draft.spec_type == "slice" and slice_spec.is_composite:
         spec_cache = ctx.deps.spec_cache
-        missing = [
-            name for name in slice_spec.cross_product if name not in spec_cache.slices
-        ]
+        missing = [name for name in slice_spec.cross_product if name not in spec_cache.slices]
         if missing:
             return ValidateSpecResult(
                 errors=[
@@ -480,13 +481,10 @@ def validate_spec(
                     )
                 except Exception as col_exc:
                     warnings.append(
-                        f"Column existence check skipped: "
-                        f"{type(col_exc).__name__}: {col_exc}"
+                        f"Column existence check skipped: {type(col_exc).__name__}: {col_exc}"
                     )
     except Exception as exc:
-        warnings.append(
-            f"Column existence check unavailable: {type(exc).__name__}: {exc}"
-        )
+        warnings.append(f"Column existence check unavailable: {type(exc).__name__}: {exc}")
 
     if column_errors:
         return ValidateSpecResult(
@@ -600,9 +598,7 @@ def delete_spec(
     try:
         ctx.deps.spec_cache.remove(spec_type, name)
     except (SpecNotFoundError, SpecValidationError) as exc:
-        return DeleteSpecResult(
-            spec_type=spec_type, spec_name=name, deleted=False, error=str(exc)
-        )
+        return DeleteSpecResult(spec_type=spec_type, spec_name=name, deleted=False, error=str(exc))
 
     return DeleteSpecResult(spec_type=spec_type, spec_name=name, deleted=True)
 
@@ -694,7 +690,9 @@ def date_range(
         except AitaemError as exc:
             return DateRangeResult(result_id="", error=f"{type(exc).__name__}: {exc}")
         except Exception as exc:
-            return DateRangeResult(result_id="", error=f"Unexpected error: {type(exc).__name__}: {exc}")
+            return DateRangeResult(
+                result_id="", error=f"Unexpected error: {type(exc).__name__}: {exc}"
+            )
 
     try:
         agg = _build_bounds_agg(filtered_table, date_column)
@@ -707,13 +705,17 @@ def date_range(
     min_val = _stringify_bound(row.get("min_val"))
     max_val = _stringify_bound(row.get("max_val"))
     result_id = ctx.deps.store.store_tabular(
-        pa.Table.from_pylist([{
-            "count": int(row["count"]),
-            "null_count": int(row["null_count"]),
-            "min_val": min_val,
-            "max_val": max_val,
-            "distinct_count": int(row["distinct_count"]),
-        }]),
+        pa.Table.from_pylist(
+            [
+                {
+                    "count": int(row["count"]),
+                    "null_count": int(row["null_count"]),
+                    "min_val": min_val,
+                    "max_val": max_val,
+                    "distinct_count": int(row["distinct_count"]),
+                }
+            ]
+        ),
         agg,
         metadata={"source": source, "column": date_column, "min_val": min_val, "max_val": max_val},
     )
@@ -779,7 +781,10 @@ def compute_metrics(
 
     if match_result.exact_match is None:
         return D_ComputeMetricsResult(
-            result_id="", row_count=0, sample=[], columns=[],
+            result_id="",
+            row_count=0,
+            sample=[],
+            columns=[],
             near_misses=match_result.near_misses,
             error="No exact catalog match — see near_misses.",
         )
@@ -799,12 +804,18 @@ def compute_metrics(
         )
     except AitaemError as exc:
         return D_ComputeMetricsResult(
-            result_id="", row_count=0, sample=[], columns=[],
+            result_id="",
+            row_count=0,
+            sample=[],
+            columns=[],
             error=f"{type(exc).__name__}: {exc}",
         )
     except Exception as exc:
         return D_ComputeMetricsResult(
-            result_id="", row_count=0, sample=[], columns=[],
+            result_id="",
+            row_count=0,
+            sample=[],
+            columns=[],
             error=f"Unexpected error: {type(exc).__name__}: {exc}",
         )
 
@@ -813,7 +824,10 @@ def compute_metrics(
         dependent_metrics.append(exact_match.metric_name)
 
     return D_ComputeMetricsResult(
-        result_id=result_id, row_count=row_count, sample=sample, columns=columns,
+        result_id=result_id,
+        row_count=row_count,
+        sample=sample,
+        columns=columns,
     )
 
 
@@ -846,5 +860,3 @@ def _get_spec_cache_bucket(spec_cache: object, spec_type: str) -> dict:
         return spec_cache.slices  # type: ignore[attr-defined]
     else:
         return spec_cache.segments  # type: ignore[attr-defined]
-
-

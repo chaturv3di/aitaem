@@ -302,24 +302,29 @@ def _build_layer_b_definition(spec_cache: Any) -> str:
         else:
             segment_lines.append(f"- {name}")
 
-    detail_note = "" if show_details else "\n(Details omitted — catalog exceeds display threshold. Call list_tables to explore schema.)\n"
+    detail_note = (
+        ""
+        if show_details
+        else "\n(Details omitted — catalog exceeds display threshold. Call list_tables to explore schema.)\n"
+    )
 
-    catalog = "\n".join([
-        "## Existing Metrics",
-        "\n".join(metric_lines) or "(none)",
-        "",
-        "## Existing Slices",
-        "\n".join(slice_lines) or "(none)",
-        "",
-        "## Existing Segments",
-        "\n".join(segment_lines) or "(none)",
-        detail_note,
-    ])
+    catalog = "\n".join(
+        [
+            "## Existing Metrics",
+            "\n".join(metric_lines) or "(none)",
+            "",
+            "## Existing Slices",
+            "\n".join(slice_lines) or "(none)",
+            "",
+            "## Existing Segments",
+            "\n".join(segment_lines) or "(none)",
+            detail_note,
+        ]
+    )
 
     return (
         "# ─── Layer B: existing catalog (per-tenant, session-stable) ────────────────\n\n"
-        "## SPEC CATALOG\n"
-        + catalog
+        "## SPEC CATALOG\n" + catalog
     )
 
 
@@ -350,6 +355,7 @@ def _provider_cache_config_definition(model_str: str, tenant_id: str | None) -> 
 
 
 # ── DefinitionBot ─────────────────────────────────────────────────────────────
+
 
 class DefinitionBot(Bot):
     """Convenience bot for defining MetricSpec, SliceSpec, and SegmentSpec.
@@ -395,25 +401,23 @@ class DefinitionBot(Bot):
         if self._toolset is None:
             toolset = FunctionToolset()
             toolset.add_function(record_definition_intent)  # Step 1
-            toolset.add_function(list_tables)               # Step 2a
-            toolset.add_function(describe_table)            # Step 2b
-            toolset.add_function(draft_spec)                # Step 3
-            toolset.add_function(validate_spec)             # Step 4
-            toolset.add_function(commit_spec)                # Step 6
-            toolset.add_function(delete_spec)                 # Step 7
-            toolset.add_function(date_range)                  # Step 8 (optional grounding)
-            toolset.add_function(compute_metrics)             # Step 9 (optional grounding)
-            toolset.add_function(column_distribution)         # optional grounding
-            toolset.add_function(distribution_summary)        # optional grounding
+            toolset.add_function(list_tables)  # Step 2a
+            toolset.add_function(describe_table)  # Step 2b
+            toolset.add_function(draft_spec)  # Step 3
+            toolset.add_function(validate_spec)  # Step 4
+            toolset.add_function(commit_spec)  # Step 6
+            toolset.add_function(delete_spec)  # Step 7
+            toolset.add_function(date_range)  # Step 8 (optional grounding)
+            toolset.add_function(compute_metrics)  # Step 9 (optional grounding)
+            toolset.add_function(column_distribution)  # optional grounding
+            toolset.add_function(distribution_summary)  # optional grounding
 
             for tool in self._tools:
                 _register_tool(toolset, tool)
             self._toolset = toolset
 
         static_instructions = (
-            _build_layer_a_definition()
-            + "\n\n"
-            + _build_layer_b_definition(self._spec_cache)
+            _build_layer_a_definition() + "\n\n" + _build_layer_b_definition(self._spec_cache)
         )
         self._layer_b_version = self._spec_cache.version
 
@@ -569,6 +573,7 @@ class DefinitionBot(Bot):
         spec_name = metadata.get("spec_name")
 
         import json as _json
+
         raw_rc = metadata.get("referenced_columns")
         referenced_columns: dict[str, list[str]] | None = None
         if raw_rc:

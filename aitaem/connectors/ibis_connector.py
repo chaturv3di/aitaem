@@ -205,9 +205,7 @@ class IbisConnector:
             return f"bigquery://{self._bq_project_id}/{self._bq_dataset_id}.{table_name}"
         return None
 
-    def get_table(
-        self, table_name: str, database: str | None = None
-    ) -> ibis.expr.types.Table:
+    def get_table(self, table_name: str, database: str | None = None) -> ibis.expr.types.Table:
         """Get a table reference from the backend.
 
         Args:

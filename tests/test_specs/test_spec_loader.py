@@ -532,9 +532,7 @@ class TestSpecCacheRemove:
 
     def test_remove_metric_success(self):
         cache = SpecCache()
-        spec = MetricSpec(
-            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
-        )
+        spec = MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
         cache.add(spec)
         cache.remove("metric", "m")
         with pytest.raises(SpecNotFoundError):
@@ -600,26 +598,20 @@ class TestSpecCacheVersion:
 
     def test_version_increments_on_add(self):
         cache = SpecCache()
-        spec = MetricSpec(
-            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
-        )
+        spec = MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
         cache.add(spec)
         assert cache.version == 1
 
     def test_version_increments_on_update(self):
         cache = SpecCache()
-        spec = MetricSpec(
-            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
-        )
+        spec = MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
         cache.add(spec)
         cache.update(spec)
         assert cache.version == 2
 
     def test_version_increments_on_remove(self):
         cache = SpecCache()
-        spec = MetricSpec(
-            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
-        )
+        spec = MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
         cache.add(spec)
         cache.remove("metric", "m")
         assert cache.version == 2
@@ -631,9 +623,7 @@ class TestSpecCacheVersion:
 
     def test_version_does_not_increment_on_add_duplicate_rejection(self):
         cache = SpecCache()
-        spec = MetricSpec(
-            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
-        )
+        spec = MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
         cache.add(spec)
         version_after_add = cache.version
         with pytest.raises(SpecValidationError):

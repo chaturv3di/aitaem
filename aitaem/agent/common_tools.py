@@ -72,8 +72,9 @@ class ToolResult(BaseModel):
       - list fields  : union with deduplication, order of first appearance
       - scalar fields: first-write wins (first call that sets a field governs)
     """
+
     payload_summary: dict[str, Any] | None = None
-    error: str | None = None   # populated on failure; result_id will be "" when set
+    error: str | None = None  # populated on failure; result_id will be "" when set
 
 
 class ColumnDistribution(BaseModel):
@@ -85,6 +86,7 @@ class ColumnDistribution(BaseModel):
     'min_val/max_val stringification' key decision in Plan 36) — ISO-8601 for
     temporal values, str() otherwise.
     """
+
     group_key: dict[str, str]
     count: int
     null_count: int | None = None
@@ -100,6 +102,7 @@ class ColumnDistribution(BaseModel):
 
 class DistributionSummaryResult(ToolResult):
     """Summary returned by distribution_summary. One entry per group_by combination."""
+
     result_id: str
     group_by: list[str]
     distributions: list[ColumnDistribution]
@@ -107,6 +110,7 @@ class DistributionSummaryResult(ToolResult):
 
 class ColumnDistributionResult(ToolResult):
     """Summary returned by column_distribution."""
+
     result_id: str
     distribution: ColumnDistribution | None = None
 
@@ -129,10 +133,7 @@ def _sample_arrow(table: pa.Table, n: int = 5) -> list[dict[str, Any]]:
     if sliced.num_rows == 0:
         return []
     return [
-        {
-            col: (v.as_py() if hasattr(v, "as_py") else v)
-            for col, v in zip(sliced.column_names, row)
-        }
+        {col: (v.as_py() if hasattr(v, "as_py") else v) for col, v in zip(sliced.column_names, row)}
         for row in zip(*[sliced.column(c) for c in sliced.column_names])
     ]
 
@@ -158,13 +159,15 @@ def _build_distribution_agg(
         "max_val": col.max(),
     }
     if is_numeric:
-        aggs.update({
-            "mean": col.mean(),
-            "std": col.std(),
-            "p25": col.approx_quantile(0.25),
-            "median": col.approx_quantile(0.5),
-            "p75": col.approx_quantile(0.75),
-        })
+        aggs.update(
+            {
+                "mean": col.mean(),
+                "std": col.std(),
+                "p25": col.approx_quantile(0.25),
+                "median": col.approx_quantile(0.5),
+                "p75": col.approx_quantile(0.75),
+            }
+        )
     else:
         aggs["distinct_count"] = col.nunique()
 
@@ -313,12 +316,16 @@ def distribution_summary(
         df = agg.to_pandas()
     except AitaemError as exc:
         return DistributionSummaryResult(
-            result_id="", group_by=effective_group_by, distributions=[],
+            result_id="",
+            group_by=effective_group_by,
+            distributions=[],
             error=f"{type(exc).__name__}: {exc}",
         )
     except Exception as exc:
         return DistributionSummaryResult(
-            result_id="", group_by=effective_group_by, distributions=[],
+            result_id="",
+            group_by=effective_group_by,
+            distributions=[],
             error=f"Unexpected error: {type(exc).__name__}: {exc}",
         )
 
@@ -377,7 +384,9 @@ def column_distribution(
     spec, suggestions = SpecResolver.resolve_metric_name(metric_name, ctx.deps.spec_cache)
     if spec is None:
         detail = f" Did you mean: {suggestions}?" if suggestions else ""
-        return ColumnDistributionResult(result_id="", error=f"Unknown metric {metric_name!r}.{detail}")
+        return ColumnDistributionResult(
+            result_id="", error=f"Unknown metric {metric_name!r}.{detail}"
+        )
 
     resolved_column = column or spec.timestamp_col
     if not resolved_column:
@@ -393,7 +402,9 @@ def column_distribution(
     except AitaemError as exc:
         return ColumnDistributionResult(result_id="", error=f"{type(exc).__name__}: {exc}")
     except Exception as exc:
-        return ColumnDistributionResult(result_id="", error=f"Unexpected error: {type(exc).__name__}: {exc}")
+        return ColumnDistributionResult(
+            result_id="", error=f"Unexpected error: {type(exc).__name__}: {exc}"
+        )
 
     if resolved_column not in ibis_table.columns:
         return ColumnDistributionResult(
@@ -414,7 +425,9 @@ def column_distribution(
         except AitaemError as exc:
             return ColumnDistributionResult(result_id="", error=f"{type(exc).__name__}: {exc}")
         except Exception as exc:
-            return ColumnDistributionResult(result_id="", error=f"Unexpected error: {type(exc).__name__}: {exc}")
+            return ColumnDistributionResult(
+                result_id="", error=f"Unexpected error: {type(exc).__name__}: {exc}"
+            )
 
     try:
         agg = _build_distribution_agg(filtered_table, resolved_column, group_by=None)
@@ -422,7 +435,9 @@ def column_distribution(
     except AitaemError as exc:
         return ColumnDistributionResult(result_id="", error=f"{type(exc).__name__}: {exc}")
     except Exception as exc:
-        return ColumnDistributionResult(result_id="", error=f"Unexpected error: {type(exc).__name__}: {exc}")
+        return ColumnDistributionResult(
+            result_id="", error=f"Unexpected error: {type(exc).__name__}: {exc}"
+        )
 
     distribution = _row_to_distribution(
         df.iloc[0], {"metric_name": metric_name, "column": resolved_column}

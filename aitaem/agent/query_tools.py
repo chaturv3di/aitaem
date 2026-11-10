@@ -43,13 +43,17 @@ __all__ = [
 ]
 
 _FILTER_OPS: dict[str, Any] = {
-    ">": operator.gt, ">=": operator.ge,
-    "<": operator.lt, "<=": operator.le,
-    "==": operator.eq, "!=": operator.ne,
+    ">": operator.gt,
+    ">=": operator.ge,
+    "<": operator.lt,
+    "<=": operator.le,
+    "==": operator.eq,
+    "!=": operator.ne,
 }
 
 
 # ── Step 1: record_intent ────────────────────────────────────────────────────
+
 
 def record_intent(
     ctx: RunContext[QueryDeps],
@@ -140,6 +144,7 @@ def record_intent(
 
 # ── Step 2: resolve_intent ───────────────────────────────────────────────────
 
+
 def resolve_intent(
     ctx: RunContext[QueryDeps],
     intent_id: int,
@@ -199,11 +204,13 @@ def resolve_intent(
         if source_metric != matched.metric_name:
             return ResolveIntentResult(
                 exact_match=None,
-                near_misses=[NearMiss(
-                    name=matched.metric_name,
-                    why_not="column_distribution_metric_mismatch",
-                    suggestions=[source_metric] if source_metric else [],
-                )],
+                near_misses=[
+                    NearMiss(
+                        name=matched.metric_name,
+                        why_not="column_distribution_metric_mismatch",
+                        suggestions=[source_metric] if source_metric else [],
+                    )
+                ],
             )
 
     spec_token = f"sm_{uuid.uuid4().hex}"
@@ -224,6 +231,7 @@ def resolve_intent(
 
 
 # ── Step 3: compute_metrics ──────────────────────────────────────────────────
+
 
 def compute_metrics(
     ctx: RunContext[QueryDeps],
@@ -255,7 +263,10 @@ def compute_metrics(
     if resolved is None:
         return Q_ComputeMetricsResult(
             spec_token=spec_token,
-            result_id="", row_count=0, sample=[], columns=[],
+            result_id="",
+            row_count=0,
+            sample=[],
+            columns=[],
             format_hints={},
             error="spec_token already consumed. A parallel compute_metrics call with this token may have succeeded — use that result_id. Do not call resolve_intent again.",
         )
@@ -300,13 +311,17 @@ def compute_metrics(
         ctx.deps.spec_registry[spec_token] = resolved
         return Q_ComputeMetricsResult(
             spec_token=spec_token,
-            result_id="", row_count=0, sample=[], columns=[],
+            result_id="",
+            row_count=0,
+            sample=[],
+            columns=[],
             format_hints={},
             error=f"{type(exc).__name__}: {exc}",
         )
 
 
 # ── Analysis tools (unchanged) ───────────────────────────────────────────────
+
 
 def rank_by_value(
     ctx: RunContext[QueryDeps],
@@ -411,8 +426,15 @@ def period_over_period(
     df = _get_ibis_table(entry).to_pandas()
 
     group_keys = [
-        c for c in ["metric_name", "entity_id", "slice_type", "slice_value",
-                     "segment_name", "segment_value"]
+        c
+        for c in [
+            "metric_name",
+            "entity_id",
+            "slice_type",
+            "slice_value",
+            "segment_name",
+            "segment_value",
+        ]
         if c in df.columns and df[c].notna().any()
     ]
 
@@ -450,7 +472,9 @@ def period_over_period(
     result_arrow = pa.Table.from_pandas(df, preserve_index=False)
     new_id = ctx.deps.store.store_tabular(result_arrow, None)
 
-    periods_found = int(df["period_start_date"].nunique()) if "period_start_date" in df.columns else 0
+    periods_found = (
+        int(df["period_start_date"].nunique()) if "period_start_date" in df.columns else 0
+    )
     return PeriodOverPeriodResult(
         result_id=new_id,
         periods_found=periods_found,

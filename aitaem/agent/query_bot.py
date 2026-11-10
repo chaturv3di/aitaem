@@ -43,6 +43,7 @@ class QueryResponse(BotResponse[QueryPayload]):
 
 # ── System prompt builders ───────────────────────────────────────────────────
 
+
 def _build_layer_a() -> str:
     """Layer A: stable workflow and rules (identical for all tenants)."""
     return """\
@@ -203,21 +204,22 @@ def _build_layer_b(spec_cache: Any) -> str:
         for name, spec in spec_cache.segments.items()
     ]
 
-    catalog = "\n".join([
-        "## Metrics",
-        "\n".join(metric_lines) or "(none)",
-        "",
-        "## Slices",
-        "\n".join(slice_lines) or "(none)",
-        "",
-        "## Segments",
-        "\n".join(segment_lines) or "(none)",
-    ])
+    catalog = "\n".join(
+        [
+            "## Metrics",
+            "\n".join(metric_lines) or "(none)",
+            "",
+            "## Slices",
+            "\n".join(slice_lines) or "(none)",
+            "",
+            "## Segments",
+            "\n".join(segment_lines) or "(none)",
+        ]
+    )
 
     return (
         "# ─── Layer B: catalog (per-tenant, session-stable) ─────────────────────────\n\n"
-        "## SPEC CATALOG\n"
-        + catalog
+        "## SPEC CATALOG\n" + catalog
     )
 
 
@@ -278,6 +280,7 @@ def _provider_cache_config(model_str: str, tenant_id: str | None) -> dict:
 
 # ── QueryBot ─────────────────────────────────────────────────────────────────
 
+
 class QueryBot(Bot):
     """Convenience bot for answering natural-language questions against a metric catalog.
 
@@ -327,9 +330,9 @@ class QueryBot(Bot):
 
         if self._toolset is None:
             toolset = FunctionToolset()
-            toolset.add_function(record_intent)        # Step 1
-            toolset.add_function(resolve_intent)       # Step 2
-            toolset.add_function(compute_metrics)      # Step 3
+            toolset.add_function(record_intent)  # Step 1
+            toolset.add_function(resolve_intent)  # Step 2
+            toolset.add_function(compute_metrics)  # Step 3
             toolset.add_function(rank_by_value)
             toolset.add_function(filter_by_threshold)
             toolset.add_function(distribution_summary)
@@ -373,6 +376,7 @@ class QueryBot(Bot):
         @agent.instructions
         def _layer_c() -> str:
             from datetime import date
+
             return (
                 f"# ─── Layer C: per-turn context ─────────────────────────────────────────────\n\n"
                 f"Today is {date.today().isoformat()}. Use it to resolve relative time references "
@@ -494,9 +498,14 @@ class QueryBot(Bot):
             trace=trace,
             reason=str(exc),
             payload=QueryPayload(
-                result_ids=[], primary_result_id=None,
-                metrics_used=[], slices_used=[], segment_used=None,
-                time_window=None, period_type="all_time", by_entity=None,
+                result_ids=[],
+                primary_result_id=None,
+                metrics_used=[],
+                slices_used=[],
+                segment_used=None,
+                time_window=None,
+                period_type="all_time",
+                by_entity=None,
             ),
         )
 
@@ -545,7 +554,9 @@ class QueryBot(Bot):
                 segment_used = ps["segment_used"]
             if time_window is None and ps.get("time_window"):
                 tw = ps["time_window"]
-                time_window = (tw[0], tw[1]) if isinstance(tw, (list, tuple)) and len(tw) == 2 else None
+                time_window = (
+                    (tw[0], tw[1]) if isinstance(tw, (list, tuple)) and len(tw) == 2 else None
+                )
             if period_type is None and ps.get("period_type"):
                 period_type = ps["period_type"]
             if by_entity is None and ps.get("by_entity"):

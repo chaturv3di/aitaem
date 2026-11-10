@@ -11,6 +11,7 @@ from aitaem.specs.metric import MetricSpec
 
 # ── Intent types (LLM-produced) ─────────────────────────────────────────────
 
+
 @dataclass
 class MetricIntent:
     """Structured interpretation of one metric the user is asking about.
@@ -18,23 +19,26 @@ class MetricIntent:
     Produced by record_intent and stored in QueryDeps.intents.
     One intent per metric; multi-metric questions produce multiple intents.
     """
-    metric_concept: str                          # free-text LLM interpretation
+
+    metric_concept: str  # free-text LLM interpretation
     scope: Literal["overall", "subset"]
-    subset_description: str | None = None        # prose description of the subset
-    slice_type: str | None = None                # proposed slice spec name (breakdown)
-    slice_value: str | None = None                # specific filter value, e.g. "US"
-    segment_name: str | None = None               # proposed segment spec name
-    segment_value: str | None = None              # specific segment filter value
+    subset_description: str | None = None  # prose description of the subset
+    slice_type: str | None = None  # proposed slice spec name (breakdown)
+    slice_value: str | None = None  # specific filter value, e.g. "US"
+    segment_name: str | None = None  # proposed segment spec name
+    segment_value: str | None = None  # specific segment filter value
     period_type: str = "all_time"
-    time_window: tuple[str, str] | None = None    # (start_iso, end_iso)
+    time_window: tuple[str, str] | None = None  # (start_iso, end_iso)
     by_entity: str | None = None
     column_distribution_result_id: str | None = None  # source of a derived time_window
 
 
 # ── Resolution result types (LLM-facing tool returns) ───────────────────────
 
+
 class ExactMatch(BaseModel):
     """Minted only when SpecResolver confirms a valid proposal."""
+
     spec_token: str
     metric_name: str
     slices: list[str]
@@ -47,9 +51,12 @@ class NearMiss(BaseModel):
     name: str
     why_not: Literal[
         "unknown_metric",
-        "scope_mismatch", "wrong_dimension_kind",
-        "unknown_slice", "unknown_segment",
-        "unsupported_by_entity", "unsupported_period_type",
+        "scope_mismatch",
+        "wrong_dimension_kind",
+        "unknown_slice",
+        "unknown_segment",
+        "unsupported_by_entity",
+        "unsupported_period_type",
         "column_distribution_metric_mismatch",
     ]
     suggestions: list[str] = []
@@ -67,6 +74,7 @@ class SpecMatchResult(BaseModel):
     If exact_match is not None: the LLM proceeds to compute_metrics(spec_token).
     If exact_match is None: the LLM must produce status=refused and cite near_misses.
     """
+
     exact_match: ExactMatch | None
     near_misses: list[NearMiss]
 
@@ -79,9 +87,7 @@ class SpecResolver:
     """
 
     @staticmethod
-    def resolve_metric_name(
-        name: str, spec_cache: Any
-    ) -> tuple[MetricSpec | None, list[str]]:
+    def resolve_metric_name(name: str, spec_cache: Any) -> tuple[MetricSpec | None, list[str]]:
         """Look up a canonical metric name in the catalog.
 
         Returns (spec, []) on success, (None, suggestions) on failure — suggestions
@@ -91,9 +97,7 @@ class SpecResolver:
         spec = spec_cache.metrics.get(name)
         if spec is not None:
             return spec, []
-        suggestions = difflib.get_close_matches(
-            name, spec_cache.metrics.keys(), n=3, cutoff=0.75
-        )
+        suggestions = difflib.get_close_matches(name, spec_cache.metrics.keys(), n=3, cutoff=0.75)
         return None, suggestions
 
     def resolve(
@@ -124,8 +128,11 @@ class SpecResolver:
             # Unknown metric — can't validate slices/segment without the spec, so return early.
             return SpecMatchResult(
                 exact_match=None,
-                near_misses=near_misses + [
-                    NearMiss(name=proposed_metric_name, why_not="unknown_metric", suggestions=suggestions)
+                near_misses=near_misses
+                + [
+                    NearMiss(
+                        name=proposed_metric_name, why_not="unknown_metric", suggestions=suggestions
+                    )
                 ],
             )
 
@@ -151,15 +158,15 @@ class SpecResolver:
         if intent.by_entity is not None:
             entities = metric_spec.entities or []
             if intent.by_entity not in entities:
-                near_misses.append(NearMiss(
-                    name=proposed_metric_name, why_not="unsupported_by_entity"
-                ))
+                near_misses.append(
+                    NearMiss(name=proposed_metric_name, why_not="unsupported_by_entity")
+                )
 
         # ── 5. Validate period_type ──────────────────────────────────────────
         if intent.period_type != "all_time" and not metric_spec.timestamp_col:
-            near_misses.append(NearMiss(
-                name=proposed_metric_name, why_not="unsupported_period_type"
-            ))
+            near_misses.append(
+                NearMiss(name=proposed_metric_name, why_not="unsupported_period_type")
+            )
 
         # ── Result ───────────────────────────────────────────────────────────
         if near_misses:

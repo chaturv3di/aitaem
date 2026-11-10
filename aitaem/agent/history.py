@@ -99,8 +99,7 @@ def load_bundle(bundle: dict[str, Any], store: Any) -> list[Any]:
     version = bundle.get("schema_version", "")
     if version != _SCHEMA_VERSION:
         raise ValueError(
-            f"Unsupported history bundle schema_version={version!r}. "
-            f"Expected {_SCHEMA_VERSION!r}."
+            f"Unsupported history bundle schema_version={version!r}. Expected {_SCHEMA_VERSION!r}."
         )
     from pydantic_ai.messages import ModelMessagesTypeAdapter
 
