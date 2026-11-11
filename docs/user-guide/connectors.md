@@ -189,7 +189,8 @@ bigquery://project.dataset.table
 Every `/` after the backend prefix is normalized to a `.` before parsing, so slash- and
 dot-separated forms are interchangeable — the resulting URI must contain at least three
 dot-separated parts (project, dataset, table) once normalized. `bigquery://project/dataset/table`
-(all-slash) is the form `DefinitionBot` uses when drafting a spec's `source:` field.
+(all-slash) is accepted in a spec's `source:` field; the agent's `validate_spec` rewrites it to
+the dotted form.
 
 ### PostgreSQL
 

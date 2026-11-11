@@ -10,6 +10,8 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+
 from aitaem.utils.exceptions import SpecValidationError
 from aitaem.utils.validation import ValidationResult, validate_segment_spec
 from aitaem.utils.yaml_validation import load_yaml_spec_dict
@@ -92,6 +94,14 @@ class SegmentSpec:
 
     def validate(self) -> ValidationResult:
         """Validate spec fields and return a ValidationResult (does not raise)."""
+        return validate_segment_spec(self._to_dict())
+
+    def to_yaml(self) -> str:
+        """Serialize to YAML under a top-level 'segment:' key. Does not validate."""
+        return yaml.safe_dump({"segment": self._to_dict()}, sort_keys=False)
+
+    def _to_dict(self) -> dict:
+        """Return the spec as a dict with its YAML keys."""
         spec_dict: dict = {
             "name": self.name,
             "source": self.source,
@@ -104,4 +114,4 @@ class SegmentSpec:
             spec_dict["values"] = [{"name": v.name, "where": v.where} for v in self.values]
         if self.join_keys:
             spec_dict["join_keys"] = list(self.join_keys)
-        return validate_segment_spec(spec_dict)
+        return spec_dict

@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+### Added
+
+- **`to_yaml()` on `MetricSpec`, `SliceSpec`, and `SegmentSpec`.** Serializes a spec in the
+  same YAML format `from_yaml` reads.
+- **`SpecCache.save(metric_dir=None, slice_dir=None, segment_dir=None)`.** Writes each cached
+  spec to `<dir>/<name>.yaml` and deletes the directory's other `*.yaml`/`*.yml` files, so each
+  directory mirrors the cache. Every spec is validated before any file is written or deleted.
+- **Remote spec locations.** `SpecCache.from_yaml` and `SpecCache.save` accept fsspec URLs
+  (`gs://`, `s3://`, `abfs://`, ...) as well as local paths. Remote URLs need the matching
+  fsspec driver (`gcsfs`, `s3fs`, `adlfs`), installed separately.
+- **New core dependency: `fsspec`.**
+- **`AitaemAgent`** (`aitaem.agent`, breaking replacement for the v2 bots). One multi-turn agent
+  session: a main session that talks to the user and launches coordinators for connections,
+  spec design (talking with the user directly), and analysis (with parallel executors that find
+  catalog specs). Every tool call writes an artifact to a session directory; compute results stay
+  lazy on their source backend. `chat()`, `trace()`, `dump()`/`load()`, and `cleanup()`.
+- **New `aitaem.agent` exports:** `AitaemAgent`, `Response`, `ResponseAttachment`, `ArtifactRef`,
+  `ArtifactStore`, `SessionDeps`, `ToolResult`, and the toolsets `stats_toolset`, `data_toolset`,
+  `aitaem_toolset`, and `artifact_toolset`.
+- **`RunTrace.runs`** (`AgentRun`): every run of a turn, with its tool calls and its own usage,
+  cache reads and writes included.
+- **`examples/01_aitaem_agent_example.py`** and the "Tool Groups" docs page.
+
+### Changed
+
+- **pydantic-ai ≥ 2.55.** The agent extras (`agent-core`, `agent-anthropic`, `agent`,
+  `agent-evals`) require `pydantic-ai-slim>=2.55,<3`, and therefore Python ≥ 3.11. Core `aitaem`
+  still supports Python 3.10.
+- **`ToolCall.result_id` is renamed `ToolCall.artifact_id`** (breaking).
+
+### Fixed
+
+- **`MetricSpec(denominator="")` is treated as no denominator**, as YAML `denominator: ''`
+  already was. It previously produced invalid SQL.
+
+### Removed
+
+- **The v2 bots and their public names in `aitaem.agent`** (breaking): `Bot`, `BotResponse`,
+  `ResultEntry`, `ResultStore`, `TabularEntry`, `TextEntry`, `WrongEntryKindError`, `QueryBot`,
+  `QueryResponse`, `QueryPayload`, `MetricIntent`, `ResolvedSpec`, `ExactMatch`, `NearMiss`,
+  `SpecMatchResult`, `RecordIntentResult`, `ResolveIntentResult`, `SpecResolver`,
+  `DefinitionBot`, `DefinitionResponse`, `DefinitionPayload`, `DefinitionIntent`, `SpecDraft`,
+  `ColumnInfo`, `ListTablesResult`, `DescribeTableResult`, `DraftSpecResult`,
+  `ValidateSpecResult`, `ValidationIssue`. `Status`, `RunTrace`, `ToolCall`, and `Usage` remain.
+- **Examples 01–04** (`examples/0[1-4]_*.py` / `.ipynb`) and the
+  "Building Your Own Bot" docs page.
+
 ## v2.1.0 — 2026-10-12
 
 ### Added
@@ -252,7 +299,7 @@ constructors, primitives base classes, default tool schemas, and `RunTrace`/
   after reload — the callables themselves aren't portably serializable, so
   pass them again via `tools=[...]` or re-add them to restore. Generic
   `Bot.as_tool()` / `add_bot()` composition remains deferred (see
-  `plans/agent_module/07-non-decisions.md`, ND-11).
+  `plans/agent_module/archive/v2/07-non-decisions.md`, ND-11).
 
   This work is intentionally sequenced ahead of Phase 4 (`SetupBot`) and
   Phase 5.1. Comprehensive user testing of these composition primitives
@@ -263,7 +310,7 @@ constructors, primitives base classes, default tool schemas, and `RunTrace`/
 - **`tests/evals/` — a runnable reference harness (`pydantic-evals`)** demonstrating
   how to wire tool-selection, refusal, and deterministic-correctness evaluators
   against `QueryBot`/`DefinitionBot`'s `RunTrace`/`ResultStore`/`BotResponse`
-  substrate (resolves `plans/agent_module/07-non-decisions.md` ND-09). Runs in
+  substrate (resolves `plans/agent_module/archive/v2/07-non-decisions.md` ND-09). Runs in
   CI via the new `evals` job against scripted `FunctionModel`s — no live LLM
   calls or API keys required. Validates that the substrate is consumable by
   `pydantic_evals.Evaluator`s, not agent behavior; point it at a live model

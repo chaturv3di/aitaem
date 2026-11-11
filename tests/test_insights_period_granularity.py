@@ -59,24 +59,32 @@ def test_all_time_with_time_window_no_regression(mc):
 
 
 def test_monthly_period_type_column(mc):
-    df = mc.compute("ctr", time_window=("2024-01-01", "2024-04-01"), period_type="monthly").to_pandas()
+    df = mc.compute(
+        "ctr", time_window=("2024-01-01", "2024-04-01"), period_type="monthly"
+    ).to_pandas()
     assert set(df["period_type"]) == {"monthly"}
 
 
 def test_monthly_produces_one_row_per_month(mc):
-    df = mc.compute("ctr", time_window=("2024-01-01", "2024-04-01"), period_type="monthly").to_pandas()
+    df = mc.compute(
+        "ctr", time_window=("2024-01-01", "2024-04-01"), period_type="monthly"
+    ).to_pandas()
     # 3 months → 3 rows (no slice, no segment)
     assert len(df) == 3
 
 
 def test_monthly_period_start_dates(mc):
-    df = mc.compute("ctr", time_window=("2024-01-01", "2024-04-01"), period_type="monthly").to_pandas()
+    df = mc.compute(
+        "ctr", time_window=("2024-01-01", "2024-04-01"), period_type="monthly"
+    ).to_pandas()
     starts = set(df["period_start_date"].str[:10])
     assert starts == {"2024-01-01", "2024-02-01", "2024-03-01"}
 
 
 def test_monthly_period_end_dates(mc):
-    df = mc.compute("ctr", time_window=("2024-01-01", "2024-04-01"), period_type="monthly").to_pandas()
+    df = mc.compute(
+        "ctr", time_window=("2024-01-01", "2024-04-01"), period_type="monthly"
+    ).to_pandas()
     df_jan = df[df["period_start_date"].str.startswith("2024-01")]
     assert df_jan["period_end_date"].iloc[0][:10] == "2024-02-01"
     df_mar = df[df["period_start_date"].str.startswith("2024-03")]
@@ -89,14 +97,18 @@ def test_monthly_output_has_standard_columns(mc):
 
 
 def test_monthly_metric_values_non_null(mc):
-    df = mc.compute("ctr", time_window=("2024-01-01", "2024-04-01"), period_type="monthly").to_pandas()
+    df = mc.compute(
+        "ctr", time_window=("2024-01-01", "2024-04-01"), period_type="monthly"
+    ).to_pandas()
     assert df["metric_value"].notna().all()
 
 
 def test_monthly_metric_value_matches_independent_calculation(mc, ad_campaigns_connection_manager):
     """metric_value for each month matches a direct sum computed independently."""
 
-    df = mc.compute("ctr", time_window=("2024-01-01", "2024-02-01"), period_type="monthly").to_pandas()
+    df = mc.compute(
+        "ctr", time_window=("2024-01-01", "2024-02-01"), period_type="monthly"
+    ).to_pandas()
     assert len(df) == 1
     computed_value = df["metric_value"].iloc[0]
 
@@ -151,7 +163,9 @@ def test_monthly_without_time_window_raises_query_build_error(mc):
 
 
 def test_hourly_period_type_column(mc):
-    df = mc.compute("ctr", time_window=("2024-01-01", "2024-01-02"), period_type="hourly").to_pandas()
+    df = mc.compute(
+        "ctr", time_window=("2024-01-01", "2024-01-02"), period_type="hourly"
+    ).to_pandas()
     assert set(df["period_type"]) == {"hourly"}
 
 
@@ -161,19 +175,25 @@ def test_hourly_output_has_standard_columns(mc):
 
 
 def test_hourly_period_start_contains_datetime_string(mc):
-    df = mc.compute("ctr", time_window=("2024-01-01", "2024-01-02"), period_type="hourly").to_pandas()
+    df = mc.compute(
+        "ctr", time_window=("2024-01-01", "2024-01-02"), period_type="hourly"
+    ).to_pandas()
     # DuckDB TIMESTAMP→VARCHAR format: "YYYY-MM-DD HH:MM:SS"
     assert df["period_start_date"].iloc[0][:10] == "2024-01-01"
     assert " " in df["period_start_date"].iloc[0]  # has time component
 
 
 def test_hourly_period_end_contains_datetime_string(mc):
-    df = mc.compute("ctr", time_window=("2024-01-01", "2024-01-02"), period_type="hourly").to_pandas()
+    df = mc.compute(
+        "ctr", time_window=("2024-01-01", "2024-01-02"), period_type="hourly"
+    ).to_pandas()
     assert " " in df["period_end_date"].iloc[0]
 
 
 def test_hourly_metric_values_non_null(mc):
-    df = mc.compute("ctr", time_window=("2024-01-01", "2024-01-02"), period_type="hourly").to_pandas()
+    df = mc.compute(
+        "ctr", time_window=("2024-01-01", "2024-01-02"), period_type="hourly"
+    ).to_pandas()
     assert df["metric_value"].notna().all()
 
 

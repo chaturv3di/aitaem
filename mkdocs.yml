@@ -1,6 +1,6 @@
 site_name: aitaem
 site_description: "AITÆM: All Interesting Things Are Essentially Metrics — a Python library for generating data insights from OLAP databases or local CSV files."
-site_url: https://chaturv3di.github.io/aitaem
+site_url: https://aitaem.com
 repo_url: https://github.com/chaturv3di/aitaem
 repo_name: chaturv3di/aitaem
 edit_uri: edit/main/docs/
@@ -52,7 +52,7 @@ nav:
       - Computing Metrics: user-guide/computing-metrics.md
   - Agent:
       - Getting Started: agent/getting-started.md
-      - Building Your Own Bot: agent/building-your-own-bot.md
+      - Tool Groups: agent/tool-groups.md
       - Evaluating Your Agent: agent/evaluating-your-agent.md
       - Stability & Limitations: agent/stability.md
   - API Reference:

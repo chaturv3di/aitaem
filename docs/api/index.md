@@ -20,7 +20,7 @@ from aitaem.helpers import load_csvs_to_duckdb
 | Class | Module | Purpose |
 |-------|--------|---------|
 | [`MetricCompute`](insights.md) | `aitaem.insights` | Primary interface — compute metrics; `compute()` returns a lazy `ibis.Table` |
-| [`SpecCache`](specs.md) | `aitaem.specs.loader` | Load and cache YAML specs |
+| [`SpecCache`](specs.md) | `aitaem.specs.loader` | Load, cache, and save YAML specs |
 | [`MetricSpec`](specs.md#aitaem.specs.metric.MetricSpec) | `aitaem.specs.metric` | Metric spec dataclass |
 | [`SliceSpec`](specs.md#aitaem.specs.slice.SliceSpec) | `aitaem.specs.slice` | Slice spec dataclass |
 | [`SliceValue`](specs.md#aitaem.specs.slice.SliceValue) | `aitaem.specs.slice` | Individual slice value within a `SliceSpec` |
@@ -69,8 +69,18 @@ All exceptions inherit from `AitaemError` and are importable from `aitaem`.
 
 ## Agent module (optional install)
 
-`aitaem.agent` ships LLM-facing convenience bots (`QueryBot`, `DefinitionBot`) and the
-primitives layer they're built on, on top of the deterministic compute layer documented
-above. It's an optional install (`pip install "aitaem[agent-anthropic]"`) and lives in
-its own [Agent](../agent/getting-started.md) section of these docs — see there for a
-quick start, and the [Agent API reference](agent.md) for the full class/type listing.
+`aitaem.agent` adds `AitaemAgent`, a multi-turn agent session that connects sources, designs
+specs with the user, and answers analytical questions on top of the deterministic compute layer
+documented above. It's an optional install (`pip install "aitaem[agent-anthropic]"`, Python
+≥ 3.11) and lives in its own [Agent](../agent/getting-started.md) section of these docs.
+
+| Name | Purpose |
+|------|---------|
+| `AitaemAgent` | The agent session: `chat()`, `trace()`, `dump()`/`load()`, `cleanup()` |
+| `Response`, `ResponseAttachment`, `Status` | What `chat()` returns |
+| `RunTrace`, `ToolCall`, `Usage` | The runs, tool calls, and usage of one turn |
+| `ArtifactStore`, `ArtifactRef` | The session's artifacts |
+| `SessionDeps`, `ToolResult` | Run dependencies and tool results, for composing the toolsets |
+| `stats_toolset`, `data_toolset`, `aitaem_toolset`, `artifact_toolset` | The [tool groups](../agent/tool-groups.md) |
+
+See the [Agent API reference](agent.md) for the full listing.

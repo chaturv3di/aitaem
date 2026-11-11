@@ -464,3 +464,66 @@ class TestMetricSpecValidateReferencedColumns:
         result = spec.validate()
         assert not result.valid
         assert result.referenced_columns is None
+
+
+class TestMetricSpecToYaml:
+    """to_yaml() output reads back with from_yaml to an equal spec."""
+
+    @pytest.mark.parametrize(
+        "yaml_str",
+        [
+            pytest.param(
+                """
+metric:
+  name: total_revenue
+  source: duckdb://analytics.db/transactions
+  numerator: "SUM(amount)"
+  timestamp_col: transaction_date
+""",
+                id="minimal",
+            ),
+            pytest.param(
+                """
+metric:
+  name: ctr
+  description: |
+    Click-through rate.
+    Quoted 'yes', "null": and 123 inside.
+  source: duckdb://analytics.db/events
+  numerator: "SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END)"
+  denominator: "SUM(CASE WHEN event_type = 'impression' THEN 1 ELSE 0 END)"
+  timestamp_col: event_ts
+  entities: [user_id, org_id]
+  format: percentage
+""",
+                id="all-fields",
+            ),
+            pytest.param(
+                """
+metric:
+  name: flags
+  description: 'yes'
+  source: duckdb://analytics.db/events
+  numerator: "SUM(x)"
+  timestamp_col: 'null'
+  entities: ['123', 'on']
+""",
+                id="yaml-sensitive-strings",
+            ),
+        ],
+    )
+    def test_round_trip(self, yaml_str):
+        spec = MetricSpec.from_yaml(yaml_str)
+        assert MetricSpec.from_yaml(spec.to_yaml()) == spec
+
+    def test_top_level_key_is_metric(self):
+        spec = MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
+        assert spec.to_yaml().startswith("metric:\n")
+
+
+class TestMetricSpecBlankDenominator:
+    def test_blank_denominator_equals_no_denominator(self):
+        kwargs = dict(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
+        spec = MetricSpec(**kwargs, denominator="")
+        assert spec.denominator is None
+        assert spec == MetricSpec(**kwargs)

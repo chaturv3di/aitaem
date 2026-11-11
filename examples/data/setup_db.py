@@ -60,8 +60,7 @@ def via_connector() -> None:
 if __name__ == "__main__":
     if not CSV_PATH.exists():
         raise FileNotFoundError(
-            f"CSV not found: {CSV_PATH}\n"
-            "Make sure examples/data/ad_campaigns.csv exists."
+            f"CSV not found: {CSV_PATH}\nMake sure examples/data/ad_campaigns.csv exists."
         )
 
     print(f"Reading {CSV_PATH} ...")

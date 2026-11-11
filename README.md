@@ -3,11 +3,11 @@
 [![CI](https://github.com/chaturv3di/aitaem/actions/workflows/ci.yml/badge.svg)](https://github.com/chaturv3di/aitaem/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/aitaem)](https://pypi.org/project/aitaem/)
 [![Python versions](https://img.shields.io/pypi/pyversions/aitaem)](https://pypi.org/project/aitaem/)
-[![Docs](https://img.shields.io/badge/docs-github.io-blue)](https://chaturv3di.github.io/aitaem)
+[![Docs](https://img.shields.io/badge/docs-aitaem.com-blue)](https://aitaem.com)
 
 This is the `aitaem` library, pronounced "i-tame".
 
-**Full documentation:** https://chaturv3di.github.io/aitaem/
+**Full documentation:** https://aitaem.com
 
 ## Why?
 > **TL;DR:** Point this Python library toward your OLAP database or a local CSV file and start generating insights, i.e. metrics, slices, segments, and time series, in no time. This library is LLM friendly (more on that later).

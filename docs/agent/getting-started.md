@@ -1,128 +1,99 @@
 # Agent: Getting Started
 
-`aitaem.agent` is an optional install that ships two LLM-facing convenience bots on top
-of the deterministic compute layer: `QueryBot` (answer questions against your metric
-catalog) and `DefinitionBot` (draft, validate, and commit or delete specs from natural
-language).
+`aitaem.agent` is an optional install that puts one multi-turn agent session, `AitaemAgent`, on
+top of the deterministic compute layer. You talk to it with `chat()`; it connects sources, designs
+metric, slice, and segment specs with you, and answers analytical questions by computing catalog
+metrics and running statistics on the results.
 
 ## Installation
+
+The agent extras need Python ≥ 3.11 (they depend on `pydantic-ai-slim` ≥ 2.55); core `aitaem`
+still runs on Python 3.10.
 
 ```bash
 pip install "aitaem[agent-anthropic]"
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-`agent-anthropic` is the tested, concrete install path — every example in this repo runs
-against an Anthropic model. If you plan to use a different or multiple model providers,
-install the provider-neutral superset instead:
+`agent-anthropic` is the tested install path. For other or several model providers, install the
+provider-neutral superset, `pip install "aitaem[agent]"`; `AitaemAgent` accepts any
+[pydantic-ai](https://ai.pydantic.dev/) model string.
 
-```bash
-pip install "aitaem[agent]"
-```
-
-Both bots accept any [pydantic-ai](https://ai.pydantic.dev/) model string (e.g.
-`"openai:gpt-4o"`), so `agent` — which also pulls in the OpenAI SDK — is the extra to
-reach for once you're not exclusively on Anthropic.
-
-## QueryBot quick start
+## Quick start
 
 ```python
-from aitaem.connectors import ConnectionManager
-from aitaem.specs import SpecCache
-from aitaem.agent import QueryBot
+from aitaem import ConnectionManager, SpecCache
+from aitaem.agent import AitaemAgent
 
-spec_cache = SpecCache.from_yaml(
-    metric_paths="examples/metrics/",
-    slice_paths="examples/slices/",
-)
+specs = SpecCache.from_yaml(metric_paths="examples/metrics/", slice_paths="examples/slices/")
+connections = ConnectionManager.from_yaml("examples/connections.yaml")
 
-conn_mgr = ConnectionManager()
-conn_mgr.add_connection("duckdb", path="examples/data/ad_campaigns.duckdb")
-
-bot = QueryBot(
-    model="anthropic:claude-haiku-4-5-20251001",
-    spec_cache=spec_cache,
-    connection_manager=conn_mgr,
-)
-
-response = await bot.chat("What was total revenue and ROAS across all campaigns?")
-print(response.narrative)
+agent = AitaemAgent(connections, specs)
+response = await agent.chat("Which region has the highest click-through rate?")
+print(response.status, response.response)
+for attachment in response.attachments:
+    print(attachment.artifact_id, attachment.type_tag, attachment.reason)
 ```
 
-## DefinitionBot quick start
+`AitaemAgent(connection_manager=None, spec_cache=None, *, model, executor_model, spec_dir=None)`:
+
+- `model` (default `"anthropic:claude-sonnet-5-5"`) runs the main session and the coordinators;
+  `executor_model` (default `"anthropic:claude-haiku-5-5"`) runs the executors.
+- Without a `ConnectionManager`, the agent starts with none connected and can connect DuckDB or
+  BigQuery sources itself. Without a `SpecCache`, it starts with an empty catalog.
+- Specs the agent saves go to `<spec_dir>/metrics`, `<spec_dir>/slices`, and
+  `<spec_dir>/segments`. `spec_dir` is a local path or an fsspec URL; it defaults to the session
+  directory, which the OS removes eventually, so pass one to keep the specs.
+
+## How a session works
+
+The **main session** talks to you. It answers questions about results it already holds with the
+artifact and stats tools, and it launches a **coordinator** for each task:
+
+| Task | Coordinator | How it runs |
+|---|---|---|
+| Connect a DuckDB or BigQuery source | connections | Runs on its own and hands back what it connected, or the settings it needs |
+| Create, change, or delete specs | spec | Talks with you directly until the specs are done, saving each spec you agree to |
+| Answer an analytical question | analysis | Finds the specs through parallel executors, computes, runs statistics, and hands back the answer |
+
+When a coordinator needs more from you, the main session asks and launches it again with your
+answers, reusing the results it already computed.
+
+## Responses, artifacts, and traces
+
+Every tool call writes an **artifact** to a session directory under the system temp directory.
+Compute results stay lazy on their source backend; statistics and reads run there, and only their
+outputs come back.
+
+- `Response`: `response` (text), `status` (`ok`, `empty`, `refused`, `error`), `attachments`
+  (artifact ID, type tag, reason), and `trace_id`. `refused` means no catalog spec answers the
+  question precisely; the agent does not approximate one.
+- `agent.trace(trace_id)` returns the turn's `RunTrace`: every run (main session, coordinators,
+  executors) with its tool calls and its usage, cache reads and writes included.
+- `agent.store` is the `ArtifactStore`: `refs()`, `get(id)`, `read(id)`, and `index_lines()`.
+
+## Saving and restoring a session
 
 ```python
-from aitaem.connectors import ConnectionManager
-from aitaem.specs import SpecCache
-from aitaem.agent import DefinitionBot
-
-spec_cache = SpecCache.from_yaml(
-    metric_paths="examples/metrics/",
-    slice_paths="examples/slices/",
-)
-
-conn_mgr = ConnectionManager()
-conn_mgr.add_connection("duckdb", path="examples/data/ad_campaigns.duckdb")
-
-bot = DefinitionBot(
-    model="anthropic:claude-haiku-4-5-20251001",
-    spec_cache=spec_cache,
-    connection_manager=conn_mgr,
-)
-
-response = await bot.ask(
-    "Define a metric called avg_cpc for average cost per click — "
-    "total ad spend divided by total clicks."
-)
-print(response.narrative)
-print(response.payload.yaml_string)
+data = agent.dump()        # JSON-ready: conversations, route, and the artifact manifest
+agent = AitaemAgent.load(data, connections, specs)
+...
+agent.cleanup()            # removes the session directory now
 ```
 
-## Full examples
+Compute results are lazy expressions and do not survive `load()`: they, and any artifact whose file
+is gone, are marked `lost`, and the agent recomputes them when needed.
 
-The [`examples/`](https://github.com/chaturv3di/aitaem/tree/main/examples) directory has
-runnable scripts and notebooks, numbered in a suggested reading order:
+## Full example
 
-| # | Example | What it covers |
-|---|---------|-----------------|
-| 01 | `definition_bot_example` | The five-step spec-definition workflow, direct YAML parsing and LLM-assisted drafting |
-| 02 | `query_bot_example` | A multi-turn `QueryBot` conversation |
-| 03 | `intent_resolution_example` | A deep dive into `QueryBot`'s intent → resolve → compute gate |
-| 04 | `evaluating_agents_example` | Writing `pydantic_evals` evaluations against a live model |
-
-## `SetupBot`
-
-A third convenience bot — a connection-configuration wizard — is planned but not yet
-shipped. It's a v1.x deliverable, not part of this release.
-
-## `tenant_id`
-
-Both bots accept an optional `tenant_id: str | None` constructor parameter. It is an
-OpenAI prompt-cache routing key — **not** a security or isolation boundary. When set, an
-OpenAI-backed bot passes it through as `openai_prompt_cache_key` so requests from the
-same tenant route to the same server-side cache pool.
-
-When omitted, it falls back to a hash of the visible metric/slice/segment names in your
-`SpecCache`. Two `spec_cache`s with the same visible catalog (e.g. two users under the
-same RBAC permission set) land in the same cache routing lane automatically; different
-visible catalogs land in different lanes — with no configuration needed.
-
-!!! warning "This is not a tenancy or isolation feature"
-    `tenant_id` only affects cache routing efficiency. The agent module never stores
-    credentials, persists conversation history beyond what you explicitly serialize via
-    `dump_history()`, manages multi-tenancy or RBAC, or holds connections other than the
-    `ConnectionManager` you provide. It does not create isolation between tenants —
-    separate tenants need separate `ConnectionManager`/`SpecCache`/bot instances,
-    enforced by your application, regardless of what `tenant_id` you pass.
-
-    Concurrent `chat()`/`ask()` calls on the *same* bot instance are also unsupported —
-    one call at a time per instance. Concurrency lives at the caller level: N users need
-    N bot instances, not N concurrent calls on one shared instance.
-
-See [Stability & Limitations](stability.md) for the full reference.
+[`examples/01_aitaem_agent_example.py`](https://github.com/chaturv3di/aitaem/blob/main/examples/01_aitaem_agent_example.py)
+runs a two-turn session over the ad campaigns dataset and prints each turn's runs and the
+artifact index.
 
 ## Next steps
 
-- [Building Your Own Bot](building-your-own-bot.md) — use the primitives layer directly
+- [Tool Groups](tool-groups.md) — use the stats, data, aitaem, and artifact tools in your own
+  pydantic-ai agents
 - [Evaluating Your Agent](evaluating-your-agent.md) — write `pydantic_evals` evaluations
-- [Agent API Reference](../api/agent.md) — full class and type documentation
+- [Stability & Limitations](stability.md)
+- [Agent API Reference](../api/agent.md)
