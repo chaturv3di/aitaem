@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pydantic_ai import Agent, DeferredToolRequests, FunctionToolset
-from pydantic_ai.capabilities import Caching
+from pydantic_ai.capabilities import Caching, ProcessHistory
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 
@@ -13,7 +13,7 @@ from aitaem.agent.agent_roles.connections_coordinator.agent import make_run_conn
 from aitaem.agent.agent_roles.documents import check_reply
 from aitaem.agent.agent_roles.spec_coordinator.agent import start_spec_design
 from aitaem.agent.deps import SessionDeps
-from aitaem.agent.history import TailBlock
+from aitaem.agent.history import TailBlock, stub_history
 from aitaem.agent.tools.artifacts import artifact_toolset
 from aitaem.agent.tools.stats import stats_toolset
 
@@ -41,7 +41,12 @@ def build_main_session(
         toolsets=[launch_tools, artifact_toolset, stats_toolset],
         # Thinking stays off so history stubbing never breaks thinking-block binding (§A9.5).
         model_settings=ModelSettings(thinking=False),
-        capabilities=[Caching(retention="1h", messages=True), TailBlock()],
+        # The stubber saves the history it rewrites; the tail block comes after it, request-only.
+        capabilities=[
+            Caching(retention="1h", messages=True),
+            ProcessHistory(stub_history),
+            TailBlock(),
+        ],
     )
     # Output validators receive the str output only, never DeferredToolRequests.
     agent.output_validator(check_reply)  # type: ignore[arg-type]

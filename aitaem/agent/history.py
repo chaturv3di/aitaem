@@ -15,8 +15,15 @@ from typing import Any, Literal
 import yaml
 from pydantic_ai import RunContext
 from pydantic_ai.capabilities import AbstractCapability
-from pydantic_ai.messages import CachePoint, ModelRequest, UserPromptPart
-from pydantic_ai.models import ModelRequestContext
+from pydantic_ai.messages import (
+    CachePoint,
+    ModelMessage,
+    ModelRequest,
+    ToolReturnPart,
+    UserPromptPart,
+)
+from pydantic_ai.models import Model, ModelRequestContext
+from pydantic_ai.profiles import prompt_cache_outlook
 
 from aitaem.agent.deps import SessionDeps
 from aitaem.agent.trace import Status
@@ -98,3 +105,92 @@ class TailBlock(AbstractCapability[SessionDeps]):
         else:
             messages.append(ModelRequest(parts=[part]))
         return dataclasses.replace(request_context, messages=messages)
+
+
+# ── history stubbing ────────────────────────────────────────────────────────
+
+STUB_AT = 0.65
+"""Fraction of the context window at which old tool returns are stubbed."""
+STUB_AT_WHEN_COLD = 0.35
+"""The lower fraction that applies when the prompt cache is cold, so the rewrite costs nothing."""
+MIN_CLEAR_TOKENS = 2000
+KEEP_PAIRS = 4
+
+
+def _tokens(value: Any) -> int:
+    """A rough token count: four characters per token."""
+    return len(str(value)) // 4
+
+
+def _stub(deps: SessionDeps, part: ToolReturnPart) -> str | None:
+    content = part.content
+    artifact_id = (
+        content.get("artifact_id")
+        if isinstance(content, dict)
+        else getattr(content, "artifact_id", None)
+    )
+    if not artifact_id or artifact_id not in deps.store:
+        return None
+    ref = deps.store.get(artifact_id)
+    return f"[artifact {ref.id} · {ref.kind} · {ref.summary} · read_artifact or describe_artifact]"
+
+
+def _is_turn_start(message: ModelMessage) -> bool:
+    return isinstance(message, ModelRequest) and any(
+        isinstance(p, UserPromptPart) for p in message.parts
+    )
+
+
+def stub_history(ctx: RunContext[SessionDeps], messages: list[ModelMessage]) -> list[ModelMessage]:
+    """History processor: stub old tool returns once the context fills, then drop old turns if needed.
+
+    Runs when the context window is at least 65% full, or 35% with a cold prompt cache. Tool
+    returns become one-line references to their artifacts; every call/return pair, the last four
+    pairs, and the current run's messages stay intact. Nothing changes unless at least 2,000 tokens
+    are cleared. When stubbing is not enough, whole turns are dropped from the oldest, at user-prompt
+    boundaries, until the estimate falls under 65%.
+    """
+    used = ctx.context_window_used
+    if used is None:
+        return messages
+    profile = ctx.model.profile if isinstance(ctx.model, Model) else None
+    cold = prompt_cache_outlook(messages, profile=profile) == "cold"
+    if used < STUB_AT and not (cold and used >= STUB_AT_WHEN_COLD):
+        return messages
+
+    current = next((i for i, m in enumerate(messages) if m.run_id == ctx.run_id), len(messages))
+    candidates: list[tuple[int, int, ToolReturnPart]] = [
+        (i, j, p)
+        for i, m in enumerate(messages[:current])
+        if isinstance(m, ModelRequest)
+        for j, p in enumerate(m.parts)
+        if isinstance(p, ToolReturnPart) and not str(p.content).startswith("[artifact ")
+    ]
+    stubs: dict[tuple[int, int], ToolReturnPart] = {}
+    for i, j, part in candidates[: max(0, len(candidates) - KEEP_PAIRS)]:
+        if (stub := _stub(ctx.deps, part)) is not None:
+            stubs[(i, j)] = dataclasses.replace(part, content=stub)
+    cleared = sum(_tokens(messages[i].parts[j]) - _tokens(stub) for (i, j), stub in stubs.items())
+
+    result = list(messages)
+    if cleared >= MIN_CLEAR_TOKENS:
+        for i in {i for i, _ in stubs}:
+            request = result[i]
+            assert isinstance(request, ModelRequest)
+            parts = [stubs.get((i, j), p) for j, p in enumerate(request.parts)]
+            result[i] = dataclasses.replace(request, parts=parts)
+
+    # Escalation: estimate the new fraction by how much the history shrank, then drop the oldest
+    # turns, one user prompt to the next, keeping the current run.
+    before = sum(_tokens(m.parts) for m in messages)
+
+    def estimate(history: list[ModelMessage]) -> float:
+        return used * sum(_tokens(m.parts) for m in history) / max(before, 1)
+
+    boundaries = [i for i, m in enumerate(result[:current]) if i and _is_turn_start(m)]
+    boundaries.append(current)
+    while estimate(result) >= STUB_AT and len(boundaries) > 1:
+        cut = boundaries.pop(0)
+        result = result[cut:]
+        boundaries = [b - cut for b in boundaries]
+    return result
