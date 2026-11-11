@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pydantic_ai import Agent, DeferredToolRequests, FunctionToolset
-from pydantic_ai.capabilities import Caching, ProcessHistory
+from pydantic_ai.capabilities import Caching, Instrumentation, ProcessHistory
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 
@@ -44,6 +44,7 @@ def build_main_session(
         # The stubber saves the history it rewrites; the tail block comes after it, request-only.
         capabilities=[
             Caching(retention="1h", messages=True),
+            Instrumentation(),
             ProcessHistory(stub_history),
             TailBlock(),
         ],

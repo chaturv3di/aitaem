@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 from pydantic_ai import Agent, CallDeferred, FunctionToolset, RunContext
-from pydantic_ai.capabilities import Caching
+from pydantic_ai.capabilities import Caching, Instrumentation
 from pydantic_ai.models import Model
 
 from aitaem.agent.agent_roles import load_instructions
@@ -46,7 +46,7 @@ def build_spec_coordinator(
             FunctionToolset([list_tables, sample_rows, column_distribution]),
             FunctionToolset([run_spec_executors]),
         ],
-        capabilities=[Caching(retention="1h", messages=True), TailBlock()],
+        capabilities=[Caching(retention="1h", messages=True), Instrumentation(), TailBlock()],
     )
     agent.output_validator(check_reply_or_handoff)
     return agent

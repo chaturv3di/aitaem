@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from pydantic_ai import Agent, FunctionToolset, RunContext
-from pydantic_ai.capabilities import Caching
+from pydantic_ai.capabilities import Caching, Instrumentation
 from pydantic_ai.models import Model
 
 from aitaem.agent.agent_roles import launch, load_instructions
@@ -39,7 +39,7 @@ def build_analysis_coordinator(
             stats_toolset,
             FunctionToolset([describe_artifact, read_artifact, run_analysis_executors]),
         ],
-        capabilities=[Caching(retention="1h", messages=True)],
+        capabilities=[Caching(retention="1h", messages=True), Instrumentation()],
     )
     agent.output_validator(check_handoff)
     return agent

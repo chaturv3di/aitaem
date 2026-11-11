@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from pydantic_ai import Agent, FunctionToolset, RunContext
-from pydantic_ai.capabilities import Caching
+from pydantic_ai.capabilities import Caching, Instrumentation
 from pydantic_ai.models import Model
 
 from aitaem.agent.agent_roles import launch, load_instructions
@@ -27,7 +27,7 @@ def build_connections_coordinator(model: str | Model) -> Agent[SessionDeps, str]
         output_type=str,
         instructions=load_instructions(__package__ or __name__),
         toolsets=[FunctionToolset([connect_source, list_tables, describe_table])],
-        capabilities=[Caching(retention="1h", messages=True)],
+        capabilities=[Caching(retention="1h", messages=True), Instrumentation()],
     )
     agent.output_validator(check_handoff)
     return agent

@@ -28,7 +28,7 @@ from aitaem.agent.agent_roles.spec_coordinator.agent import build_spec_coordinat
 from aitaem.agent.artifacts import ArtifactStore
 from aitaem.agent.deps import SessionDeps
 from aitaem.agent.tools import ToolResult
-from aitaem.agent.trace import RunTrace, Status, Usage, assemble_trace
+from aitaem.agent.trace import RunTrace, Status, assemble_turn_trace, collect_runs, record_run
 
 Route = Literal["main", "spec"]
 
@@ -103,7 +103,6 @@ class AitaemAgent:
         self.pending_intake_id: str | None = None
         self.pending_others: list[str] = []
         self.traces: dict[str, RunTrace] = {}
-        self._runs: list[Any] = []
 
     @property
     def store(self) -> ArtifactStore:
@@ -116,17 +115,17 @@ class AitaemAgent:
         self.deps = dataclasses.replace(self.deps, turn=self.deps.turn + 1)
         trace_id = uuid.uuid4().hex
         start = datetime.now(timezone.utc)
-        self._runs = []
-        try:
-            if self.route == "spec":
-                text = await self._spec_turn(message)
-            else:
-                text = await self._main_turn(message)
-        except Exception as exc:  # noqa: BLE001
-            error = f"{type(exc).__name__}: {exc}"
-            self.traces[trace_id] = self._trace(trace_id, start, error)
-            return Response(response=error, status=Status.error, trace_id=trace_id)
-        self.traces[trace_id] = self._trace(trace_id, start, None)
+        with collect_runs() as runs:
+            try:
+                if self.route == "spec":
+                    text = await self._spec_turn(message)
+                else:
+                    text = await self._main_turn(message)
+            except Exception as exc:  # noqa: BLE001
+                error = f"{type(exc).__name__}: {exc}"
+                self.traces[trace_id] = assemble_turn_trace(trace_id, runs, start, error)
+                return Response(response=error, status=Status.error, trace_id=trace_id)
+        self.traces[trace_id] = assemble_turn_trace(trace_id, runs, start)
         reply = parse_reply(text)
         attachments = [
             ResponseAttachment(
@@ -145,7 +144,7 @@ class AitaemAgent:
     ) -> Any:
         deps = dataclasses.replace(self.deps, role=role)
         result = await agent.run(*args, deps=deps, **kwargs)
-        self._runs.append(result)
+        record_run(agent.name, result)
         return result
 
     async def _main_turn(
@@ -206,20 +205,6 @@ class AitaemAgent:
         return await self._main_turn(None, DeferredToolResults(calls=calls))
 
     # ── traces ──────────────────────────────────────────────────────────────
-
-    def _trace(self, trace_id: str, start: datetime, error: str | None) -> RunTrace:
-        if self._runs:
-            trace = assemble_trace(self._runs[-1], start)
-            return trace.model_copy(update={"run_id": trace_id, "error": error})
-        return RunTrace(
-            run_id=trace_id,
-            conversation_id=self.main_conversation.conversation_id or "",
-            timestamp=start,
-            tool_calls=[],
-            usage=Usage(),
-            duration_ms=(datetime.now(timezone.utc) - start).total_seconds() * 1000,
-            error=error,
-        )
 
     def trace(self, trace_id: str) -> RunTrace:
         """Return the trace of one `chat()` turn."""

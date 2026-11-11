@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel
 from pydantic_ai import Agent, FunctionToolset, RunContext
-from pydantic_ai.capabilities import Caching
+from pydantic_ai.capabilities import Caching, Instrumentation
 from pydantic_ai.models import Model
 
 from aitaem.agent.agent_roles import load_instructions, run_executors
@@ -42,7 +42,7 @@ def build_analysis_executor(model: str | Model) -> Agent[SessionDeps, str]:
         output_type=str,
         instructions=load_instructions(__package__ or __name__),
         toolsets=[FunctionToolset([find_specs, read_spec, check_compatibility])],
-        capabilities=[Caching(retention="1h", messages=False)],
+        capabilities=[Caching(retention="1h", messages=False), Instrumentation()],
     )
     agent.output_validator(check_handoff)
     return agent

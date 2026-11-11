@@ -19,7 +19,7 @@ from aitaem.agent.agent_roles.documents import (
 from aitaem.agent.artifacts import ProducedBy
 from aitaem.agent.deps import SessionDeps
 from aitaem.agent.tools import ToolOutput
-from aitaem.agent.trace import Status
+from aitaem.agent.trace import Status, record_run
 
 EXECUTOR_CONCURRENCY = 4
 
@@ -51,6 +51,7 @@ async def run_executors(
     async def one(intake: Intake[Any]) -> str:
         async with semaphore:
             result = await executor.run(to_yaml(intake), deps=child, usage=ctx.usage)
+        record_run(executor.name, result)
         return result.output
 
     outputs = await asyncio.gather(*(one(i) for i in intakes), return_exceptions=True)
@@ -98,6 +99,7 @@ async def launch(
     intake_id = store_intake(ctx.deps, intake, tool, ctx.tool_call_id)
     child = dataclasses.replace(ctx.deps, role=role)
     result = await coordinator.run(to_yaml(intake), deps=child, usage=ctx.usage)
+    record_run(coordinator.name, result)
     handoff = parse_handoff(result.output)
     return ToolOutput(
         to_yaml(handoff),
