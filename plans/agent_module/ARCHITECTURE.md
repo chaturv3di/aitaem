@@ -1,7 +1,7 @@
 # Architecture: `aitaem.agent` Module (v3 overhaul)
 
-**Version:** 1.4-draft (design, not implemented)
-**Status:** Proposed. The v2 design files are archived, as history only, in [`archive/v2/`](archive/v2/).
+**Version:** 1.4
+**Status:** Implemented by [Plan 42](../42-aitaem-agent-v3.md). The v2 design files are archived, as history only, in [`archive/v2/`](archive/v2/).
 
 **This document records decisions only.** Evidence, mechanics, and options considered live in
 [`research/agent_module/`](../../research/agent_module/):
@@ -139,7 +139,7 @@ aitaem/agent/
 │   ├── stats.py         # sort/rank, summary statistics, distributions, period-over-period
 │   ├── data.py          # list tables, describe schema, sample, date_range, column profile
 │   ├── aitaem.py        # connect, load specs, validate/commit/delete spec, compute_metrics
-│   └── artifacts.py     # list/describe/read/drop artifacts
+│   └── artifacts.py     # list/describe/read artifacts
 └── agent_roles/         # one package per agent role
     ├── documents.py          # Intake, Handoff, Reply schemas; YAML output check
     ├── main_session/
@@ -229,7 +229,7 @@ Tools are plain functions grouped into `FunctionToolset`s, exposed through pydan
 | `stats` | `sort_rank`, `summary_stats`, `distribution`, `period_over_period`, `contribution_share`, `filter_threshold`, `filter_by_value`, `filter_by_result` | Result artifacts only (`ibis` and `table`); no `ConnectionManager` or aitaem objects. Stats on an `ibis` artifact run as a query on that result's backend. |
 | `data` | `list_tables`, `describe_table`, `sample_rows`, `column_profile`, `date_range` | Source backends via `ConnectionManager` (read-only). |
 | `aitaem` | `connect_source`, `list_specs`, `find_specs`, `read_spec`, `check_compatibility`, `validate_spec`, `commit_spec`, `delete_spec`, `compute_metrics` | aitaem core objects; `commit_spec` saves through `SpecCache.save()`. |
-| `artifact` | `list_artifacts`, `describe_artifact`, `read_artifact`, `drop_artifact` | Store only. |
+| `artifact` | `list_artifacts`, `describe_artifact`, `read_artifact` | Store only. |
 
 Tools that launch agents are not a tool group; they live in `agent_roles/` (§3).
 

@@ -91,7 +91,7 @@ all = ["aitaem[bigquery,postgres,agent,agent-evals,dev,docs]"]
 Homepage = "https://github.com/chaturv3di/aitaem"
 Repository = "https://github.com/chaturv3di/aitaem"
 Issues = "https://github.com/chaturv3di/aitaem/issues"
-Documentation = "https://chaturv3di.github.io/aitaem"
+Documentation = "https://aitaem.com"
 
 [build-system]
 requires = ["hatchling"]
