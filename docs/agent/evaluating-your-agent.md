@@ -1,10 +1,14 @@
 # Agent: Evaluating Your Agent
 
-`aitaem.agent`'s trace and result-store types are designed to be consumed by
-[`pydantic_evals`](https://ai.pydantic.dev/evals/): `RunTrace.tool_calls` exposes which
-tools ran, in what order, with what arguments; `ToolCall.result_id` links a tool call to
-its full `ResultStore` entry; `BotResponse.status` exposes refusal/error outcomes
-directly. This page covers two distinct things you can do with that substrate.
+`AitaemAgent`'s responses, traces, and artifacts are built to be read by
+[`pydantic_evals`](https://ai.pydantic.dev/evals/) evaluators:
+
+- `Response.status` exposes refusals and errors directly.
+- `agent.trace(response.trace_id)` returns the turn's `RunTrace`. `tool_calls` lists every tool
+  call of every run in the turn (main session, coordinators, executors), and `runs` gives each
+  run's tool calls and usage, cache reads and writes included.
+- `ToolCall.artifact_id` links a tool call to its artifact; `agent.store.read(artifact_id)`
+  returns the result.
 
 ## Install
 
@@ -14,48 +18,35 @@ pip install "aitaem[agent-evals]"
 
 ## Track 1 — substrate validation (CI-safe, no API key)
 
-[`tests/evals/`](https://github.com/chaturv3di/aitaem/tree/main/tests/evals) in this
-repo is the reference harness: `Case`/`Dataset`/`Evaluator` from `pydantic_evals`, driven
-by hand-scripted `pydantic_ai.models.function.FunctionModel`s that already know which
-tool to call and in what order. It runs in CI with no live LLM calls and no API key.
+[`tests/evals/`](https://github.com/chaturv3di/aitaem/tree/main/tests/evals) is the reference
+harness: `Case`, `Dataset`, and `Evaluator` from `pydantic_evals`, with every agent role driven by
+a scripted `FunctionModel` that already knows which tools to call. It covers analysis (status,
+refusals, attachments against a direct `MetricCompute` result), spec design (validate, then
+commit), threshold governance, fan-out correctness (executor verdicts against
+`MetricCompute.scan()`), and artifact completeness (every tool call names an artifact in the
+manifest).
 
-Read it as proof that `RunTrace`, `ResultStore`, and `BotResponse` are consumable by
-`pydantic_evals.Evaluator`s end-to-end — **not** as a measurement of whether an LLM would
-select the right tool, refuse appropriately, or produce a correct answer. Every
-`FunctionModel` in that harness is scripted to produce the outcome being asserted, so its
-assertions are near-tautological by construction. That's still a legitimate and valuable
-thing to have proven on its own — point the same harness at a live model outside CI and
-the wiring already works — but don't mistake "the harness runs and passes" for "the agent
-was evaluated."
+These cases prove that traces, responses, and artifacts are consumable end to end. They do not
+measure whether a model would choose the right tools: each scripted model produces the outcome
+being asserted.
 
 ## Track 2 — behavioral evaluation against a live model
 
-For an actual measurement of agent behavior, you need real questions, a real spec
-catalog, and a real model. [`examples/04_evaluating_agents_example.py`](https://github.com/chaturv3di/aitaem/blob/main/examples/04_evaluating_agents_example.py)
-(and its notebook counterpart) is the pattern to copy: a `query_task()` function that
-builds a fresh `QueryBot` per case and calls `bot.ask()`, `Evaluator` subclasses that
-inspect `response.status` and `response.trace.tool_calls`, a `Dataset` of `Case`s against
-a real spec catalog, and a `pass_rate()` helper that repeats the dataset `n` times and
-reports a per-case pass fraction — because a single run against a live, non-deterministic
-model tells you much less than a distribution does.
-
-That example also demonstrates a deliberate trade-off worth internalizing for your own
-evaluations: an evaluator that checks an *exact* tool-call sequence (e.g. to confirm a
-gating rule was honored before a computation ran) is stricter than one that just checks a
-tool was called at all, and will occasionally fail a run that self-corrected but still
-behaved correctly. Read exact-sequence assertions through `pass_rate()`, not a single
-run's pass/fail.
+The same harness runs against a live model by passing a model name instead of a scripted model.
+`tests/evals/` includes live cases, skipped without `ANTHROPIC_API_KEY`: threshold governance
+(grounding thresholds with `column_distribution` and `date_range` instead of inventing them),
+answer fidelity after history stubbing, and prompt-cache reads on the second turn. A single run
+against a non-deterministic model tells you little; repeat each dataset and read the pass rate.
 
 ## Which track should I use?
 
-- Changing tool wiring, trace assembly, or the result-store contract? Extend
-  `tests/evals/` — it must keep passing in CI with no API key.
-- Measuring whether your prompt, catalog, or model choice actually produces correct
-  behavior? Write a `04_evaluating_agents_example.py`-style dataset against a live model.
+- Changing tool wiring, traces, or the artifact store? Extend `tests/evals/`; it must pass in CI
+  with no API key.
+- Measuring whether instructions, catalog, or model choice produce correct behavior? Write live
+  cases and track their pass rates.
 
 ## Next steps
 
-- [Stability & Limitations](stability.md) — note that default prompt content isn't
-  semver-stable, which matters if you're tracking eval pass rates over time
-- [Agent API Reference](../api/agent.md) — `RunTrace`, `ToolCall`, `ResultStore` field
-  reference
+- [Stability & Limitations](stability.md) — role instructions are not semver-stable, which matters
+  when you track pass rates over time
+- [Agent API Reference](../api/agent.md)

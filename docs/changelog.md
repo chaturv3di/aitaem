@@ -13,6 +13,24 @@
   (`gs://`, `s3://`, `abfs://`, ...) as well as local paths. Remote URLs need the matching
   fsspec driver (`gcsfs`, `s3fs`, `adlfs`), installed separately.
 - **New core dependency: `fsspec`.**
+- **`AitaemAgent`** (`aitaem.agent`, breaking replacement for the v2 bots). One multi-turn agent
+  session: a main session that talks to the user and launches coordinators for connections,
+  spec design (talking with the user directly), and analysis (with parallel executors that find
+  catalog specs). Every tool call writes an artifact to a session directory; compute results stay
+  lazy on their source backend. `chat()`, `trace()`, `dump()`/`load()`, and `cleanup()`.
+- **New `aitaem.agent` exports:** `AitaemAgent`, `Response`, `ResponseAttachment`, `ArtifactRef`,
+  `ArtifactStore`, `SessionDeps`, `ToolResult`, and the toolsets `stats_toolset`, `data_toolset`,
+  `aitaem_toolset`, and `artifact_toolset`.
+- **`RunTrace.runs`** (`AgentRun`): every run of a turn, with its tool calls and its own usage,
+  cache reads and writes included.
+- **`examples/01_aitaem_agent_example.py`** and the "Tool Groups" docs page.
+
+### Changed
+
+- **pydantic-ai ≥ 2.55.** The agent extras (`agent-core`, `agent-anthropic`, `agent`,
+  `agent-evals`) require `pydantic-ai-slim>=2.55,<3`, and therefore Python ≥ 3.11. Core `aitaem`
+  still supports Python 3.10.
+- **`ToolCall.result_id` is renamed `ToolCall.artifact_id`** (breaking).
 
 ### Fixed
 

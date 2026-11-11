@@ -52,6 +52,7 @@ nav:
       - Computing Metrics: user-guide/computing-metrics.md
   - Agent:
       - Getting Started: agent/getting-started.md
+      - Tool Groups: agent/tool-groups.md
       - Evaluating Your Agent: agent/evaluating-your-agent.md
       - Stability & Limitations: agent/stability.md
   - API Reference:

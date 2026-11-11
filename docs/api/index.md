@@ -69,8 +69,18 @@ All exceptions inherit from `AitaemError` and are importable from `aitaem`.
 
 ## Agent module (optional install)
 
-`aitaem.agent` ships LLM-facing convenience bots (`QueryBot`, `DefinitionBot`) and the
-primitives layer they're built on, on top of the deterministic compute layer documented
-above. It's an optional install (`pip install "aitaem[agent-anthropic]"`) and lives in
-its own [Agent](../agent/getting-started.md) section of these docs — see there for a
-quick start, and the [Agent API reference](agent.md) for the full class/type listing.
+`aitaem.agent` adds `AitaemAgent`, a multi-turn agent session that connects sources, designs
+specs with the user, and answers analytical questions on top of the deterministic compute layer
+documented above. It's an optional install (`pip install "aitaem[agent-anthropic]"`, Python
+≥ 3.11) and lives in its own [Agent](../agent/getting-started.md) section of these docs.
+
+| Name | Purpose |
+|------|---------|
+| `AitaemAgent` | The agent session: `chat()`, `trace()`, `dump()`/`load()`, `cleanup()` |
+| `Response`, `ResponseAttachment`, `Status` | What `chat()` returns |
+| `RunTrace`, `ToolCall`, `Usage` | The runs, tool calls, and usage of one turn |
+| `ArtifactStore`, `ArtifactRef` | The session's artifacts |
+| `SessionDeps`, `ToolResult` | Run dependencies and tool results, for composing the toolsets |
+| `stats_toolset`, `data_toolset`, `aitaem_toolset`, `artifact_toolset` | The [tool groups](../agent/tool-groups.md) |
+
+See the [Agent API reference](agent.md) for the full listing.

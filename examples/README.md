@@ -86,6 +86,24 @@ duckdb:
 
 ## Examples
 
+| # | File | Description |
+|---|------|--------------|
+| 01 | `01_aitaem_agent_example.py` | A two-turn `AitaemAgent` session: a question answered by the analysis coordinator, a follow-up answered from earlier results, and each turn's runs and artifacts |
+
+### AitaemAgent quick start
+
+```python
+from aitaem import ConnectionManager, SpecCache
+from aitaem.agent import AitaemAgent
+
+specs = SpecCache.from_yaml(metric_paths="examples/metrics/", slice_paths="examples/slices/")
+connections = ConnectionManager.from_yaml("examples/connections.yaml")
+
+agent = AitaemAgent(connections, specs)
+response = await agent.chat("Which region has the highest click-through rate?")
+print(response.response)
+```
+
 ### MetricCompute (programmatic)
 
 ```python

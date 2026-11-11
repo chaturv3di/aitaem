@@ -41,11 +41,11 @@ postgres = [
     "ibis-framework[postgres]>=9.0.0",
     "psycopg[binary]>=3.0.0",
 ]
-# agent-core: pydantic-ai only, no provider SDK. Sufficient to build/test bots
-# against TestModel/FunctionModel, or against a provider SDK installed separately.
-# Public and documented (see docs/agent/building-your-own-bot.md), not internal
+# agent-core: pydantic-ai only, no provider SDK. Sufficient to run AitaemAgent or the
+# tool groups against TestModel/FunctionModel, or against a provider SDK installed
+# separately. Public and documented (see docs/agent/tool-groups.md), not internal
 # plumbing — agent-anthropic and agent build on it, but it's also a standalone
-# install target in its own right.
+# install target in its own right. The agent extras need Python >= 3.11.
 agent-core = [
     "pydantic-ai-slim>=2.55,<3",
 ]
