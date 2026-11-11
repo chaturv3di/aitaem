@@ -14,8 +14,8 @@ from typing import Any, Literal
 
 import yaml
 from pydantic_ai import RunContext
-from pydantic_ai.capabilities import AbstractCapability, WrapModelRequestHandler
-from pydantic_ai.messages import CachePoint, ModelRequest, ModelResponse, UserPromptPart
+from pydantic_ai.capabilities import AbstractCapability
+from pydantic_ai.messages import CachePoint, ModelRequest, UserPromptPart
 from pydantic_ai.models import ModelRequestContext
 
 from aitaem.agent.deps import SessionDeps
@@ -80,18 +80,16 @@ def tail_block(deps: SessionDeps) -> str:
 class TailBlock(AbstractCapability[SessionDeps]):
     """Appends the session state and the artifact index to each request, behind a cache point.
 
-    The block is request-only: the stored history never contains it.
+    The block is request-only: it goes into a new message list for this request, so the stored
+    history never contains it. List this capability after `ProcessHistory`, which saves the
+    messages it receives into the history.
     """
 
     ttl: Literal["5m", "1h"] = "1h"
 
-    async def wrap_model_request(
-        self,
-        ctx: RunContext[SessionDeps],
-        *,
-        request_context: ModelRequestContext,
-        handler: WrapModelRequestHandler,
-    ) -> ModelResponse:
+    async def before_model_request(
+        self, ctx: RunContext[SessionDeps], request_context: ModelRequestContext
+    ) -> ModelRequestContext:
         part = UserPromptPart(content=[CachePoint(ttl=self.ttl), tail_block(ctx.deps)])
         messages = list(request_context.messages)
         last = messages[-1] if messages else None
@@ -99,4 +97,4 @@ class TailBlock(AbstractCapability[SessionDeps]):
             messages[-1] = dataclasses.replace(last, parts=[*last.parts, part])
         else:
             messages.append(ModelRequest(parts=[part]))
-        return await handler(dataclasses.replace(request_context, messages=messages))
+        return dataclasses.replace(request_context, messages=messages)

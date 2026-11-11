@@ -386,7 +386,7 @@ Rules follow from the prefix order and invalidation behavior in
   1. Tool array fixed and deterministically ordered; no per-turn `prepare_tools` or `tool_choice` filtering.
   2. Static instructions are literal strings only.
   3. Session-state block and artifact index are **not** in `instructions`.
-- **Tail block:** the session-state block (§9.2) and artifact index (§9.3) are regenerated every request from `SessionDeps` and appended behind a `CachePoint` in `wrap_model_request`, never persisted to history. Because they are rebuilt from the store, they survive history stubbing.
+- **Tail block:** the session-state block (§9.2) and artifact index (§9.3) are regenerated every request from `SessionDeps` and appended behind a `CachePoint` in `before_model_request`, after the history stubber has run, never persisted to history ([caching, Update 2026-11-10](../../research/agent_module/42-anthropic-prompt-caching.md#update-2026-11-10-tail-block-hook-with-a-processhistory-capability-present)). Because they are rebuilt from the store, they survive history stubbing.
 - **Do not toggle** `tool_choice`, thinking params, `effort`, or image presence between turns.
 - **Observability:** surface `cache_read_input_tokens`, `cache_creation_input_tokens`, and collapse reason in `RunTrace`; enable `anthropic_cache_diagnostics` in development; check that prompts exceed the target model's minimum cacheable size.
 - **Progressive disclosure** comes from agent roles (§6.2). Native tool search is reserved for if the tool count grows large.

@@ -76,3 +76,22 @@ Alternative where the model supports it: an enqueued mid-conversation system mes
 The same structure is correct for any prefix-caching provider; the unified `cache` setting is
 translated per provider (OpenAI GPT-5.6+, Bedrock, OpenRouter have their own knobs).
 Anthropic-only features (`tool_addition`, thinking-binding recovery) degrade gracefully.
+
+---
+
+## Update (2026-11-10): tail block hook with a `ProcessHistory` capability present
+
+**Sources:** pydantic-ai-slim 2.55.0, executed with `FunctionModel` (Python 3.12); `ProcessHistory`
+source (`capabilities/process_history.py`).
+
+§4's claim that request-only edits made in `wrap_model_request` are not written back holds only
+without a `ProcessHistory` capability on the agent. Calling the wrapper's `handler` runs every
+capability's `before_model_request`, and `ProcessHistory.before_model_request` writes the messages
+it receives into the run history (`ctx.messages[:] = messages`). Executed: a tail block appended in
+`wrap_model_request` was stored in history alongside a no-op `ProcessHistory`, in either capability
+order (two blocks stored after two turns).
+
+A tail block appended in `before_model_request`, by replacing the last request in a new message
+list (`dataclasses.replace(request_context, messages=...)`), with the capability listed **after**
+`ProcessHistory`: the model received exactly one block on every request, the history processor
+never saw it, and none was stored. Listed before `ProcessHistory`, it was stored.

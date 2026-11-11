@@ -540,9 +540,11 @@ after load; a removed session directory loads with every artifact `lost`.
 
 **File:** `aitaem/agent/history.py`
 
-- A capability whose `wrap_model_request` appends, behind a `CachePoint`, a request-only block
+- A capability whose `before_model_request` appends, behind a `CachePoint`, a request-only block
   with the session state and the artifact index (§A8, §A9.2–9.3), for the main session and the spec
-  coordinator.
+  coordinator. It is listed after the SF-18 `ProcessHistory`, which saves the messages it receives
+  into the history
+  ([caching, Update 2026-11-10](../research/agent_module/42-anthropic-prompt-caching.md#update-2026-11-10-tail-block-hook-with-a-processhistory-capability-present)).
 - Session state, as compact JSON capped at 2,000 characters: the latest intake's instructions
   (goal), connected backends, spec names per type, the active route, open questions from the latest
   needs-input handoff, and `error` artifacts newer than the last `ok` artifact of the same tool.
