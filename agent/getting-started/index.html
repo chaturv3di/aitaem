@@ -6,24 +6,24 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="AITÆM: All Interesting Things Are Essentially Metrics — a Python library for generating data insights from OLAP databases or local CSV files.">
+        <meta name="description" content="aitaem is an open-source Python semantic layer: define metrics, slices and segments in YAML and compute them on DuckDB, BigQuery, PostgreSQL or CSV files. AITÆM: All Interesting Things Are Essentially Metrics.">
       
       
       
-        <link rel="canonical" href="https://chaturv3di.github.io/aitaem/agent/getting-started/">
+        <link rel="canonical" href="https://aitaem.com/agent/getting-started/">
       
       
         <link rel="prev" href="../../user-guide/computing-metrics/">
       
       
-        <link rel="next" href="../building-your-own-bot/">
+        <link rel="next" href="../tool-groups/">
       
       
         
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -782,10 +782,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#querybot-quick-start" class="md-nav__link">
+  <a href="#quick-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        QueryBot quick start
+        Quick start
       
     </span>
   </a>
@@ -793,10 +793,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#definitionbot-quick-start" class="md-nav__link">
+  <a href="#how-a-session-works" class="md-nav__link">
     <span class="md-ellipsis">
       
-        DefinitionBot quick start
+        How a session works
       
     </span>
   </a>
@@ -804,10 +804,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#full-examples" class="md-nav__link">
+  <a href="#responses-artifacts-and-traces" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Full examples
+        Responses, artifacts, and traces
       
     </span>
   </a>
@@ -815,10 +815,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#setupbot" class="md-nav__link">
+  <a href="#saving-and-restoring-a-session" class="md-nav__link">
     <span class="md-ellipsis">
       
-        SetupBot
+        Saving and restoring a session
       
     </span>
   </a>
@@ -826,10 +826,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tenant_id" class="md-nav__link">
+  <a href="#full-example" class="md-nav__link">
     <span class="md-ellipsis">
       
-        tenant_id
+        Full example
       
     </span>
   </a>
@@ -863,14 +863,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../building-your-own-bot/" class="md-nav__link">
+      <a href="../tool-groups/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Building Your Own Bot
+    Tool Groups
   
 
     
@@ -1266,10 +1266,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#querybot-quick-start" class="md-nav__link">
+  <a href="#quick-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        QueryBot quick start
+        Quick start
       
     </span>
   </a>
@@ -1277,10 +1277,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#definitionbot-quick-start" class="md-nav__link">
+  <a href="#how-a-session-works" class="md-nav__link">
     <span class="md-ellipsis">
       
-        DefinitionBot quick start
+        How a session works
       
     </span>
   </a>
@@ -1288,10 +1288,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#full-examples" class="md-nav__link">
+  <a href="#responses-artifacts-and-traces" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Full examples
+        Responses, artifacts, and traces
       
     </span>
   </a>
@@ -1299,10 +1299,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#setupbot" class="md-nav__link">
+  <a href="#saving-and-restoring-a-session" class="md-nav__link">
     <span class="md-ellipsis">
       
-        SetupBot
+        Saving and restoring a session
       
     </span>
   </a>
@@ -1310,10 +1310,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tenant_id" class="md-nav__link">
+  <a href="#full-example" class="md-nav__link">
     <span class="md-ellipsis">
       
-        tenant_id
+        Full example
       
     </span>
   </a>
@@ -1352,134 +1352,103 @@
 
 
 <h1 id="agent-getting-started">Agent: Getting Started</h1>
-<p><code>aitaem.agent</code> is an optional install that ships two LLM-facing convenience bots on top
-of the deterministic compute layer: <code>QueryBot</code> (answer questions against your metric
-catalog) and <code>DefinitionBot</code> (draft, validate, and commit or delete specs from natural
-language).</p>
+<p><code>aitaem.agent</code> is an optional install that puts one multi-turn agent session, <code>AitaemAgent</code>, on
+top of the deterministic compute layer. You talk to it with <code>chat()</code>; it connects sources, designs
+metric, slice, and segment specs with you, and answers analytical questions by computing catalog
+metrics and running statistics on the results.</p>
 <h2 id="installation">Installation</h2>
+<p>The agent extras depend on <code>pydantic-ai-slim</code> ≥ 2.60.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"aitaem[agent-anthropic]"</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ANTHROPIC_API_KEY</span><span class="o">=</span>sk-ant-...
 </code></pre></div>
-<p><code>agent-anthropic</code> is the tested, concrete install path — every example in this repo runs
-against an Anthropic model. If you plan to use a different or multiple model providers,
-install the provider-neutral superset instead:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"aitaem[agent]"</span>
+<p><code>agent-anthropic</code> is the tested install path. For other or several model providers, install the
+provider-neutral superset, <code>pip install "aitaem[agent]"</code>; <code>AitaemAgent</code> accepts any
+<a href="https://ai.pydantic.dev/">pydantic-ai</a> model string.</p>
+<h2 id="quick-start">Quick start</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectionManager</span><span class="p">,</span> <span class="n">SpecCache</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">AitaemAgent</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">specs</span> <span class="o">=</span> <span class="n">SpecCache</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span><span class="n">metric_paths</span><span class="o">=</span><span class="s2">"examples/metrics/"</span><span class="p">,</span> <span class="n">slice_paths</span><span class="o">=</span><span class="s2">"examples/slices/"</span><span class="p">)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">connections</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span><span class="s2">"examples/connections.yaml"</span><span class="p">)</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AitaemAgent</span><span class="p">(</span><span class="n">connections</span><span class="p">,</span> <span class="n">specs</span><span class="p">)</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">chat</span><span class="p">(</span><span class="s2">"Which region has the highest click-through rate?"</span><span class="p">)</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status</span><span class="p">,</span> <span class="n">response</span><span class="o">.</span><span class="n">response</span><span class="p">)</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="k">for</span> <span class="n">attachment</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">attachments</span><span class="p">:</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">attachment</span><span class="o">.</span><span class="n">artifact_id</span><span class="p">,</span> <span class="n">attachment</span><span class="o">.</span><span class="n">type_tag</span><span class="p">,</span> <span class="n">attachment</span><span class="o">.</span><span class="n">reason</span><span class="p">)</span>
 </code></pre></div>
-<p>Both bots accept any <a href="https://ai.pydantic.dev/">pydantic-ai</a> model string (e.g.
-<code>"openai:gpt-4o"</code>), so <code>agent</code> — which also pulls in the OpenAI SDK — is the extra to
-reach for once you're not exclusively on Anthropic.</p>
-<h2 id="querybot-quick-start">QueryBot quick start</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.connectors</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectionManager</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecCache</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">QueryBot</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">spec_cache</span> <span class="o">=</span> <span class="n">SpecCache</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">metric_paths</span><span class="o">=</span><span class="s2">"examples/metrics/"</span><span class="p">,</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">slice_paths</span><span class="o">=</span><span class="s2">"examples/slices/"</span><span class="p">,</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="p">)</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="n">conn_mgr</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="n">conn_mgr</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">"duckdb"</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"examples/data/ad_campaigns.duckdb"</span><span class="p">)</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="n">bot</span> <span class="o">=</span> <span class="n">QueryBot</span><span class="p">(</span>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="n">model</span><span class="o">=</span><span class="s2">"anthropic:claude-haiku-4-5-20251001"</span><span class="p">,</span>
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="n">spec_cache</span><span class="o">=</span><span class="n">spec_cache</span><span class="p">,</span>
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    <span class="n">connection_manager</span><span class="o">=</span><span class="n">conn_mgr</span><span class="p">,</span>
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="p">)</span>
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">bot</span><span class="o">.</span><span class="n">chat</span><span class="p">(</span><span class="s2">"What was total revenue and ROAS across all campaigns?"</span><span class="p">)</span>
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">narrative</span><span class="p">)</span>
-</code></pre></div>
-<h2 id="definitionbot-quick-start">DefinitionBot quick start</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.connectors</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectionManager</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecCache</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">aitaem.agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefinitionBot</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">spec_cache</span> <span class="o">=</span> <span class="n">SpecCache</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">metric_paths</span><span class="o">=</span><span class="s2">"examples/metrics/"</span><span class="p">,</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">slice_paths</span><span class="o">=</span><span class="s2">"examples/slices/"</span><span class="p">,</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">)</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="n">conn_mgr</span> <span class="o">=</span> <span class="n">ConnectionManager</span><span class="p">()</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="n">conn_mgr</span><span class="o">.</span><span class="n">add_connection</span><span class="p">(</span><span class="s2">"duckdb"</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"examples/data/ad_campaigns.duckdb"</span><span class="p">)</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="n">bot</span> <span class="o">=</span> <span class="n">DefinitionBot</span><span class="p">(</span>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="n">model</span><span class="o">=</span><span class="s2">"anthropic:claude-haiku-4-5-20251001"</span><span class="p">,</span>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>    <span class="n">spec_cache</span><span class="o">=</span><span class="n">spec_cache</span><span class="p">,</span>
-<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>    <span class="n">connection_manager</span><span class="o">=</span><span class="n">conn_mgr</span><span class="p">,</span>
-<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="p">)</span>
-<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>
-<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">bot</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span>
-<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>    <span class="s2">"Define a metric called avg_cpc for average cost per click — "</span>
-<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>    <span class="s2">"total ad spend divided by total clicks."</span>
-<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="p">)</span>
-<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">narrative</span><span class="p">)</span>
-<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">payload</span><span class="o">.</span><span class="n">yaml_string</span><span class="p">)</span>
-</code></pre></div>
-<h2 id="full-examples">Full examples</h2>
-<p>The <a href="https://github.com/chaturv3di/aitaem/tree/main/examples"><code>examples/</code></a> directory has
-runnable scripts and notebooks, numbered in a suggested reading order:</p>
+<p><code>AitaemAgent(connection_manager=None, spec_cache=None, *, model, executor_model, spec_dir=None)</code>:</p>
+<ul>
+<li><code>model</code> (default <code>"anthropic:claude-sonnet-5-5"</code>) runs the main session and the coordinators;
+  <code>executor_model</code> (default <code>"anthropic:claude-haiku-5-5"</code>) runs the executors.</li>
+<li>Without a <code>ConnectionManager</code>, the agent starts with none connected and can connect DuckDB or
+  BigQuery sources itself. Without a <code>SpecCache</code>, it starts with an empty catalog.</li>
+<li>Specs the agent saves go to <code>&lt;spec_dir&gt;/metrics</code>, <code>&lt;spec_dir&gt;/slices</code>, and
+  <code>&lt;spec_dir&gt;/segments</code>. <code>spec_dir</code> is a local path or an fsspec URL; it defaults to the session
+  directory, which the OS removes eventually, so pass one to keep the specs.</li>
+</ul>
+<h2 id="how-a-session-works">How a session works</h2>
+<p>The <strong>main session</strong> talks to you. It answers questions about results it already holds with the
+artifact and stats tools, and it launches a <strong>coordinator</strong> for each task:</p>
 <table>
 <thead>
 <tr>
-<th>#</th>
-<th>Example</th>
-<th>What it covers</th>
+<th>Task</th>
+<th>Coordinator</th>
+<th>How it runs</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>01</td>
-<td><code>definition_bot_example</code></td>
-<td>The five-step spec-definition workflow, direct YAML parsing and LLM-assisted drafting</td>
+<td>Connect a DuckDB or BigQuery source</td>
+<td>connections</td>
+<td>Runs on its own and hands back what it connected, or the settings it needs</td>
 </tr>
 <tr>
-<td>02</td>
-<td><code>query_bot_example</code></td>
-<td>A multi-turn <code>QueryBot</code> conversation</td>
+<td>Create, change, or delete specs</td>
+<td>spec</td>
+<td>Talks with you directly until the specs are done, saving each spec you agree to</td>
 </tr>
 <tr>
-<td>03</td>
-<td><code>intent_resolution_example</code></td>
-<td>A deep dive into <code>QueryBot</code>'s intent → resolve → compute gate</td>
-</tr>
-<tr>
-<td>04</td>
-<td><code>evaluating_agents_example</code></td>
-<td>Writing <code>pydantic_evals</code> evaluations against a live model</td>
+<td>Answer an analytical question</td>
+<td>analysis</td>
+<td>Finds the specs through parallel executors, computes, runs statistics, and hands back the answer</td>
 </tr>
 </tbody>
 </table>
-<h2 id="setupbot"><code>SetupBot</code></h2>
-<p>A third convenience bot — a connection-configuration wizard — is planned but not yet
-shipped. It's a v1.x deliverable, not part of this release.</p>
-<h2 id="tenant_id"><code>tenant_id</code></h2>
-<p>Both bots accept an optional <code>tenant_id: str | None</code> constructor parameter. It is an
-OpenAI prompt-cache routing key — <strong>not</strong> a security or isolation boundary. When set, an
-OpenAI-backed bot passes it through as <code>openai_prompt_cache_key</code> so requests from the
-same tenant route to the same server-side cache pool.</p>
-<p>When omitted, it falls back to a hash of the visible metric/slice/segment names in your
-<code>SpecCache</code>. Two <code>spec_cache</code>s with the same visible catalog (e.g. two users under the
-same RBAC permission set) land in the same cache routing lane automatically; different
-visible catalogs land in different lanes — with no configuration needed.</p>
-<div class="admonition warning">
-<p class="admonition-title">This is not a tenancy or isolation feature</p>
-<p><code>tenant_id</code> only affects cache routing efficiency. The agent module never stores
-credentials, persists conversation history beyond what you explicitly serialize via
-<code>dump_history()</code>, manages multi-tenancy or RBAC, or holds connections other than the
-<code>ConnectionManager</code> you provide. It does not create isolation between tenants —
-separate tenants need separate <code>ConnectionManager</code>/<code>SpecCache</code>/bot instances,
-enforced by your application, regardless of what <code>tenant_id</code> you pass.</p>
-<p>Concurrent <code>chat()</code>/<code>ask()</code> calls on the <em>same</em> bot instance are also unsupported —
-one call at a time per instance. Concurrency lives at the caller level: N users need
-N bot instances, not N concurrent calls on one shared instance.</p>
-</div>
-<p>See <a href="../stability/">Stability &amp; Limitations</a> for the full reference.</p>
+<p>When a coordinator needs more from you, the main session asks and launches it again with your
+answers, reusing the results it already computed.</p>
+<h2 id="responses-artifacts-and-traces">Responses, artifacts, and traces</h2>
+<p>Every tool call writes an <strong>artifact</strong> to a session directory under the system temp directory.
+Compute results stay lazy on their source backend; statistics and reads run there, and only their
+outputs come back.</p>
+<ul>
+<li><code>Response</code>: <code>response</code> (text), <code>status</code> (<code>ok</code>, <code>empty</code>, <code>refused</code>, <code>error</code>), <code>attachments</code>
+  (artifact ID, type tag, reason), and <code>trace_id</code>. <code>refused</code> means no catalog spec answers the
+  question precisely; the agent does not approximate one.</li>
+<li><code>agent.trace(trace_id)</code> returns the turn's <code>RunTrace</code>: every run (main session, coordinators,
+  executors) with its tool calls and its usage, cache reads and writes included.</li>
+<li><code>agent.store</code> is the <code>ArtifactStore</code>: <code>refs()</code>, <code>get(id)</code>, <code>read(id)</code>, and <code>index_lines()</code>.</li>
+</ul>
+<h2 id="saving-and-restoring-a-session">Saving and restoring a session</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">data</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">dump</span><span class="p">()</span>        <span class="c1"># JSON-ready: conversations, route, and the artifact manifest</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AitaemAgent</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">connections</span><span class="p">,</span> <span class="n">specs</span><span class="p">)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="o">...</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">agent</span><span class="o">.</span><span class="n">cleanup</span><span class="p">()</span>            <span class="c1"># removes the session directory now</span>
+</code></pre></div>
+<p>Compute results are lazy expressions and do not survive <code>load()</code>: they, and any artifact whose file
+is gone, are marked <code>lost</code>, and the agent recomputes them when needed.</p>
+<h2 id="full-example">Full example</h2>
+<p><a href="https://github.com/chaturv3di/aitaem/blob/main/examples/01_aitaem_agent_example.py"><code>examples/01_aitaem_agent_example.py</code></a>
+runs a two-turn session over the ad campaigns dataset and prints each turn's runs and the
+artifact index.</p>
 <h2 id="next-steps">Next steps</h2>
 <ul>
-<li><a href="../building-your-own-bot/">Building Your Own Bot</a> — use the primitives layer directly</li>
+<li><a href="../tool-groups/">Tool Groups</a> — use the stats, data, aitaem, and artifact tools in your own
+  pydantic-ai agents</li>
 <li><a href="../evaluating-your-agent/">Evaluating Your Agent</a> — write <code>pydantic_evals</code> evaluations</li>
-<li><a href="../../api/agent/">Agent API Reference</a> — full class and type documentation</li>
+<li><a href="../stability/">Stability &amp; Limitations</a></li>
+<li><a href="../../api/agent/">Agent API Reference</a></li>
 </ul>
 
 
@@ -1538,10 +1507,10 @@ N bot instances, not N concurrent calls on one shared instance.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

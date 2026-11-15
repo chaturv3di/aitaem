@@ -6,11 +6,11 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="AITÆM: All Interesting Things Are Essentially Metrics — a Python library for generating data insights from OLAP databases or local CSV files.">
+        <meta name="description" content="aitaem is an open-source Python semantic layer: define metrics, slices and segments in YAML and compute them on DuckDB, BigQuery, PostgreSQL or CSV files. AITÆM: All Interesting Things Are Essentially Metrics.">
       
       
       
-        <link rel="canonical" href="https://chaturv3di.github.io/aitaem/api/helpers/">
+        <link rel="canonical" href="https://aitaem.com/api/helpers/">
       
       
         <link rel="prev" href="../connectors/">
@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -734,14 +734,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../agent/building-your-own-bot/" class="md-nav__link">
+      <a href="../../agent/tool-groups/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Building Your Own Bot
+    Tool Groups
   
 
     
@@ -1387,191 +1387,191 @@ valid table name.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>aitaem/helpers/csv_to_duckdb.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-20"> 20</a></span>
-<span class="normal"><a href="#__codelineno-0-21"> 21</a></span>
-<span class="normal"><a href="#__codelineno-0-22"> 22</a></span>
-<span class="normal"><a href="#__codelineno-0-23"> 23</a></span>
-<span class="normal"><a href="#__codelineno-0-24"> 24</a></span>
-<span class="normal"><a href="#__codelineno-0-25"> 25</a></span>
-<span class="normal"><a href="#__codelineno-0-26"> 26</a></span>
-<span class="normal"><a href="#__codelineno-0-27"> 27</a></span>
-<span class="normal"><a href="#__codelineno-0-28"> 28</a></span>
-<span class="normal"><a href="#__codelineno-0-29"> 29</a></span>
-<span class="normal"><a href="#__codelineno-0-30"> 30</a></span>
-<span class="normal"><a href="#__codelineno-0-31"> 31</a></span>
-<span class="normal"><a href="#__codelineno-0-32"> 32</a></span>
-<span class="normal"><a href="#__codelineno-0-33"> 33</a></span>
-<span class="normal"><a href="#__codelineno-0-34"> 34</a></span>
-<span class="normal"><a href="#__codelineno-0-35"> 35</a></span>
-<span class="normal"><a href="#__codelineno-0-36"> 36</a></span>
-<span class="normal"><a href="#__codelineno-0-37"> 37</a></span>
-<span class="normal"><a href="#__codelineno-0-38"> 38</a></span>
-<span class="normal"><a href="#__codelineno-0-39"> 39</a></span>
-<span class="normal"><a href="#__codelineno-0-40"> 40</a></span>
-<span class="normal"><a href="#__codelineno-0-41"> 41</a></span>
-<span class="normal"><a href="#__codelineno-0-42"> 42</a></span>
-<span class="normal"><a href="#__codelineno-0-43"> 43</a></span>
-<span class="normal"><a href="#__codelineno-0-44"> 44</a></span>
-<span class="normal"><a href="#__codelineno-0-45"> 45</a></span>
-<span class="normal"><a href="#__codelineno-0-46"> 46</a></span>
-<span class="normal"><a href="#__codelineno-0-47"> 47</a></span>
-<span class="normal"><a href="#__codelineno-0-48"> 48</a></span>
-<span class="normal"><a href="#__codelineno-0-49"> 49</a></span>
-<span class="normal"><a href="#__codelineno-0-50"> 50</a></span>
-<span class="normal"><a href="#__codelineno-0-51"> 51</a></span>
-<span class="normal"><a href="#__codelineno-0-52"> 52</a></span>
-<span class="normal"><a href="#__codelineno-0-53"> 53</a></span>
-<span class="normal"><a href="#__codelineno-0-54"> 54</a></span>
-<span class="normal"><a href="#__codelineno-0-55"> 55</a></span>
-<span class="normal"><a href="#__codelineno-0-56"> 56</a></span>
-<span class="normal"><a href="#__codelineno-0-57"> 57</a></span>
-<span class="normal"><a href="#__codelineno-0-58"> 58</a></span>
-<span class="normal"><a href="#__codelineno-0-59"> 59</a></span>
-<span class="normal"><a href="#__codelineno-0-60"> 60</a></span>
-<span class="normal"><a href="#__codelineno-0-61"> 61</a></span>
-<span class="normal"><a href="#__codelineno-0-62"> 62</a></span>
-<span class="normal"><a href="#__codelineno-0-63"> 63</a></span>
-<span class="normal"><a href="#__codelineno-0-64"> 64</a></span>
-<span class="normal"><a href="#__codelineno-0-65"> 65</a></span>
-<span class="normal"><a href="#__codelineno-0-66"> 66</a></span>
-<span class="normal"><a href="#__codelineno-0-67"> 67</a></span>
-<span class="normal"><a href="#__codelineno-0-68"> 68</a></span>
-<span class="normal"><a href="#__codelineno-0-69"> 69</a></span>
-<span class="normal"><a href="#__codelineno-0-70"> 70</a></span>
-<span class="normal"><a href="#__codelineno-0-71"> 71</a></span>
-<span class="normal"><a href="#__codelineno-0-72"> 72</a></span>
-<span class="normal"><a href="#__codelineno-0-73"> 73</a></span>
-<span class="normal"><a href="#__codelineno-0-74"> 74</a></span>
-<span class="normal"><a href="#__codelineno-0-75"> 75</a></span>
-<span class="normal"><a href="#__codelineno-0-76"> 76</a></span>
-<span class="normal"><a href="#__codelineno-0-77"> 77</a></span>
-<span class="normal"><a href="#__codelineno-0-78"> 78</a></span>
-<span class="normal"><a href="#__codelineno-0-79"> 79</a></span>
-<span class="normal"><a href="#__codelineno-0-80"> 80</a></span>
-<span class="normal"><a href="#__codelineno-0-81"> 81</a></span>
-<span class="normal"><a href="#__codelineno-0-82"> 82</a></span>
-<span class="normal"><a href="#__codelineno-0-83"> 83</a></span>
-<span class="normal"><a href="#__codelineno-0-84"> 84</a></span>
-<span class="normal"><a href="#__codelineno-0-85"> 85</a></span>
-<span class="normal"><a href="#__codelineno-0-86"> 86</a></span>
-<span class="normal"><a href="#__codelineno-0-87"> 87</a></span>
-<span class="normal"><a href="#__codelineno-0-88"> 88</a></span>
-<span class="normal"><a href="#__codelineno-0-89"> 89</a></span>
-<span class="normal"><a href="#__codelineno-0-90"> 90</a></span>
-<span class="normal"><a href="#__codelineno-0-91"> 91</a></span>
-<span class="normal"><a href="#__codelineno-0-92"> 92</a></span>
-<span class="normal"><a href="#__codelineno-0-93"> 93</a></span>
-<span class="normal"><a href="#__codelineno-0-94"> 94</a></span>
-<span class="normal"><a href="#__codelineno-0-95"> 95</a></span>
-<span class="normal"><a href="#__codelineno-0-96"> 96</a></span>
-<span class="normal"><a href="#__codelineno-0-97"> 97</a></span>
-<span class="normal"><a href="#__codelineno-0-98"> 98</a></span>
-<span class="normal"><a href="#__codelineno-0-99"> 99</a></span>
-<span class="normal"><a href="#__codelineno-0-100">100</a></span>
-<span class="normal"><a href="#__codelineno-0-101">101</a></span>
-<span class="normal"><a href="#__codelineno-0-102">102</a></span>
-<span class="normal"><a href="#__codelineno-0-103">103</a></span>
-<span class="normal"><a href="#__codelineno-0-104">104</a></span>
-<span class="normal"><a href="#__codelineno-0-105">105</a></span>
-<span class="normal"><a href="#__codelineno-0-106">106</a></span>
-<span class="normal"><a href="#__codelineno-0-107">107</a></span>
-<span class="normal"><a href="#__codelineno-0-108">108</a></span>
-<span class="normal"><a href="#__codelineno-0-109">109</a></span>
-<span class="normal"><a href="#__codelineno-0-110">110</a></span>
-<span class="normal"><a href="#__codelineno-0-111">111</a></span>
-<span class="normal"><a href="#__codelineno-0-112">112</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-20" name="__codelineno-0-20"></a><span class="k">def</span><span class="w"> </span><span class="nf">load_csvs_to_duckdb</span><span class="p">(</span>
-<a id="__codelineno-0-21" name="__codelineno-0-21"></a>    <span class="n">csv_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
-<a id="__codelineno-0-22" name="__codelineno-0-22"></a>    <span class="n">db_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
-<a id="__codelineno-0-23" name="__codelineno-0-23"></a>    <span class="n">overwrite</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-0-24" name="__codelineno-0-24"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">IbisConnector</span><span class="p">:</span>
-<a id="__codelineno-0-25" name="__codelineno-0-25"></a><span class="w">    </span><span class="sd">"""Load one or more CSV files into a DuckDB database.</span>
-<a id="__codelineno-0-26" name="__codelineno-0-26"></a>
-<a id="__codelineno-0-27" name="__codelineno-0-27"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-28" name="__codelineno-0-28"></a><span class="sd">        csv_path: Path to a single CSV file or a directory containing CSV files.</span>
-<a id="__codelineno-0-29" name="__codelineno-0-29"></a><span class="sd">            For directories, only top-level CSV files are processed.</span>
-<a id="__codelineno-0-30" name="__codelineno-0-30"></a><span class="sd">        db_path: Path where the DuckDB database file will be written.</span>
-<a id="__codelineno-0-31" name="__codelineno-0-31"></a><span class="sd">        overwrite: If True (default), existing tables with the same name are</span>
-<a id="__codelineno-0-32" name="__codelineno-0-32"></a><span class="sd">            replaced. If False, rows from the CSV are appended to existing</span>
-<a id="__codelineno-0-33" name="__codelineno-0-33"></a><span class="sd">            tables; tables that do not yet exist are created.</span>
-<a id="__codelineno-0-34" name="__codelineno-0-34"></a>
-<a id="__codelineno-0-35" name="__codelineno-0-35"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-36" name="__codelineno-0-36"></a><span class="sd">        An IbisConnector connected to the database at db_path.</span>
-<a id="__codelineno-0-37" name="__codelineno-0-37"></a>
-<a id="__codelineno-0-38" name="__codelineno-0-38"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-39" name="__codelineno-0-39"></a><span class="sd">        FileNotFoundError: If csv_path does not exist.</span>
-<a id="__codelineno-0-40" name="__codelineno-0-40"></a><span class="sd">        ValueError: If csv_path points to a single file whose stem is not a</span>
-<a id="__codelineno-0-41" name="__codelineno-0-41"></a><span class="sd">            valid table name.</span>
-<a id="__codelineno-0-42" name="__codelineno-0-42"></a><span class="sd">    """</span>
-<a id="__codelineno-0-43" name="__codelineno-0-43"></a>    <span class="n">csv_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">csv_path</span><span class="p">)</span>
-<a id="__codelineno-0-44" name="__codelineno-0-44"></a>    <span class="n">db_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">db_path</span><span class="p">)</span>
-<a id="__codelineno-0-45" name="__codelineno-0-45"></a>
-<a id="__codelineno-0-46" name="__codelineno-0-46"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">csv_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-<a id="__codelineno-0-47" name="__codelineno-0-47"></a>        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"CSV path not found: </span><span class="si">{</span><span class="n">csv_path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-0-48" name="__codelineno-0-48"></a>
-<a id="__codelineno-0-49" name="__codelineno-0-49"></a>    <span class="n">files</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
-<a id="__codelineno-0-50" name="__codelineno-0-50"></a>
-<a id="__codelineno-0-51" name="__codelineno-0-51"></a>    <span class="k">if</span> <span class="n">csv_path</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
-<a id="__codelineno-0-52" name="__codelineno-0-52"></a>        <span class="n">stem</span> <span class="o">=</span> <span class="n">csv_path</span><span class="o">.</span><span class="n">stem</span>
-<a id="__codelineno-0-53" name="__codelineno-0-53"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">_VALID_TABLE_NAME</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">stem</span><span class="p">):</span>
-<a id="__codelineno-0-54" name="__codelineno-0-54"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-<a id="__codelineno-0-55" name="__codelineno-0-55"></a>                <span class="sa">f</span><span class="s2">"Filename stem '</span><span class="si">{</span><span class="n">stem</span><span class="si">}</span><span class="s2">' is not a valid table name. "</span>
-<a id="__codelineno-0-56" name="__codelineno-0-56"></a>                <span class="s2">"Table names must start with a letter or underscore and "</span>
-<a id="__codelineno-0-57" name="__codelineno-0-57"></a>                <span class="s2">"contain only letters, digits, and underscores."</span>
-<a id="__codelineno-0-58" name="__codelineno-0-58"></a>            <span class="p">)</span>
-<a id="__codelineno-0-59" name="__codelineno-0-59"></a>        <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">csv_path</span><span class="p">,</span> <span class="n">stem</span><span class="p">))</span>
-<a id="__codelineno-0-60" name="__codelineno-0-60"></a>    <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-61" name="__codelineno-0-61"></a>        <span class="k">for</span> <span class="n">csv_file</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">csv_path</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">"*.csv"</span><span class="p">)):</span>
-<a id="__codelineno-0-62" name="__codelineno-0-62"></a>            <span class="n">stem</span> <span class="o">=</span> <span class="n">csv_file</span><span class="o">.</span><span class="n">stem</span>
-<a id="__codelineno-0-63" name="__codelineno-0-63"></a>            <span class="k">if</span> <span class="ow">not</span> <span class="n">_VALID_TABLE_NAME</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">stem</span><span class="p">):</span>
-<a id="__codelineno-0-64" name="__codelineno-0-64"></a>                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-<a id="__codelineno-0-65" name="__codelineno-0-65"></a>                    <span class="s2">"Skipping '</span><span class="si">%s</span><span class="s2">': filename stem '</span><span class="si">%s</span><span class="s2">' is not a valid table name "</span>
-<a id="__codelineno-0-66" name="__codelineno-0-66"></a>                    <span class="s2">"(must start with a letter or underscore and contain only "</span>
-<a id="__codelineno-0-67" name="__codelineno-0-67"></a>                    <span class="s2">"letters, digits, and underscores)."</span><span class="p">,</span>
-<a id="__codelineno-0-68" name="__codelineno-0-68"></a>                    <span class="n">csv_file</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
-<a id="__codelineno-0-69" name="__codelineno-0-69"></a>                    <span class="n">stem</span><span class="p">,</span>
-<a id="__codelineno-0-70" name="__codelineno-0-70"></a>                <span class="p">)</span>
-<a id="__codelineno-0-71" name="__codelineno-0-71"></a>                <span class="k">continue</span>
-<a id="__codelineno-0-72" name="__codelineno-0-72"></a>            <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">csv_file</span><span class="p">,</span> <span class="n">stem</span><span class="p">))</span>
-<a id="__codelineno-0-73" name="__codelineno-0-73"></a>
-<a id="__codelineno-0-74" name="__codelineno-0-74"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">files</span><span class="p">:</span>
-<a id="__codelineno-0-75" name="__codelineno-0-75"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"No valid CSV files found at '</span><span class="si">%s</span><span class="s2">'."</span><span class="p">,</span> <span class="n">csv_path</span><span class="p">)</span>
-<a id="__codelineno-0-76" name="__codelineno-0-76"></a>
-<a id="__codelineno-0-77" name="__codelineno-0-77"></a>    <span class="n">con</span> <span class="o">=</span> <span class="n">duckdb</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">db_path</span><span class="p">))</span>
-<a id="__codelineno-0-78" name="__codelineno-0-78"></a>    <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-79" name="__codelineno-0-79"></a>        <span class="k">for</span> <span class="n">csv_file</span><span class="p">,</span> <span class="n">table_name</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
-<a id="__codelineno-0-80" name="__codelineno-0-80"></a>            <span class="n">csv_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">csv_file</span><span class="p">)</span>
-<a id="__codelineno-0-81" name="__codelineno-0-81"></a>            <span class="k">if</span> <span class="n">overwrite</span><span class="p">:</span>
-<a id="__codelineno-0-82" name="__codelineno-0-82"></a>                <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-83" name="__codelineno-0-83"></a>                    <span class="sa">f</span><span class="s2">"CREATE OR REPLACE TABLE </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s2"> AS SELECT * FROM read_csv_auto(?)"</span><span class="p">,</span>
-<a id="__codelineno-0-84" name="__codelineno-0-84"></a>                    <span class="p">[</span><span class="n">csv_str</span><span class="p">],</span>
-<a id="__codelineno-0-85" name="__codelineno-0-85"></a>                <span class="p">)</span>
-<a id="__codelineno-0-86" name="__codelineno-0-86"></a>                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Created table '</span><span class="si">%s</span><span class="s2">' from '</span><span class="si">%s</span><span class="s2">'."</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">csv_file</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-<a id="__codelineno-0-87" name="__codelineno-0-87"></a>            <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-88" name="__codelineno-0-88"></a>                <span class="n">exists</span> <span class="o">=</span> <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-89" name="__codelineno-0-89"></a>                    <span class="s2">"SELECT 1 FROM information_schema.tables "</span>
-<a id="__codelineno-0-90" name="__codelineno-0-90"></a>                    <span class="s2">"WHERE table_schema = 'main' AND table_name = ?"</span><span class="p">,</span>
-<a id="__codelineno-0-91" name="__codelineno-0-91"></a>                    <span class="p">[</span><span class="n">table_name</span><span class="p">],</span>
-<a id="__codelineno-0-92" name="__codelineno-0-92"></a>                <span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span>
-<a id="__codelineno-0-93" name="__codelineno-0-93"></a>                <span class="k">if</span> <span class="n">exists</span><span class="p">:</span>
-<a id="__codelineno-0-94" name="__codelineno-0-94"></a>                    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-95" name="__codelineno-0-95"></a>                        <span class="sa">f</span><span class="s2">"INSERT INTO </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s2"> SELECT * FROM read_csv_auto(?)"</span><span class="p">,</span>
-<a id="__codelineno-0-96" name="__codelineno-0-96"></a>                        <span class="p">[</span><span class="n">csv_str</span><span class="p">],</span>
-<a id="__codelineno-0-97" name="__codelineno-0-97"></a>                    <span class="p">)</span>
-<a id="__codelineno-0-98" name="__codelineno-0-98"></a>                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-<a id="__codelineno-0-99" name="__codelineno-0-99"></a>                        <span class="s2">"Appended rows to table '</span><span class="si">%s</span><span class="s2">' from '</span><span class="si">%s</span><span class="s2">'."</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">csv_file</span><span class="o">.</span><span class="n">name</span>
-<a id="__codelineno-0-100" name="__codelineno-0-100"></a>                    <span class="p">)</span>
-<a id="__codelineno-0-101" name="__codelineno-0-101"></a>                <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-102" name="__codelineno-0-102"></a>                    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-<a id="__codelineno-0-103" name="__codelineno-0-103"></a>                        <span class="sa">f</span><span class="s2">"CREATE TABLE </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s2"> AS SELECT * FROM read_csv_auto(?)"</span><span class="p">,</span>
-<a id="__codelineno-0-104" name="__codelineno-0-104"></a>                        <span class="p">[</span><span class="n">csv_str</span><span class="p">],</span>
-<a id="__codelineno-0-105" name="__codelineno-0-105"></a>                    <span class="p">)</span>
-<a id="__codelineno-0-106" name="__codelineno-0-106"></a>                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Created table '</span><span class="si">%s</span><span class="s2">' from '</span><span class="si">%s</span><span class="s2">'."</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">csv_file</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-<a id="__codelineno-0-107" name="__codelineno-0-107"></a>    <span class="k">finally</span><span class="p">:</span>
-<a id="__codelineno-0-108" name="__codelineno-0-108"></a>        <span class="n">con</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-<a id="__codelineno-0-109" name="__codelineno-0-109"></a>
-<a id="__codelineno-0-110" name="__codelineno-0-110"></a>    <span class="n">connector</span> <span class="o">=</span> <span class="n">IbisConnector</span><span class="p">(</span><span class="s2">"duckdb"</span><span class="p">)</span>
-<a id="__codelineno-0-111" name="__codelineno-0-111"></a>    <span class="n">connector</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">db_path</span><span class="p">))</span>
-<a id="__codelineno-0-112" name="__codelineno-0-112"></a>    <span class="k">return</span> <span class="n">connector</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-20"> 20</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-21"> 21</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-22"> 22</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-23"> 23</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-24"> 24</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-25"> 25</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-26"> 26</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-27"> 27</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-28"> 28</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-29"> 29</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-30"> 30</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-31"> 31</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-32"> 32</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-33"> 33</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-34"> 34</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-35"> 35</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-36"> 36</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-37"> 37</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-38"> 38</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-39"> 39</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-40"> 40</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-41"> 41</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-42"> 42</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-43"> 43</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-44"> 44</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-45"> 45</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-46"> 46</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-47"> 47</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-48"> 48</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-49"> 49</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-50"> 50</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-51"> 51</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-52"> 52</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-53"> 53</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-54"> 54</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-55"> 55</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-56"> 56</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-57"> 57</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-58"> 58</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-59"> 59</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-60"> 60</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-61"> 61</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-62"> 62</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-63"> 63</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-64"> 64</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-65"> 65</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-66"> 66</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-67"> 67</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-68"> 68</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-69"> 69</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-70"> 70</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-71"> 71</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-72"> 72</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-73"> 73</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-74"> 74</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-75"> 75</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-76"> 76</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-77"> 77</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-78"> 78</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-79"> 79</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-80"> 80</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-81"> 81</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-82"> 82</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-83"> 83</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-84"> 84</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-85"> 85</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-86"> 86</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-87"> 87</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-88"> 88</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-89"> 89</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-90"> 90</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-91"> 91</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-92"> 92</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-93"> 93</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-94"> 94</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-95"> 95</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-96"> 96</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-97"> 97</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-98"> 98</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-99"> 99</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-100">100</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-101">101</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-102">102</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-103">103</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-104">104</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-105">105</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-106">106</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-107">107</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-108">108</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-109">109</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-110">110</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-111">111</a></span>
+<span class="normal"><a href="#aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-112">112</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-20" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-20"></a><span class="k">def</span><span class="w"> </span><span class="nf">load_csvs_to_duckdb</span><span class="p">(</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-21" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-21"></a>    <span class="n">csv_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-22" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-22"></a>    <span class="n">db_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-23" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-23"></a>    <span class="n">overwrite</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-24" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-24"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">IbisConnector</span><span class="p">:</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-25" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-25"></a><span class="w">    </span><span class="sd">"""Load one or more CSV files into a DuckDB database.</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-26" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-26"></a>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-27" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-27"></a><span class="sd">    Args:</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-28" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-28"></a><span class="sd">        csv_path: Path to a single CSV file or a directory containing CSV files.</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-29" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-29"></a><span class="sd">            For directories, only top-level CSV files are processed.</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-30" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-30"></a><span class="sd">        db_path: Path where the DuckDB database file will be written.</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-31" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-31"></a><span class="sd">        overwrite: If True (default), existing tables with the same name are</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-32" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-32"></a><span class="sd">            replaced. If False, rows from the CSV are appended to existing</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-33" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-33"></a><span class="sd">            tables; tables that do not yet exist are created.</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-34" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-34"></a>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-35" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-35"></a><span class="sd">    Returns:</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-36" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-36"></a><span class="sd">        An IbisConnector connected to the database at db_path.</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-37" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-37"></a>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-38" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-38"></a><span class="sd">    Raises:</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-39" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-39"></a><span class="sd">        FileNotFoundError: If csv_path does not exist.</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-40" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-40"></a><span class="sd">        ValueError: If csv_path points to a single file whose stem is not a</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-41" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-41"></a><span class="sd">            valid table name.</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-42" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-42"></a><span class="sd">    """</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-43" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-43"></a>    <span class="n">csv_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">csv_path</span><span class="p">)</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-44" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-44"></a>    <span class="n">db_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">db_path</span><span class="p">)</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-45" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-45"></a>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-46" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-46"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">csv_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-47" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-47"></a>        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"CSV path not found: </span><span class="si">{</span><span class="n">csv_path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-48" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-48"></a>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-49" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-49"></a>    <span class="n">files</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-50" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-50"></a>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-51" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-51"></a>    <span class="k">if</span> <span class="n">csv_path</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-52" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-52"></a>        <span class="n">stem</span> <span class="o">=</span> <span class="n">csv_path</span><span class="o">.</span><span class="n">stem</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-53" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-53"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">_VALID_TABLE_NAME</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">stem</span><span class="p">):</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-54" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-54"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-55" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-55"></a>                <span class="sa">f</span><span class="s2">"Filename stem '</span><span class="si">{</span><span class="n">stem</span><span class="si">}</span><span class="s2">' is not a valid table name. "</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-56" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-56"></a>                <span class="s2">"Table names must start with a letter or underscore and "</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-57" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-57"></a>                <span class="s2">"contain only letters, digits, and underscores."</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-58" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-58"></a>            <span class="p">)</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-59" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-59"></a>        <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">csv_path</span><span class="p">,</span> <span class="n">stem</span><span class="p">))</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-60" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-60"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-61" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-61"></a>        <span class="k">for</span> <span class="n">csv_file</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">csv_path</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">"*.csv"</span><span class="p">)):</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-62" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-62"></a>            <span class="n">stem</span> <span class="o">=</span> <span class="n">csv_file</span><span class="o">.</span><span class="n">stem</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-63" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-63"></a>            <span class="k">if</span> <span class="ow">not</span> <span class="n">_VALID_TABLE_NAME</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">stem</span><span class="p">):</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-64" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-64"></a>                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-65" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-65"></a>                    <span class="s2">"Skipping '</span><span class="si">%s</span><span class="s2">': filename stem '</span><span class="si">%s</span><span class="s2">' is not a valid table name "</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-66" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-66"></a>                    <span class="s2">"(must start with a letter or underscore and contain only "</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-67" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-67"></a>                    <span class="s2">"letters, digits, and underscores)."</span><span class="p">,</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-68" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-68"></a>                    <span class="n">csv_file</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-69" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-69"></a>                    <span class="n">stem</span><span class="p">,</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-70" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-70"></a>                <span class="p">)</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-71" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-71"></a>                <span class="k">continue</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-72" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-72"></a>            <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">csv_file</span><span class="p">,</span> <span class="n">stem</span><span class="p">))</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-73" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-73"></a>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-74" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-74"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">files</span><span class="p">:</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-75" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-75"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"No valid CSV files found at '</span><span class="si">%s</span><span class="s2">'."</span><span class="p">,</span> <span class="n">csv_path</span><span class="p">)</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-76" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-76"></a>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-77" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-77"></a>    <span class="n">con</span> <span class="o">=</span> <span class="n">duckdb</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">db_path</span><span class="p">))</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-78" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-78"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-79" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-79"></a>        <span class="k">for</span> <span class="n">csv_file</span><span class="p">,</span> <span class="n">table_name</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-80" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-80"></a>            <span class="n">csv_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">csv_file</span><span class="p">)</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-81" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-81"></a>            <span class="k">if</span> <span class="n">overwrite</span><span class="p">:</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-82" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-82"></a>                <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-83" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-83"></a>                    <span class="sa">f</span><span class="s2">"CREATE OR REPLACE TABLE </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s2"> AS SELECT * FROM read_csv_auto(?)"</span><span class="p">,</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-84" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-84"></a>                    <span class="p">[</span><span class="n">csv_str</span><span class="p">],</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-85" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-85"></a>                <span class="p">)</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-86" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-86"></a>                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Created table '</span><span class="si">%s</span><span class="s2">' from '</span><span class="si">%s</span><span class="s2">'."</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">csv_file</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-87" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-87"></a>            <span class="k">else</span><span class="p">:</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-88" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-88"></a>                <span class="n">exists</span> <span class="o">=</span> <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-89" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-89"></a>                    <span class="s2">"SELECT 1 FROM information_schema.tables "</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-90" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-90"></a>                    <span class="s2">"WHERE table_schema = 'main' AND table_name = ?"</span><span class="p">,</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-91" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-91"></a>                    <span class="p">[</span><span class="n">table_name</span><span class="p">],</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-92" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-92"></a>                <span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-93" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-93"></a>                <span class="k">if</span> <span class="n">exists</span><span class="p">:</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-94" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-94"></a>                    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-95" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-95"></a>                        <span class="sa">f</span><span class="s2">"INSERT INTO </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s2"> SELECT * FROM read_csv_auto(?)"</span><span class="p">,</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-96" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-96"></a>                        <span class="p">[</span><span class="n">csv_str</span><span class="p">],</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-97" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-97"></a>                    <span class="p">)</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-98" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-98"></a>                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-99" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-99"></a>                        <span class="s2">"Appended rows to table '</span><span class="si">%s</span><span class="s2">' from '</span><span class="si">%s</span><span class="s2">'."</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">csv_file</span><span class="o">.</span><span class="n">name</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-100" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-100"></a>                    <span class="p">)</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-101" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-101"></a>                <span class="k">else</span><span class="p">:</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-102" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-102"></a>                    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-103" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-103"></a>                        <span class="sa">f</span><span class="s2">"CREATE TABLE </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s2"> AS SELECT * FROM read_csv_auto(?)"</span><span class="p">,</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-104" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-104"></a>                        <span class="p">[</span><span class="n">csv_str</span><span class="p">],</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-105" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-105"></a>                    <span class="p">)</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-106" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-106"></a>                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Created table '</span><span class="si">%s</span><span class="s2">' from '</span><span class="si">%s</span><span class="s2">'."</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">csv_file</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-107" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-107"></a>    <span class="k">finally</span><span class="p">:</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-108" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-108"></a>        <span class="n">con</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-109" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-109"></a>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-110" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-110"></a>    <span class="n">connector</span> <span class="o">=</span> <span class="n">IbisConnector</span><span class="p">(</span><span class="s2">"duckdb"</span><span class="p">)</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-111" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-111"></a>    <span class="n">connector</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">db_path</span><span class="p">))</span>
+<a id="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-112" name="aitaem.helpers.csv_to_duckdb.load_csvs_to_duckdb--source--__codelineno-0-112"></a>    <span class="k">return</span> <span class="n">connector</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1634,10 +1634,10 @@ valid table name.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

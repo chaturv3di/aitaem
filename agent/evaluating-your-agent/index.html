@@ -6,14 +6,14 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="AITÆM: All Interesting Things Are Essentially Metrics — a Python library for generating data insights from OLAP databases or local CSV files.">
+        <meta name="description" content="aitaem is an open-source Python semantic layer: define metrics, slices and segments in YAML and compute them on DuckDB, BigQuery, PostgreSQL or CSV files. AITÆM: All Interesting Things Are Essentially Metrics.">
       
       
       
-        <link rel="canonical" href="https://chaturv3di.github.io/aitaem/agent/evaluating-your-agent/">
+        <link rel="canonical" href="https://aitaem.com/agent/evaluating-your-agent/">
       
       
-        <link rel="prev" href="../building-your-own-bot/">
+        <link rel="prev" href="../tool-groups/">
       
       
         <link rel="next" href="../stability/">
@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -739,14 +739,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../building-your-own-bot/" class="md-nav__link">
+      <a href="../tool-groups/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Building Your Own Bot
+    Tool Groups
   
 
     
@@ -1308,56 +1308,48 @@
 
 
 <h1 id="agent-evaluating-your-agent">Agent: Evaluating Your Agent</h1>
-<p><code>aitaem.agent</code>'s trace and result-store types are designed to be consumed by
-<a href="https://ai.pydantic.dev/evals/"><code>pydantic_evals</code></a>: <code>RunTrace.tool_calls</code> exposes which
-tools ran, in what order, with what arguments; <code>ToolCall.result_id</code> links a tool call to
-its full <code>ResultStore</code> entry; <code>BotResponse.status</code> exposes refusal/error outcomes
-directly. This page covers two distinct things you can do with that substrate.</p>
+<p><code>AitaemAgent</code>'s responses, traces, and artifacts are built to be read by
+<a href="https://ai.pydantic.dev/evals/"><code>pydantic_evals</code></a> evaluators:</p>
+<ul>
+<li><code>Response.status</code> exposes refusals and errors directly.</li>
+<li><code>agent.trace(response.trace_id)</code> returns the turn's <code>RunTrace</code>. <code>tool_calls</code> lists every tool
+  call of every run in the turn (main session, coordinators, executors), and <code>runs</code> gives each
+  run's tool calls and usage, cache reads and writes included.</li>
+<li><code>ToolCall.artifact_id</code> links a tool call to its artifact; <code>agent.store.read(artifact_id)</code>
+  returns the result.</li>
+</ul>
 <h2 id="install">Install</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"aitaem[agent-evals]"</span>
 </code></pre></div>
 <h2 id="track-1-substrate-validation-ci-safe-no-api-key">Track 1 — substrate validation (CI-safe, no API key)</h2>
-<p><a href="https://github.com/chaturv3di/aitaem/tree/main/tests/evals"><code>tests/evals/</code></a> in this
-repo is the reference harness: <code>Case</code>/<code>Dataset</code>/<code>Evaluator</code> from <code>pydantic_evals</code>, driven
-by hand-scripted <code>pydantic_ai.models.function.FunctionModel</code>s that already know which
-tool to call and in what order. It runs in CI with no live LLM calls and no API key.</p>
-<p>Read it as proof that <code>RunTrace</code>, <code>ResultStore</code>, and <code>BotResponse</code> are consumable by
-<code>pydantic_evals.Evaluator</code>s end-to-end — <strong>not</strong> as a measurement of whether an LLM would
-select the right tool, refuse appropriately, or produce a correct answer. Every
-<code>FunctionModel</code> in that harness is scripted to produce the outcome being asserted, so its
-assertions are near-tautological by construction. That's still a legitimate and valuable
-thing to have proven on its own — point the same harness at a live model outside CI and
-the wiring already works — but don't mistake "the harness runs and passes" for "the agent
-was evaluated."</p>
+<p><a href="https://github.com/chaturv3di/aitaem/tree/main/tests/evals"><code>tests/evals/</code></a> is the reference
+harness: <code>Case</code>, <code>Dataset</code>, and <code>Evaluator</code> from <code>pydantic_evals</code>, with every agent role driven by
+a scripted <code>FunctionModel</code> that already knows which tools to call. It covers analysis (status,
+refusals, attachments against a direct <code>MetricCompute</code> result), spec design (validate, then
+commit), threshold governance, fan-out correctness (executor verdicts against
+<code>MetricCompute.scan()</code>), and artifact completeness (every tool call names an artifact in the
+manifest).</p>
+<p>These cases prove that traces, responses, and artifacts are consumable end to end. They do not
+measure whether a model would choose the right tools: each scripted model produces the outcome
+being asserted.</p>
 <h2 id="track-2-behavioral-evaluation-against-a-live-model">Track 2 — behavioral evaluation against a live model</h2>
-<p>For an actual measurement of agent behavior, you need real questions, a real spec
-catalog, and a real model. <a href="https://github.com/chaturv3di/aitaem/blob/main/examples/04_evaluating_agents_example.py"><code>examples/04_evaluating_agents_example.py</code></a>
-(and its notebook counterpart) is the pattern to copy: a <code>query_task()</code> function that
-builds a fresh <code>QueryBot</code> per case and calls <code>bot.ask()</code>, <code>Evaluator</code> subclasses that
-inspect <code>response.status</code> and <code>response.trace.tool_calls</code>, a <code>Dataset</code> of <code>Case</code>s against
-a real spec catalog, and a <code>pass_rate()</code> helper that repeats the dataset <code>n</code> times and
-reports a per-case pass fraction — because a single run against a live, non-deterministic
-model tells you much less than a distribution does.</p>
-<p>That example also demonstrates a deliberate trade-off worth internalizing for your own
-evaluations: an evaluator that checks an <em>exact</em> tool-call sequence (e.g. to confirm a
-gating rule was honored before a computation ran) is stricter than one that just checks a
-tool was called at all, and will occasionally fail a run that self-corrected but still
-behaved correctly. Read exact-sequence assertions through <code>pass_rate()</code>, not a single
-run's pass/fail.</p>
+<p>The same harness runs against a live model by passing a model name instead of a scripted model.
+<code>tests/evals/</code> includes live cases, skipped without <code>ANTHROPIC_API_KEY</code>: threshold governance
+(grounding thresholds with <code>column_distribution</code> and <code>date_range</code> instead of inventing them),
+answer fidelity after history stubbing, and prompt-cache reads on the second turn. A single run
+against a non-deterministic model tells you little; repeat each dataset and read the pass rate.</p>
 <h2 id="which-track-should-i-use">Which track should I use?</h2>
 <ul>
-<li>Changing tool wiring, trace assembly, or the result-store contract? Extend
-  <code>tests/evals/</code> — it must keep passing in CI with no API key.
-  See <a href="../building-your-own-bot/">Building Your Own Bot</a> if you're introducing new tools.</li>
-<li>Measuring whether your prompt, catalog, or model choice actually produces correct
-  behavior? Write a <code>04_evaluating_agents_example.py</code>-style dataset against a live model.</li>
+<li>Changing tool wiring, traces, or the artifact store? Extend <code>tests/evals/</code>; it must pass in CI
+  with no API key.</li>
+<li>Measuring whether instructions, catalog, or model choice produce correct behavior? Write live
+  cases and track their pass rates.</li>
 </ul>
 <h2 id="next-steps">Next steps</h2>
 <ul>
-<li><a href="../stability/">Stability &amp; Limitations</a> — note that default prompt content isn't
-  semver-stable, which matters if you're tracking eval pass rates over time</li>
-<li><a href="../../api/agent/">Agent API Reference</a> — <code>RunTrace</code>, <code>ToolCall</code>, <code>ResultStore</code> field
-  reference</li>
+<li><a href="../stability/">Stability &amp; Limitations</a> — role instructions are not semver-stable, which matters
+  when you track pass rates over time</li>
+<li><a href="../../api/agent/">Agent API Reference</a></li>
 </ul>
 
 
@@ -1416,10 +1408,10 @@ run's pass/fail.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

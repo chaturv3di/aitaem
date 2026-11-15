@@ -6,11 +6,11 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="AITÆM: All Interesting Things Are Essentially Metrics — a Python library for generating data insights from OLAP databases or local CSV files.">
+        <meta name="description" content="aitaem is an open-source Python semantic layer: define metrics, slices and segments in YAML and compute them on DuckDB, BigQuery, PostgreSQL or CSV files. AITÆM: All Interesting Things Are Essentially Metrics.">
       
       
       
-        <link rel="canonical" href="https://chaturv3di.github.io/aitaem/agent/stability/">
+        <link rel="canonical" href="https://aitaem.com/agent/stability/">
       
       
         <link rel="prev" href="../evaluating-your-agent/">
@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -739,14 +739,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../building-your-own-bot/" class="md-nav__link">
+      <a href="../tool-groups/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Building Your Own Bot
+    Tool Groups
   
 
     
@@ -866,10 +866,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#not-enabled" class="md-nav__link">
+  <a href="#removed-in-v30" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Not enabled
+        Removed in v3.0
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements
       
     </span>
   </a>
@@ -1222,10 +1233,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#not-enabled" class="md-nav__link">
+  <a href="#removed-in-v30" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Not enabled
+        Removed in v3.0
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements
       
     </span>
   </a>
@@ -1265,8 +1287,8 @@
 
 <h1 id="agent-stability-limitations">Agent: Stability &amp; Limitations</h1>
 <h2 id="stability-guarantees">Stability guarantees</h2>
-<p><code>aitaem[agent]</code>'s public surface carries the same semver promise as core <code>aitaem</code>, with
-one deliberate exception:</p>
+<p><code>aitaem[agent]</code>'s public surface carries the same semver promise as core <code>aitaem</code>, with one
+deliberate exception:</p>
 <table>
 <thead>
 <tr>
@@ -1276,53 +1298,57 @@ one deliberate exception:</p>
 </thead>
 <tbody>
 <tr>
-<td>Convenience bot constructors (<code>QueryBot</code>, <code>DefinitionBot</code>) and primitives base classes (<code>Bot</code>, etc.)</td>
+<td><code>AitaemAgent</code>, <code>Response</code>, <code>ResponseAttachment</code>, <code>Status</code></td>
 <td>Semver-stable</td>
 </tr>
 <tr>
-<td>Default tool input/output schemas</td>
+<td><code>RunTrace</code>, <code>ToolCall</code>, <code>Usage</code> field shapes</td>
+<td>Semver-stable — the <a href="../evaluating-your-agent/">eval substrate</a> depends on them</td>
+</tr>
+<tr>
+<td><code>ArtifactRef</code>, <code>ArtifactStore</code>, <code>SessionDeps</code>, <code>ToolResult</code></td>
 <td>Semver-stable</td>
 </tr>
 <tr>
-<td><code>RunTrace</code> and <code>BotResponse</code> field shapes</td>
-<td>Semver-stable — the <a href="../evaluating-your-agent/">eval substrate</a> depends on this contract holding</td>
+<td>The four toolsets: tool names, parameters, and <code>ToolResult</code> facts</td>
+<td>Semver-stable</td>
 </tr>
 <tr>
-<td>Default prompt <strong>content</strong></td>
+<td>Role instructions (<code>instructions.md</code>) and tool descriptions</td>
 <td>Public, but <strong>not</strong> semver-stable — tuning is expected across patch and minor releases</td>
 </tr>
 </tbody>
 </table>
-<p>Don't pin application behavior to the exact wording of a default prompt — a patch
-release may change it. If you need prompt stability, override it via the
-<a href="../building-your-own-bot/">primitives layer</a> instead of depending on default content.</p>
+<p>Don't pin application behavior to the wording of the instructions; a patch release may change it.</p>
 <div class="admonition note">
-<p class="admonition-title">A prompt tune is also a cache-warmup reset</p>
-<p>Changing the static instruction text (the parts every bot builds once and reuses
-across turns) invalidates the provider-side prompt cache — a prompt change isn't
-purely a behavior change, it's also a one-time cache cost the next time each routing
-lane runs.</p>
+<p class="admonition-title">An instruction change is also a cache reset</p>
+<p>Instructions and tool descriptions form the cached prompt prefix, so changing them costs one
+cache write the next time each role runs.</p>
 </div>
-<h2 id="not-enabled">Not enabled</h2>
-<p>The following are intentionally unsupported, not just undocumented:</p>
-<ul>
-<li>Modifying the <code>ResultStore</code> entry schema</li>
-<li>Removing a default tool by name</li>
-<li>Hot-swapping the LLM runtime away from <code>pydantic-ai</code></li>
-<li>Persistent state owned by the bot beyond what you explicitly serialize via
-  <code>dump_history()</code></li>
-</ul>
+<h2 id="removed-in-v30">Removed in v3.0</h2>
+<p>The v2 bots and their public names were removed from <code>aitaem.agent</code>: <code>Bot</code>, <code>BotResponse</code>,
+<code>ResultEntry</code>, <code>ResultStore</code>, <code>TabularEntry</code>, <code>TextEntry</code>, <code>WrongEntryKindError</code>, <code>QueryBot</code>,
+<code>QueryResponse</code>, <code>QueryPayload</code>, <code>MetricIntent</code>, <code>ResolvedSpec</code>, <code>ExactMatch</code>, <code>NearMiss</code>,
+<code>SpecMatchResult</code>, <code>RecordIntentResult</code>, <code>ResolveIntentResult</code>, <code>SpecResolver</code>, <code>DefinitionBot</code>,
+<code>DefinitionResponse</code>, <code>DefinitionPayload</code>, <code>DefinitionIntent</code>, <code>SpecDraft</code>, <code>ColumnInfo</code>,
+<code>ListTablesResult</code>, <code>DescribeTableResult</code>, <code>DraftSpecResult</code>, <code>ValidateSpecResult</code>, and
+<code>ValidationIssue</code>. <code>ToolCall.result_id</code> was renamed <code>ToolCall.artifact_id</code>. <code>AitaemAgent</code>
+replaces both bots.</p>
+<h2 id="requirements">Requirements</h2>
+<p>The agent extras (<code>agent-core</code>, <code>agent-anthropic</code>, <code>agent</code>, <code>agent-evals</code>) need
+<code>pydantic-ai-slim</code> ≥ 2.60. <code>aitaem</code> needs Python ≥ 3.11.</p>
 <h2 id="limitations">Limitations</h2>
-<p>See <a href="../getting-started/#tenant_id">Getting Started</a> for the full <code>tenant_id</code> /
-multi-tenancy note. In short:</p>
 <ul>
-<li>The agent module never stores credentials, persists history beyond what you
-  explicitly serialize, manages multi-tenancy or RBAC, or holds connections other than
-  the <code>ConnectionManager</code> you provide. Isolation between tenants is your application's
-  responsibility, not something any constructor parameter grants.</li>
-<li>Concurrent <code>chat()</code>/<code>ask()</code> calls on the <em>same</em> bot instance are unsupported. One call
-  at a time per instance; concurrency belongs at the caller level (one bot instance per
-  active session).</li>
+<li>The agent never stores credentials or holds connections other than through the
+  <code>ConnectionManager</code>. <code>connect_source</code> connects DuckDB and BigQuery; Postgres needs a password,
+  so configure it in the <code>ConnectionManager</code> you pass to <code>AitaemAgent</code>.</li>
+<li>The session directory lives under the system temp directory, and the OS may remove it. Pass a
+  <code>spec_dir</code> to keep saved specs, and export any artifact you want to keep.</li>
+<li>Compute results do not survive <code>dump()</code>/<code>load()</code>; they are marked <code>lost</code> and recomputed.</li>
+<li>Concurrent <code>chat()</code> calls on the same <code>AitaemAgent</code> are unsupported: one call at a time per
+  instance, one instance per active session.</li>
+<li>Multi-tenancy, access control, and isolation between users are your application's
+  responsibility.</li>
 </ul>
 
 
@@ -1381,10 +1407,10 @@ multi-tenancy note. In short:</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

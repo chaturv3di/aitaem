@@ -6,11 +6,11 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="AITÆM: All Interesting Things Are Essentially Metrics — a Python library for generating data insights from OLAP databases or local CSV files.">
+        <meta name="description" content="aitaem is an open-source Python semantic layer: define metrics, slices and segments in YAML and compute them on DuckDB, BigQuery, PostgreSQL or CSV files. AITÆM: All Interesting Things Are Essentially Metrics.">
       
       
       
-        <link rel="canonical" href="https://chaturv3di.github.io/aitaem/api/">
+        <link rel="canonical" href="https://aitaem.com/api/">
       
       
         <link rel="prev" href="../agent/stability/">
@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -734,14 +734,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../agent/building-your-own-bot/" class="md-nav__link">
+      <a href="../agent/tool-groups/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Building Your Own Bot
+    Tool Groups
   
 
     
@@ -1335,7 +1335,7 @@
 <tr>
 <td><a href="specs/"><code>SpecCache</code></a></td>
 <td><code>aitaem.specs.loader</code></td>
-<td>Load and cache YAML specs</td>
+<td>Load, cache, and save YAML specs</td>
 </tr>
 <tr>
 <td><a href="specs/#aitaem.specs.metric.MetricSpec"><code>MetricSpec</code></a></td>
@@ -1479,11 +1479,45 @@
 </tbody>
 </table>
 <h2 id="agent-module-optional-install">Agent module (optional install)</h2>
-<p><code>aitaem.agent</code> ships LLM-facing convenience bots (<code>QueryBot</code>, <code>DefinitionBot</code>) and the
-primitives layer they're built on, on top of the deterministic compute layer documented
-above. It's an optional install (<code>pip install "aitaem[agent-anthropic]"</code>) and lives in
-its own <a href="../agent/getting-started/">Agent</a> section of these docs — see there for a
-quick start, and the <a href="agent/">Agent API reference</a> for the full class/type listing.</p>
+<p><code>aitaem.agent</code> adds <code>AitaemAgent</code>, a multi-turn agent session that connects sources, designs
+specs with the user, and answers analytical questions on top of the deterministic compute layer
+documented above. It's an optional install (<code>pip install "aitaem[agent-anthropic]"</code>) and
+lives in its own <a href="../agent/getting-started/">Agent</a> section of these docs.</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AitaemAgent</code></td>
+<td>The agent session: <code>chat()</code>, <code>trace()</code>, <code>dump()</code>/<code>load()</code>, <code>cleanup()</code></td>
+</tr>
+<tr>
+<td><code>Response</code>, <code>ResponseAttachment</code>, <code>Status</code></td>
+<td>What <code>chat()</code> returns</td>
+</tr>
+<tr>
+<td><code>RunTrace</code>, <code>ToolCall</code>, <code>Usage</code></td>
+<td>The runs, tool calls, and usage of one turn</td>
+</tr>
+<tr>
+<td><code>ArtifactStore</code>, <code>ArtifactRef</code></td>
+<td>The session's artifacts</td>
+</tr>
+<tr>
+<td><code>SessionDeps</code>, <code>ToolResult</code></td>
+<td>Run dependencies and tool results, for composing the toolsets</td>
+</tr>
+<tr>
+<td><code>stats_toolset</code>, <code>data_toolset</code>, <code>aitaem_toolset</code>, <code>artifact_toolset</code></td>
+<td>The <a href="../agent/tool-groups/">tool groups</a></td>
+</tr>
+</tbody>
+</table>
+<p>See the <a href="agent/">Agent API reference</a> for the full listing.</p>
 
 
 
@@ -1541,10 +1575,10 @@ quick start, and the <a href="agent/">Agent API reference</a> for the full class
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>
