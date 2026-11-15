@@ -199,6 +199,23 @@ def test_defaults_for_missing_connection_manager_and_spec_cache() -> None:
 
 
 @pytest.mark.asyncio
+async def test_turns_run_past_the_default_request_limit() -> None:
+    agent = session()
+
+    def busy(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        if sum(isinstance(m, ModelResponse) for m in messages) < 60:
+            return call("list_artifacts")
+        return reply("done")
+
+    with agent.main_session.override(model=FunctionModel(busy)):
+        result = await agent.chat("hello")
+
+    assert result.status == Status.ok, result.response
+    assert agent.trace(result.trace_id).usage.requests == 61
+    agent.cleanup()
+
+
+@pytest.mark.asyncio
 async def test_exception_becomes_error_response() -> None:
     agent = session()
 

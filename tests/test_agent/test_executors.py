@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 import yaml
 from pydantic_ai import Agent, CancellationToken, FunctionToolset
-from pydantic_ai.exceptions import RunCancelled
+from pydantic_ai.exceptions import RunCancelled, UsageLimitExceeded
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -17,6 +17,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.usage import UsageLimits
 
 from aitaem.agent.agent_roles.analysis_executor.agent import (
     build_analysis_executor,
@@ -137,6 +138,20 @@ async def test_usage_accumulates_on_parent_run(deps: SessionDeps) -> None:
 
     # 2 coordinator requests + 3 executors × 2 requests each
     assert result.usage.requests == 8
+
+
+@pytest.mark.asyncio
+async def test_executors_inherit_parent_usage_limits(deps: SessionDeps) -> None:
+    executor = build_analysis_executor(FunctionModel(ExecutorScript()))
+    coordinator = _coordinator(make_run_analysis_executors(executor), [_intake("revenue")] * 3)
+
+    with pytest.raises(UsageLimitExceeded):
+        await coordinator.run("go", deps=deps, usage_limits=UsageLimits(request_limit=3))
+
+    # The executors stopped at the coordinator's limit of 3, not pydantic-ai's default of 50.
+    errors = [r for r in deps.store.refs() if r.type_tag == "error"]
+    assert errors
+    assert all("request_limit of 3" in r.summary for r in errors)
 
 
 @pytest.mark.asyncio

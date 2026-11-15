@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults
 from pydantic_ai.conversation import Conversation, ConversationTypeAdapter
 from pydantic_ai.models import Model
+from pydantic_ai.usage import UsageLimits
 
 from aitaem import ConnectionManager, SpecCache
 from aitaem.agent.agent_roles.analysis_coordinator.agent import build_analysis_coordinator
@@ -34,6 +35,9 @@ Route = Literal["main", "spec"]
 
 DEFAULT_MODEL = "anthropic:claude-sonnet-5-5"
 DEFAULT_EXECUTOR_MODEL = "anthropic:claude-haiku-5-5"
+# A conversation's usage carries across turns, and coordinators and executors share it, so this
+# bounds the model requests of the whole session (pydantic-ai's default is 50).
+USAGE_LIMITS = UsageLimits(request_limit=1000)
 
 
 class ResponseAttachment(BaseModel):
@@ -143,7 +147,7 @@ class AitaemAgent:
         self, agent: Agent[SessionDeps, Any], role: str, *args: Any, **kwargs: Any
     ) -> Any:
         deps = dataclasses.replace(self.deps, role=role)
-        result = await agent.run(*args, deps=deps, **kwargs)
+        result = await agent.run(*args, deps=deps, usage_limits=USAGE_LIMITS, **kwargs)
         record_run(agent.name, result)
         return result
 

@@ -40,8 +40,8 @@ async def run_executors(
     """Run one executor per intake, at most four at a time, and await them all.
 
     Each intake and handoff is stored as an artifact; a failed executor yields an `error`
-    artifact and leaves its siblings running. Executors share the coordinator's usage, so its
-    usage limits bound the whole tree.
+    artifact and leaves its siblings running. Executors share the coordinator's usage and usage
+    limits, so its limits bound the whole tree.
     """
     deps = ctx.deps
     child = dataclasses.replace(deps, role=role)
@@ -50,7 +50,9 @@ async def run_executors(
 
     async def one(intake: Intake[Any]) -> str:
         async with semaphore:
-            result = await executor.run(to_yaml(intake), deps=child, usage=ctx.usage)
+            result = await executor.run(
+                to_yaml(intake), deps=child, usage=ctx.usage, usage_limits=ctx.usage_limits
+            )
         record_run(executor.name, result)
         return result.output
 
@@ -98,7 +100,9 @@ async def launch(
     """
     intake_id = store_intake(ctx.deps, intake, tool, ctx.tool_call_id)
     child = dataclasses.replace(ctx.deps, role=role)
-    result = await coordinator.run(to_yaml(intake), deps=child, usage=ctx.usage)
+    result = await coordinator.run(
+        to_yaml(intake), deps=child, usage=ctx.usage, usage_limits=ctx.usage_limits
+    )
     record_run(coordinator.name, result)
     handoff = parse_handoff(result.output)
     return ToolOutput(
