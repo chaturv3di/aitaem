@@ -7,8 +7,7 @@ metrics and running statistics on the results.
 
 ## Installation
 
-The agent extras need Python ≥ 3.11 (they depend on `pydantic-ai-slim` ≥ 2.55); core `aitaem`
-still runs on Python 3.10.
+The agent extras depend on `pydantic-ai-slim` ≥ 2.60.
 
 ```bash
 pip install "aitaem[agent-anthropic]"

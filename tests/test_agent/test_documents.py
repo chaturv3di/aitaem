@@ -6,7 +6,7 @@ import pytest
 import yaml
 from pydantic import BaseModel
 from pydantic_ai import Agent
-from pydantic_ai.messages import ModelMessage, ModelResponse, RetryPromptPart, TextPart
+from pydantic_ai.messages import ModelMessage, ModelResponse, RetryFeedbackPart, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from aitaem.agent.agent_roles import load_instructions
@@ -44,7 +44,7 @@ def _run(deps: SessionDeps, validator, outputs: list[str]) -> tuple[str, list[st
         str(p.content)
         for m in result.all_messages()
         for p in m.parts
-        if isinstance(p, RetryPromptPart)
+        if isinstance(p, RetryFeedbackPart)
     ]
     return result.output, retries
 

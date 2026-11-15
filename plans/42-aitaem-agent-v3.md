@@ -313,18 +313,17 @@ Order: SF-1 → SF-21, in phases. Within Phase 3, SF-5 to SF-8 are independent.
 
 **Tests:** the full suite passes; `scripts/check_import_graph.py`; `mkdocs build --strict`.
 
-#### SF-2 — pydantic-ai 2.55, Python floor, contract tests
+#### SF-2 — pydantic-ai 2.60, Python 3.11, contract tests
 
-**Files:** `pyproject.toml`, `.github/workflows/ci.yml`, `tests/conftest.py`,
-`tests/test_agent/conftest.py`, `tests/test_agent/test_pydantic_ai_contract.py`
+**Files:** `pyproject.toml`, `.github/workflows/ci.yml`, `tests/test_agent/conftest.py`,
+`tests/test_agent/test_pydantic_ai_contract.py`
 
-- Every pydantic-ai entry in the five agent extras becomes `pydantic-ai-slim[…]>=2.55,<3`. The
-  `dev` extra's entry gets the marker `python_version >= "3.11"`, so core development installs on
-  3.10 ([mechanics, Update 2026-11-10](../research/agent_module/42-pydantic-ai-2.55-mechanics.md#update-2026-11-10-python-floor-and-mechanics-confirmed-by-execution)).
+- Every pydantic-ai entry in the five agent extras becomes `pydantic-ai-slim[…]>=2.60,<3`
+  (2.55 fails with anthropic 2.x; [mechanics, Update 2026-11-14](../research/agent_module/42-pydantic-ai-2.55-mechanics.md#update-2026-11-14-floor-260-for-anthropic-2x)).
+  pydantic-ai-slim 2.60 requires Python ≥ 3.11, so `requires-python` becomes `>=3.11` and Python
+  3.10 support is dropped ([mechanics, Update 2026-11-10](../research/agent_module/42-pydantic-ai-2.55-mechanics.md#update-2026-11-10-python-floor-and-mechanics-confirmed-by-execution)).
   Install with `uv pip install -e ".[agent,agent-evals,dev]"`.
-- `tests/conftest.py` skips collecting `tests/test_agent/` and `tests/evals/` when `pydantic_ai`
-  is not importable, so the 3.10 `test` job runs core tests only.
-- CI: the `test-agent` matrix runs Python 3.11 and 3.12; 3.11 pins `pydantic-ai-slim==2.55.0` so
+- CI: the `test` and `test-agent` matrices run Python 3.11 and 3.12; 3.11 pins `pydantic-ai-slim==2.60.0` so
   CI exercises the floor (§A12).
 - `tests/test_agent/conftest.py` sets `models.ALLOW_MODEL_REQUESTS = False`.
 - Contract tests pin the mechanics this plan relies on, as executed in the research Updates:
@@ -595,12 +594,12 @@ call in a trace has an `artifact_id` present in the manifest.
 #### SF-21 — Docs and examples
 
 - `docs/agent/getting-started.md`, `evaluating-your-agent.md`, `stability.md` (semver-stable
-  surface, the removed names, Python ≥ 3.11 for the agent extras): rewritten.
+  surface, the removed names): rewritten.
 - `docs/agent/tool-groups.md` (new): composing the toolsets with `SessionDeps`.
 - `docs/api/agent.md`, `docs/api/index.md`, `mkdocs.yml` nav, `docs/user-guide/connectors.md`
   (bot mentions), and the `agent-core` comment in `pyproject.toml`.
 - `docs/changelog.md`, Unreleased → Added (`AitaemAgent` and the exports of §3) and Changed
-  (pydantic-ai ≥ 2.55; agent extras need Python ≥ 3.11).
+  (pydantic-ai ≥ 2.60; Python ≥ 3.11).
 - `examples/01_aitaem_agent_example.py` and its `examples/README.md` entry.
 
 **Tests:** `mkdocs build --strict`; the example runs against a DuckDB fixture with a
@@ -617,7 +616,7 @@ call in a trace has an `artifact_id` present in the manifest.
 | File | Change |
 |---|---|
 | `aitaem/agent/` v2 modules, `tests/test_agent/` v2 tests, `tests/evals/`, `examples/` 01–04 | SF-1: removed |
-| `pyproject.toml`, `.github/workflows/ci.yml`, `tests/conftest.py`, `tests/test_agent/conftest.py` | SF-2 |
+| `pyproject.toml`, `.github/workflows/ci.yml`, `tests/test_agent/conftest.py` | SF-2 |
 | `aitaem/agent/artifacts.py`, `deps.py` | SF-3, SF-4 |
 | `aitaem/agent/tools/__init__.py`, `artifacts.py`, `data.py`, `aitaem.py`, `stats.py` | SF-4 to SF-8 |
 | `aitaem/agent/agent_roles/documents.py` and one package per role | SF-9 to SF-14 |

@@ -472,7 +472,7 @@ fan-out), `TestModel` or `FunctionModel` per executor via `override`
 
 ## 12. Dependency floor
 
-- Set `pydantic-ai-slim>=2.55,<3` (currently `>=2.2.0,<3`): one clean baseline covering every feature used ([mechanics §7](../../research/agent_module/42-pydantic-ai-2.55-mechanics.md#7-minimum-versions-per-feature)).
+- Set `pydantic-ai-slim>=2.60,<3` (currently `>=2.2.0,<3`): one clean baseline covering every feature used ([mechanics §7](../../research/agent_module/42-pydantic-ai-2.55-mechanics.md#7-minimum-versions-per-feature)), and the first release that works with anthropic 2.x ([mechanics, Update 2026-11-14](../../research/agent_module/42-pydantic-ai-2.55-mechanics.md#update-2026-11-14-floor-260-for-anthropic-2x)).
 - Update all five extras in `pyproject.toml` (lines ~46–74) together; CI must exercise the floor version.
-- pydantic-ai-slim 2.55 requires Python ≥ 3.11, so the agent extras do too; core `aitaem` stays on
-  Python ≥ 3.10 ([mechanics, Update 2026-11-10](../../research/agent_module/42-pydantic-ai-2.55-mechanics.md#update-2026-11-10-python-floor-and-mechanics-confirmed-by-execution)).
+- pydantic-ai-slim 2.60 requires Python ≥ 3.11, so `aitaem` v3 does too; Python 3.10 support is
+  dropped ([mechanics, Update 2026-11-10](../../research/agent_module/42-pydantic-ai-2.55-mechanics.md#update-2026-11-10-python-floor-and-mechanics-confirmed-by-execution)).

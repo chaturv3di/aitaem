@@ -27,9 +27,12 @@
 
 ### Changed
 
-- **pydantic-ai ≥ 2.55.** The agent extras (`agent-core`, `agent-anthropic`, `agent`,
-  `agent-evals`) require `pydantic-ai-slim>=2.55,<3`, and therefore Python ≥ 3.11. Core `aitaem`
-  still supports Python 3.10.
+- **Python ≥ 3.11** (breaking). Support for Python 3.10, end of life since October 2026, is
+  dropped.
+- **pydantic-ai ≥ 2.60.** The agent extras (`agent-core`, `agent-anthropic`, `agent`,
+  `agent-evals`) require `pydantic-ai-slim>=2.60,<3`.
+- **sqlglot < 30.18.** sqlglot 30.18.0 breaks DuckDB `create_table(obj=...)` in
+  ibis-framework 12.0.0, which `MetricCompute` uses to combine results from different backends.
 - **`ToolCall.result_id` is renamed `ToolCall.artifact_id`** (breaking).
 
 ### Fixed

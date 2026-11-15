@@ -32,8 +32,8 @@ replaces both bots.
 
 ## Requirements
 
-The agent extras (`agent-core`, `agent-anthropic`, `agent`, `agent-evals`) need Python ≥ 3.11 and
-`pydantic-ai-slim` ≥ 2.55. Core `aitaem` still supports Python 3.10.
+The agent extras (`agent-core`, `agent-anthropic`, `agent`, `agent-evals`) need
+`pydantic-ai-slim` ≥ 2.60. `aitaem` needs Python ≥ 3.11.
 
 ## Limitations
 

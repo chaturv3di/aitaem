@@ -15,11 +15,10 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Information Analysis",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "ibis-framework[duckdb]>=9.0.0",
     # <2: duckdb 2.0.0 removed DuckDBPyConnection.fetch_arrow_table(), which
@@ -28,7 +27,10 @@ dependencies = [
     "pyyaml>=6.0",
     "pandas>=2.0.0",
     "pyarrow>=14.0.0",
-    "sqlglot>=25.0.0",
+    # <30.18: sqlglot 30.18.0 breaks ibis-framework 12.0.0's DuckDB create_table(obj=...)
+    # ("ParserException: syntax error at end of input"), which the cross-backend path of
+    # QueryExecutor.execute() calls. Lift once ibis supports sqlglot >= 30.18.
+    "sqlglot>=25.0.0,<30.18",
     "fsspec>=2022.5.0",
 ]
 
@@ -45,20 +47,21 @@ postgres = [
 # tool groups against TestModel/FunctionModel, or against a provider SDK installed
 # separately. Public and documented (see docs/agent/tool-groups.md), not internal
 # plumbing — agent-anthropic and agent build on it, but it's also a standalone
-# install target in its own right. The agent extras need Python >= 3.11.
+# install target in its own right. The floor is 2.60:
+# earlier versions instantiate anthropic's BetaMessageParam, a Union since anthropic 2.0.
 agent-core = [
-    "pydantic-ai-slim>=2.55,<3",
+    "pydantic-ai-slim>=2.60,<3",
 ]
 agent-anthropic = [
     "aitaem[agent-core]",
-    "pydantic-ai-slim[anthropic]>=2.55,<3",
+    "pydantic-ai-slim[anthropic]>=2.60,<3",
 ]
 agent = [
     "aitaem[agent-anthropic]",
-    "pydantic-ai-slim[openai]>=2.55,<3",
+    "pydantic-ai-slim[openai]>=2.60,<3",
 ]
 agent-evals = [
-    "pydantic-ai-slim[evals]>=2.55,<3",
+    "pydantic-ai-slim[evals]>=2.60,<3",
 ]
 dev = [
     "pytest>=7.4.0",
@@ -75,8 +78,7 @@ dev = [
     "ruff>=0.3.0,<0.16",
     "mypy>=1.8.0",
     "build>=1.0.0",
-    # pydantic-ai-slim 2.55 requires Python >= 3.11; core development still installs on 3.10.
-    "pydantic-ai-slim[evals]>=2.55,<3; python_version >= '3.11'",
+    "pydantic-ai-slim[evals]>=2.60,<3",
     "opentelemetry-sdk>=1.28.0",
 ]
 docs = [

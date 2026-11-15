@@ -50,7 +50,7 @@ def test_yaml_text_output_retries_on_model_retry() -> None:
 
     assert _Doc.model_validate(yaml.safe_load(result.output)).response == "Done: 'x'\n"
     parts = [p for m in result.all_messages() for p in m.parts]
-    assert any(p.part_kind == "retry-prompt" for p in parts)
+    assert any(p.part_kind == "retry-feedback" for p in parts)
 
 
 def test_call_deferred_ends_run_and_resumes_from_conversation() -> None:

@@ -285,6 +285,26 @@ class TestExecute:
         windowed = float(executor.execute(groups_windowed).to_pandas()["metric_value"].iloc[0])
         assert windowed < total
 
+    def test_cross_backend_groups_load_into_factory_connection(self, mocker):
+        """Groups on different backends are materialised into the factory's DuckDB connection."""
+        backends = {}
+        for source, value in [("duckdb://a.db/t", 1.0), ("postgres://b/t", 2.0)]:
+            con = ibis.duckdb.connect()
+            con.raw_sql(f"CREATE TABLE t AS SELECT {value} AS metric_value")
+            backends[source] = mocker.Mock(connection=con)
+        manager = ConnectionManager()
+        mocker.patch.object(manager, "get_connection_for_source", side_effect=backends.get)
+        groups = [
+            QueryGroup(source=s, metrics=[], expressions=[c.connection.table("t")])
+            for s, c in backends.items()
+        ]
+        combined = ibis.duckdb.connect()
+
+        result = QueryExecutor(connection_manager=manager).execute(groups, lambda: combined)
+
+        assert sorted(result.to_pandas()["metric_value"]) == [1.0, 2.0]
+        assert len(combined.list_tables()) == 1
+
 
 # ---------------------------------------------------------------------------
 # End-to-end integration scenario (from plan)

@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 import yaml
 from pydantic_ai import DeferredToolRequests
-from pydantic_ai.messages import ModelMessage, ModelResponse, RetryPromptPart, ToolCallPart
+from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import FunctionModel
 
 from aitaem import ConnectionManager, MetricCompute
@@ -126,7 +126,9 @@ async def test_launch_tools_take_typed_intakes(make_deps, example_specs) -> None
         p
         for m in result.all_messages()
         for p in m.parts
-        if isinstance(p, RetryPromptPart) and p.tool_name == "run_connections"
+        if isinstance(p, ToolReturnPart)
+        and p.outcome == "retried"
+        and p.tool_name == "run_connections"
     ]
     assert len(retries) == 1
     assert "backend_type" in str(retries[0].content)

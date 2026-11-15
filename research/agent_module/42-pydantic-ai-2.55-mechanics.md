@@ -138,3 +138,21 @@ detected as taking the context: the context is excluded from the schema, the doc
 line becomes the description, Google-style `Args:` entries become parameter descriptions, and
 `Literal` and default values are kept. Covered by
 `tests/test_agent/test_artifact_tool.py::test_wrapped_schema_matches_unwrapped`.
+
+---
+
+## Update (2026-11-14): floor 2.60 for anthropic 2.x
+
+**Sources:** pydantic-ai-slim 2.56.0, 2.58.0, 2.59.0, 2.60.0, 2.67.0 and anthropic 1.17.0, 2.0.0
+(source read from the PyPI wheels); pydantic-ai-slim 2.60.0 (Python 3.11.14, anthropic 2.8.0) and
+2.67.0 (Python 3.12.10), executed with `FunctionModel`.
+
+- **anthropic 2.0 breaks pydantic-ai ≤ 2.59.** anthropic 2.0.0 turns `BetaMessageParam` from a
+  `TypedDict` into a `Union` type alias. pydantic-ai-slim 2.56–2.59 call `BetaMessageParam(...)` in
+  `models/anthropic.py`, which raises `TypeError: Cannot instantiate typing.Union` on every
+  Anthropic request. 2.60.0 no longer calls it. `pydantic-ai-slim[anthropic]` sets no upper bound
+  on `anthropic`, so a fresh install of 2.55 gets anthropic 2.x and fails. The floor becomes 2.60.
+- **Retry parts (§4).** From 2.60.0 (also in 2.67.0), an output validator's `ModelRetry` adds a
+  `RetryFeedbackPart` (`part_kind="retry-feedback"`) to the history, and a tool call whose
+  arguments fail validation gets a `ToolReturnPart` with `outcome="retried"`. 2.55 used
+  `RetryPromptPart` for both. Tests that look for retries match the new parts.

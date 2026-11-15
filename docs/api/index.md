@@ -71,8 +71,8 @@ All exceptions inherit from `AitaemError` and are importable from `aitaem`.
 
 `aitaem.agent` adds `AitaemAgent`, a multi-turn agent session that connects sources, designs
 specs with the user, and answers analytical questions on top of the deterministic compute layer
-documented above. It's an optional install (`pip install "aitaem[agent-anthropic]"`, Python
-≥ 3.11) and lives in its own [Agent](../agent/getting-started.md) section of these docs.
+documented above. It's an optional install (`pip install "aitaem[agent-anthropic]"`) and
+lives in its own [Agent](../agent/getting-started.md) section of these docs.
 
 | Name | Purpose |
 |------|---------|
