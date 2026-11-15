@@ -1,5 +1,5 @@
 site_name: aitaem
-site_description: "AITÆM: All Interesting Things Are Essentially Metrics — a Python library for generating data insights from OLAP databases or local CSV files."
+site_description: "aitaem is an open-source Python semantic layer: define metrics, slices and segments in YAML and compute them on DuckDB, BigQuery, PostgreSQL or CSV files. AITÆM: All Interesting Things Are Essentially Metrics."
 site_url: https://aitaem.com
 repo_url: https://github.com/chaturv3di/aitaem
 repo_name: chaturv3di/aitaem
