@@ -83,7 +83,7 @@ def test_assemble_trace_with_tool_call():
     assert tc.args == {"metrics": ["ctr"]}
     assert tc.llm_summary == "Computed 1 metric."
     assert tc.success is True
-    assert tc.result_id is None
+    assert tc.artifact_id is None
     assert trace.traceparent == "00-abc-def-01"
 
 
@@ -188,7 +188,7 @@ def test_assemble_trace_string_args_parsed():
 
 
 # ---------------------------------------------------------------------------
-# SF-2: ToolCall.result_id / duration_ms population
+# ToolCall.artifact_id / duration_ms population
 # ---------------------------------------------------------------------------
 
 
@@ -208,7 +208,7 @@ def _make_result(model_response, model_request, run_start):
     return result
 
 
-def test_assemble_trace_result_id_extracted_from_content():
+def test_assemble_trace_artifact_id_extracted_from_content():
     from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
 
     tc_part = MagicMock(spec=ToolCallPart)
@@ -217,7 +217,7 @@ def test_assemble_trace_result_id_extracted_from_content():
     tc_part.tool_call_id = "tc-1"
 
     content = MagicMock()
-    content.result_id = "abc123"
+    content.artifact_id = "abc123"
 
     tr_part = MagicMock(spec=ToolReturnPart)
     tr_part.tool_name = "compute_metrics"
@@ -235,10 +235,10 @@ def test_assemble_trace_result_id_extracted_from_content():
 
     result = _make_result(model_response, model_request, datetime.now(timezone.utc))
     trace = assemble_trace(result, datetime.now(timezone.utc))
-    assert trace.tool_calls[0].result_id == "abc123"
+    assert trace.tool_calls[0].artifact_id == "abc123"
 
 
-def test_assemble_trace_empty_string_result_id_becomes_none():
+def test_assemble_trace_empty_string_artifact_id_becomes_none():
     from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
 
     tc_part = MagicMock(spec=ToolCallPart)
@@ -247,7 +247,7 @@ def test_assemble_trace_empty_string_result_id_becomes_none():
     tc_part.tool_call_id = "tc-1"
 
     content = MagicMock()
-    content.result_id = ""
+    content.artifact_id = ""
 
     tr_part = MagicMock(spec=ToolReturnPart)
     tr_part.tool_name = "compute_metrics"
@@ -265,10 +265,10 @@ def test_assemble_trace_empty_string_result_id_becomes_none():
 
     result = _make_result(model_response, model_request, datetime.now(timezone.utc))
     trace = assemble_trace(result, datetime.now(timezone.utc))
-    assert trace.tool_calls[0].result_id is None
+    assert trace.tool_calls[0].artifact_id is None
 
 
-def test_assemble_trace_no_result_id_attribute_becomes_none():
+def test_assemble_trace_no_artifact_id_attribute_becomes_none():
     from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
 
     tc_part = MagicMock(spec=ToolCallPart)
@@ -276,12 +276,12 @@ def test_assemble_trace_no_result_id_attribute_becomes_none():
     tc_part.args = {}
     tc_part.tool_call_id = "tc-1"
 
-    class _NoResultId:
+    class _NoArtifactId:
         pass
 
     tr_part = MagicMock(spec=ToolReturnPart)
     tr_part.tool_name = "record_intent"
-    tr_part.content = _NoResultId()
+    tr_part.content = _NoArtifactId()
     tr_part.tool_call_id = "tc-1"
     tr_part.outcome = "success"
     tr_part.timestamp = datetime.now(timezone.utc)
@@ -295,7 +295,7 @@ def test_assemble_trace_no_result_id_attribute_becomes_none():
 
     result = _make_result(model_response, model_request, datetime.now(timezone.utc))
     trace = assemble_trace(result, datetime.now(timezone.utc))
-    assert trace.tool_calls[0].result_id is None
+    assert trace.tool_calls[0].artifact_id is None
 
 
 def test_assemble_trace_duration_ms_matches_timestamp_offset():

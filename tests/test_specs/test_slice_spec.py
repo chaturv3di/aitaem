@@ -440,3 +440,53 @@ slice:
         result = spec.validate()
         assert result.valid
         assert result.referenced_columns == {}
+
+
+class TestSliceSpecToYaml:
+    """to_yaml() output reads back with from_yaml to an equal spec."""
+
+    @pytest.mark.parametrize(
+        "yaml_str",
+        [
+            pytest.param(
+                """
+slice:
+  name: geography
+  description: |
+    Regional breakdown.
+    Second line: with a colon.
+  values:
+    - name: 'yes'
+      where: "country_code IN ('US', 'CA')"
+    - name: '123'
+      where: "country_code = 'null'"
+""",
+                id="leaf",
+            ),
+            pytest.param(
+                """
+slice:
+  name: geo_x_device
+  description: 'on'
+  cross_product: [geography, device]
+""",
+                id="composite",
+            ),
+            pytest.param(
+                """
+slice:
+  name: country
+  description: "Quote: \\"here\\""
+  where: country_code
+""",
+                id="wildcard",
+            ),
+        ],
+    )
+    def test_round_trip(self, yaml_str):
+        spec = SliceSpec.from_yaml(yaml_str)
+        assert SliceSpec.from_yaml(spec.to_yaml()) == spec
+
+    def test_top_level_key_is_slice(self):
+        spec = SliceSpec(name="s", column="c")
+        assert spec.to_yaml().startswith("slice:\n")

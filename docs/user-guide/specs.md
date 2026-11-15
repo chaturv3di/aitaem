@@ -403,6 +403,9 @@ cache = SpecCache.from_yaml(
     slice_paths="slices/campaign_type.yaml",
 )
 
+# From object storage (needs the matching fsspec driver, e.g. gcsfs for gs://)
+cache = SpecCache.from_yaml(metric_paths="gs://my-bucket/specs/metrics/")
+
 # From YAML strings (useful for testing)
 cache = SpecCache.from_string(
     metric_yaml="""
@@ -415,6 +418,32 @@ metric:
 """,
 )
 ```
+
+Paths can be local paths or fsspec URLs (`gs://`, `s3://`, `abfs://`, ...). Remote URLs need
+the matching fsspec driver (`gcsfs`, `s3fs`, `adlfs`), installed separately.
+
+---
+
+## Saving specs
+
+`SpecCache.save()` writes the cache as YAML files, one directory per spec type:
+
+```python
+cache.save(
+    metric_dir="metrics/",
+    slice_dir="slices/",
+    segment_dir="segments/",
+)
+```
+
+Each spec is written to `<dir>/<name>.yaml`, and the directory's other `*.yaml`/`*.yml` files
+are deleted, so each directory mirrors the cache after `save()` and a removed spec stays removed
+when the directory is loaded again. Other files are left alone. A `None` argument skips that
+spec type. Directories can be local paths or fsspec URLs; remote URLs need the matching driver.
+
+`save()` validates every spec before writing or deleting anything and raises
+`SpecValidationError` for an invalid spec, or `FileExistsError` when the directory holds a file
+whose name differs from `<name>.yaml` only in case (e.g. `CTR.yaml` for spec `ctr`).
 
 ---
 

@@ -55,9 +55,7 @@ class ConnectionManager:
         self._cross_backend_db_path: str | None = None
 
     @classmethod
-    def from_yaml(
-        cls, yaml_path: str, tmp_dir: str | None = "/tmp"
-    ) -> "ConnectionManager":
+    def from_yaml(cls, yaml_path: str, tmp_dir: str | None = "/tmp") -> "ConnectionManager":
         """Load all connections from YAML file.
 
         Args:

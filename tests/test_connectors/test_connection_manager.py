@@ -382,9 +382,7 @@ class TestURIParsing:
         assert database is None
 
     def test_resolve_table_reference_postgres_with_schema(self):
-        table_name, database = ConnectionManager.resolve_table_reference(
-            "postgres://public/events"
-        )
+        table_name, database = ConnectionManager.resolve_table_reference("postgres://public/events")
         assert table_name == "events"
         assert database == "public"
 

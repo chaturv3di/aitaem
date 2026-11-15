@@ -2,26 +2,35 @@
 
 !!! info "Optional install"
     The agent module is not part of the core `aitaem` install. See
-    [Getting Started](../agent/getting-started.md) for install instructions and a
-    two-line quick start for `QueryBot` and `DefinitionBot`.
+    [Getting Started](../agent/getting-started.md) for install instructions and a quick start.
 
-## Primitives
+## Session
 
-### Bot
+### AitaemAgent
 
-::: aitaem.agent.base.Bot
+::: aitaem.agent.session.AitaemAgent
 
-### BotResponse
+### Response
 
-::: aitaem.agent.response.BotResponse
+::: aitaem.agent.session.Response
+
+### ResponseAttachment
+
+::: aitaem.agent.session.ResponseAttachment
 
 ### Status
 
-::: aitaem.agent.response.Status
+::: aitaem.agent.trace.Status
+
+## Traces
 
 ### RunTrace
 
 ::: aitaem.agent.trace.RunTrace
+
+### AgentRun
+
+::: aitaem.agent.trace.AgentRun
 
 ### ToolCall
 
@@ -31,118 +40,31 @@
 
 ::: aitaem.agent.trace.Usage
 
-### ResultStore
+## Artifacts and tools
 
-::: aitaem.agent.store.ResultStore
+See [Tool Groups](../agent/tool-groups.md) for composing the toolsets in your own agents.
 
-### ResultEntry
+### ArtifactStore
 
-::: aitaem.agent.store.ResultEntry
+::: aitaem.agent.artifacts.ArtifactStore
 
-### TabularEntry
+### ArtifactRef
 
-::: aitaem.agent.store.TabularEntry
+::: aitaem.agent.artifacts.ArtifactRef
 
-### TextEntry
+### SessionDeps
 
-::: aitaem.agent.store.TextEntry
+::: aitaem.agent.deps.SessionDeps
 
-### WrongEntryKindError
+### ToolResult
 
-::: aitaem.agent.store.WrongEntryKindError
+::: aitaem.agent.tools.ToolResult
 
----
+### Toolsets
 
-## QueryBot
-
-### QueryBot
-
-::: aitaem.agent.query_bot.QueryBot
-
-### QueryResponse
-
-::: aitaem.agent.query_bot.QueryResponse
-
-### QueryPayload
-
-::: aitaem.agent.query_types.QueryPayload
-
-### MetricIntent
-
-::: aitaem.agent.query_types.MetricIntent
-
-### ResolvedSpec
-
-::: aitaem.agent.query_types.ResolvedSpec
-
-### ExactMatch
-
-::: aitaem.agent.query_types.ExactMatch
-
-### NearMiss
-
-::: aitaem.agent.query_types.NearMiss
-
-### SpecMatchResult
-
-::: aitaem.agent.query_types.SpecMatchResult
-
-### RecordIntentResult
-
-::: aitaem.agent.query_types.RecordIntentResult
-
-### ResolveIntentResult
-
-::: aitaem.agent.query_types.ResolveIntentResult
-
-### SpecResolver
-
-::: aitaem.agent.resolver.SpecResolver
-
----
-
-## DefinitionBot
-
-### DefinitionBot
-
-::: aitaem.agent.definition_bot.DefinitionBot
-
-### DefinitionResponse
-
-::: aitaem.agent.definition_bot.DefinitionResponse
-
-### DefinitionPayload
-
-::: aitaem.agent.definition_types.DefinitionPayload
-
-### DefinitionIntent
-
-::: aitaem.agent.definition_types.DefinitionIntent
-
-### SpecDraft
-
-::: aitaem.agent.definition_types.SpecDraft
-
-### ColumnInfo
-
-::: aitaem.agent.definition_types.ColumnInfo
-
-### ListTablesResult
-
-::: aitaem.agent.definition_types.ListTablesResult
-
-### DescribeTableResult
-
-::: aitaem.agent.definition_types.DescribeTableResult
-
-### DraftSpecResult
-
-::: aitaem.agent.definition_types.DraftSpecResult
-
-### ValidateSpecResult
-
-::: aitaem.agent.definition_types.ValidateSpecResult
-
-### ValidationIssue
-
-::: aitaem.agent.definition_types.ValidationIssue
+| Toolset | Module |
+|---|---|
+| `stats_toolset` | `aitaem.agent.tools.stats` |
+| `data_toolset` | `aitaem.agent.tools.data` |
+| `aitaem_toolset` | `aitaem.agent.tools.aitaem` |
+| `artifact_toolset` | `aitaem.agent.tools.artifacts` |

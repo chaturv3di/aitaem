@@ -532,9 +532,7 @@ class TestSpecCacheRemove:
 
     def test_remove_metric_success(self):
         cache = SpecCache()
-        spec = MetricSpec(
-            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
-        )
+        spec = MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
         cache.add(spec)
         cache.remove("metric", "m")
         with pytest.raises(SpecNotFoundError):
@@ -600,26 +598,20 @@ class TestSpecCacheVersion:
 
     def test_version_increments_on_add(self):
         cache = SpecCache()
-        spec = MetricSpec(
-            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
-        )
+        spec = MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
         cache.add(spec)
         assert cache.version == 1
 
     def test_version_increments_on_update(self):
         cache = SpecCache()
-        spec = MetricSpec(
-            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
-        )
+        spec = MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
         cache.add(spec)
         cache.update(spec)
         assert cache.version == 2
 
     def test_version_increments_on_remove(self):
         cache = SpecCache()
-        spec = MetricSpec(
-            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
-        )
+        spec = MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
         cache.add(spec)
         cache.remove("metric", "m")
         assert cache.version == 2
@@ -631,9 +623,7 @@ class TestSpecCacheVersion:
 
     def test_version_does_not_increment_on_add_duplicate_rejection(self):
         cache = SpecCache()
-        spec = MetricSpec(
-            name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts"
-        )
+        spec = MetricSpec(name="m", source="duckdb://db/t", numerator="SUM(x)", timestamp_col="ts")
         cache.add(spec)
         version_after_add = cache.version
         with pytest.raises(SpecValidationError):
@@ -768,3 +758,153 @@ segment:
         assert "homepage_ctr" in cache.metrics
         assert "geography" in cache.slices
         assert "customer_value_tier" in cache.segments
+
+
+def _metric(name: str, numerator: str = "SUM(x)") -> MetricSpec:
+    return MetricSpec(name=name, source="duckdb://db/t", numerator=numerator, timestamp_col="ts")
+
+
+class TestSpecCacheFromYamlFsspec:
+    """SpecCache.from_yaml on fsspec URLs (memory://)."""
+
+    def test_loads_file_url(self, memfs):
+        memfs.pipe("/specs/ctr.yaml", VALID_METRIC_RATIO_YAML.encode())
+        cache = SpecCache.from_yaml(metric_paths="memory://specs/ctr.yaml")
+        assert list(cache.metrics) == ["homepage_ctr"]
+
+    def test_loads_directory_url_yaml_and_yml(self, memfs):
+        memfs.pipe("/specs/a.yaml", VALID_METRIC_RATIO_YAML.encode())
+        memfs.pipe("/specs/b.yml", VALID_METRIC_SUM_YAML.encode())
+        memfs.pipe("/specs/notes.txt", b"not a spec")
+        cache = SpecCache.from_yaml(metric_paths="memory://specs/")
+        assert set(cache.metrics) == {"homepage_ctr", "total_revenue"}
+
+    def test_accepts_path_objects(self, tmp_path):
+        (tmp_path / "a.yaml").write_text(VALID_METRIC_RATIO_YAML)
+        cache = SpecCache.from_yaml(metric_paths=[tmp_path])
+        assert list(cache.metrics) == ["homepage_ctr"]
+
+    def test_missing_url_raises_file_not_found(self, memfs):
+        with pytest.raises(FileNotFoundError, match="memory://missing"):
+            SpecCache.from_yaml(metric_paths="memory://missing")
+
+    def test_duplicate_name_across_url_files_raises(self, memfs):
+        memfs.pipe("/one/a.yaml", VALID_METRIC_RATIO_YAML.encode())
+        memfs.pipe("/two/b.yaml", VALID_METRIC_RATIO_YAML.encode())
+        with pytest.raises(SpecValidationError, match="Duplicate spec name"):
+            SpecCache.from_yaml(metric_paths=["memory://one/a.yaml", "memory://two"])
+
+
+class TestSpecCacheSave:
+    """SpecCache.save(): each directory mirrors the cache."""
+
+    @staticmethod
+    def _full_cache() -> SpecCache:
+        return SpecCache.from_string(
+            metric_yaml=[VALID_METRIC_RATIO_YAML, VALID_METRIC_SUM_YAML],
+            slice_yaml=VALID_SLICE_YAML,
+            segment_yaml=VALID_SEGMENT_YAML,
+        )
+
+    def _assert_round_trip(self, cache: SpecCache, m: str, s: str, g: str) -> None:
+        cache.save(metric_dir=m, slice_dir=s, segment_dir=g)
+        reloaded = SpecCache.from_yaml(metric_paths=m, slice_paths=s, segment_paths=g)
+        assert dict(reloaded.metrics) == dict(cache.metrics)
+        assert dict(reloaded.slices) == dict(cache.slices)
+        assert dict(reloaded.segments) == dict(cache.segments)
+
+    def test_round_trip_local_creates_directories(self, tmp_path):
+        dirs = [tmp_path / "new" / t for t in ("metrics", "slices", "segments")]
+        self._assert_round_trip(self._full_cache(), *[str(d) for d in dirs])
+        metric_files = sorted(p.name for p in dirs[0].iterdir())
+        assert metric_files == ["homepage_ctr.yaml", "total_revenue.yaml"]
+
+    def test_round_trip_memory(self, memfs):
+        self._assert_round_trip(
+            self._full_cache(), "memory://s/metrics", "memory://s/slices", "memory://s/segments"
+        )
+
+    def test_none_skips_type(self, tmp_path):
+        slices = tmp_path / "slices"
+        slices.mkdir()
+        (slices / "old.yaml").write_text(VALID_SLICE_YAML)
+        self._full_cache().save(metric_dir=tmp_path / "metrics")
+        assert (tmp_path / "metrics").is_dir()
+        assert [p.name for p in slices.iterdir()] == ["old.yaml"]
+        assert not (tmp_path / "segments").exists()
+
+    def test_save_after_update_overwrites_file(self, tmp_path):
+        cache = SpecCache()
+        cache.add(_metric("m"))
+        cache.save(metric_dir=tmp_path)
+        cache.update(_metric("m", numerator="SUM(y)"))
+        cache.save(metric_dir=tmp_path)
+        assert SpecCache.from_yaml(metric_paths=tmp_path).get_metric("m").numerator == "SUM(y)"
+
+    def test_save_after_remove_deletes_file(self, tmp_path):
+        cache = SpecCache()
+        cache.add(_metric("a"))
+        cache.add(_metric("b"))
+        cache.save(metric_dir=tmp_path)
+        cache.remove("metric", "b")
+        cache.save(metric_dir=tmp_path)
+        assert [p.name for p in tmp_path.iterdir()] == ["a.yaml"]
+        assert list(SpecCache.from_yaml(metric_paths=tmp_path).metrics) == ["a"]
+
+    def test_other_yaml_files_deleted_non_yaml_kept(self, tmp_path):
+        (tmp_path / "legacy.yml").write_text(VALID_METRIC_SUM_YAML)
+        (tmp_path / "other.yaml").write_text(VALID_METRIC_RATIO_YAML)
+        (tmp_path / "notes.txt").write_text("keep me")
+        cache = SpecCache()
+        cache.add(_metric("m"))
+        cache.save(metric_dir=tmp_path)
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["m.yaml", "notes.txt"]
+
+    def test_other_yaml_files_deleted_memory(self, memfs):
+        memfs.pipe("/d/legacy.yml", b"x")
+        memfs.pipe("/d/notes.txt", b"x")
+        cache = SpecCache()
+        cache.add(_metric("m"))
+        cache.save(metric_dir="memory://d")
+        assert sorted(memfs.ls("/d", detail=False)) == ["/d/m.yaml", "/d/notes.txt"]
+
+    def test_case_variant_file_raises_file_exists(self, memfs):
+        # memory:// is case-sensitive, so the original file is observable on any OS.
+        memfs.pipe("/d/CTR.yaml", b"original")
+        memfs.pipe("/d/other.yaml", b"other")
+        cache = SpecCache()
+        cache.add(_metric("ctr"))
+        with pytest.raises(FileExistsError, match="CTR.yaml"):
+            cache.save(metric_dir="memory://d")
+        assert sorted(memfs.ls("/d", detail=False)) == ["/d/CTR.yaml", "/d/other.yaml"]
+        assert memfs.cat("/d/CTR.yaml") == b"original"
+        assert "ctr" in cache.metrics
+
+    def test_invalid_spec_raises_before_any_write(self, tmp_path):
+        cache = SpecCache()
+        cache.add(_metric("good"))
+        cache.add(SliceSpec(name="1 bad", column="c"))
+        (tmp_path / "metrics").mkdir()
+        (tmp_path / "metrics" / "old.yaml").write_text(VALID_METRIC_SUM_YAML)
+        with pytest.raises(SpecValidationError) as exc:
+            cache.save(metric_dir=tmp_path / "metrics", slice_dir=tmp_path / "slices")
+        assert exc.value.spec_type == "slice"
+        assert [p.name for p in (tmp_path / "metrics").iterdir()] == ["old.yaml"]
+        assert not (tmp_path / "slices").exists()
+
+    def test_path_traversal_name_rejected(self, tmp_path):
+        target = tmp_path / "metrics"
+        cache = SpecCache()
+        cache.add(_metric("../x"))
+        with pytest.raises(SpecValidationError):
+            cache.save(metric_dir=target)
+        assert list(tmp_path.iterdir()) == []
+
+    def test_case_duplicate_names_rejected(self, tmp_path):
+        (tmp_path / "old.yaml").write_text(VALID_METRIC_SUM_YAML)
+        cache = SpecCache()
+        cache.add(_metric("Ctr"))
+        cache.add(_metric("ctr"))
+        with pytest.raises(SpecValidationError, match="differ only in case"):
+            cache.save(metric_dir=tmp_path)
+        assert [p.name for p in tmp_path.iterdir()] == ["old.yaml"]

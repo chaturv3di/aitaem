@@ -140,9 +140,7 @@ class QueryBuilder:
                         by_entity=by_entity,
                     )
                 )
-            query_groups.append(
-                QueryGroup(source=source, metrics=metrics, expressions=expressions)
-            )
+            query_groups.append(QueryGroup(source=source, metrics=metrics, expressions=expressions))
 
         return query_groups
 
@@ -311,8 +309,7 @@ class QueryBuilder:
             if time_window is not None:
                 start, end = time_window
                 labeled = labeled.filter(
-                    (labeled[ts_col] >= ibis.literal(start))
-                    & (labeled[ts_col] < ibis.literal(end))
+                    (labeled[ts_col] >= ibis.literal(start)) & (labeled[ts_col] < ibis.literal(end))
                 )
             period_start_expr = QueryBuilder._lit_or_null(period_start)
             period_end_expr = QueryBuilder._lit_or_null(period_end)
@@ -326,9 +323,7 @@ class QueryBuilder:
                 (labeled[ts_col].cast("timestamp") >= spine["period_start"])
                 & (labeled[ts_col].cast("timestamp") < spine["period_end"]),
             )
-            labeled = joined.select(
-                *pre_period_cols, joined["period_start"], joined["period_end"]
-            )
+            labeled = joined.select(*pre_period_cols, joined["period_start"], joined["period_end"])
 
         # --- Null-filtering: drop rows unclassified by any slice/segment. ---
         null_filters = [labeled[alias].notnull() for alias in slice_aliases]

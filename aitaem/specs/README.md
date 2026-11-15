@@ -290,7 +290,7 @@ from aitaem.specs import SpecCache, MetricSpec
 
 cache = SpecCache.from_yaml(metric_paths='metrics/')
 
-# Add a spec at runtime — validated immediately
+# Add a spec at runtime (from_yaml validates its content; add() checks for a duplicate name)
 extra_metric = MetricSpec.from_yaml('custom/my_metric.yaml')
 cache.add(extra_metric)
 ```
@@ -333,6 +333,10 @@ Load from a file path or YAML string. Raises `SpecValidationError` on invalid in
 
 Re-validate fields without raising. Returns a `ValidationResult` with any errors.
 
+**`metric.to_yaml() -> str`**
+
+Serialize to YAML under a top-level `metric:` key, in the format `from_yaml` reads. Does not validate.
+
 ---
 
 ### SliceSpec
@@ -347,6 +351,10 @@ SliceSpec(
 ```
 
 **`SliceSpec.from_yaml(yaml_input: str | Path) -> SliceSpec`**
+
+**`slice_spec.to_yaml() -> str`**
+
+Serialize to YAML under a top-level `slice:` key. Does not validate.
 
 **`slice_spec.is_composite -> bool`**
 
@@ -378,6 +386,10 @@ key is `where` (a column name or list of column names); `column` is the dataclas
 
 **`SegmentSpec.from_yaml(yaml_input: str | Path) -> SegmentSpec`**
 
+**`segment_spec.to_yaml() -> str`**
+
+Serialize to YAML under a top-level `segment:` key. Does not validate.
+
 **`segment_spec.is_wildcard -> bool`**
 
 `True` if `column` is non-empty.
@@ -392,7 +404,7 @@ Frozen dataclass representing a single named cohort filter.
 
 **`SpecCache.from_yaml(metric_paths=None, slice_paths=None, segment_paths=None) -> SpecCache`**
 
-Load and validate specs from YAML files or directories. Each argument accepts a single path (str/Path) or a list. Raises `SpecValidationError` on the first invalid spec found.
+Load and validate specs from YAML files or directories. Each argument accepts a single path (str/Path) or a list. Paths can be local or fsspec URLs (`gs://`, `s3://`, `abfs://`, ...; remote URLs need the matching fsspec driver). Raises `SpecValidationError` on the first invalid spec found.
 
 **`SpecCache.from_string(metric_yaml=None, slice_yaml=None, segment_yaml=None) -> SpecCache`**
 
@@ -400,7 +412,7 @@ Load specs from YAML strings. Each argument accepts a single string or a list of
 
 **`cache.add(spec: MetricSpec | SliceSpec | SegmentSpec) -> None`**
 
-Add a spec programmatically. Validated immediately on addition.
+Add a spec programmatically. Raises `SpecValidationError` if a spec of the same type and name is already cached, or if a composite slice's `cross_product` references would no longer resolve; on failure the cache is left unchanged. Does not validate the spec's content; use `spec.validate()` (`save()` validates every spec).
 
 **`cache.get_metric(name: str) -> MetricSpec`**
 
@@ -413,6 +425,10 @@ All `get_*` methods raise `SpecNotFoundError` if the name is not in the cache.
 **`cache.clear() -> None`**
 
 Evict all cached specs.
+
+**`cache.save(metric_dir=None, slice_dir=None, segment_dir=None) -> None`**
+
+Write each spec to `<dir>/<name>.yaml` and delete the directory's other `*.yaml`/`*.yml` files, so each directory mirrors the cache. `None` skips that spec type. Directories can be local or fsspec URLs. Validates every spec before writing or deleting anything; raises `SpecValidationError` for an invalid spec and `FileExistsError` for a file whose name differs from `<name>.yaml` only in case.
 
 ---
 
@@ -570,5 +586,4 @@ Planned for Phase 2:
 - Database-backed spec storage (load specs from a table, not just YAML files)
 - HAVING clauses and subquery-based segment definitions
 - Nested composite slices (composites referencing other composites)
-- Remote YAML loading (HTTP/S3)
 - Thread-safe SpecCache

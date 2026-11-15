@@ -8,10 +8,13 @@ and a SpecCache for eagerly-loaded, session-scoped caching.
 from __future__ import annotations
 
 import logging
+import posixpath
 from collections.abc import Mapping
 from pathlib import Path
 from types import MappingProxyType
 from typing import Union
+
+from fsspec.core import url_to_fs
 
 from aitaem.specs.metric import MetricSpec
 from aitaem.specs.segment import SegmentSpec
@@ -23,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 SpecType = Union[type[MetricSpec], type[SliceSpec], type[SegmentSpec]]
 AnySpec = Union[MetricSpec, SliceSpec, SegmentSpec]
+PathArg = Union[str, Path, list[Union[str, Path]], None]
 
 
 def load_spec_from_file(path: str | Path, spec_type: SpecType) -> AnySpec:
@@ -102,22 +106,25 @@ class SpecCache:
     @classmethod
     def from_yaml(
         cls,
-        metric_paths: str | list[str] | None = None,
-        slice_paths: str | list[str] | None = None,
-        segment_paths: str | list[str] | None = None,
+        metric_paths: PathArg = None,
+        slice_paths: PathArg = None,
+        segment_paths: PathArg = None,
     ) -> "SpecCache":
         """Load and validate all specs from YAML files or directories.
 
         Loading is eager — all specs are loaded and validated before returning.
+        Each path is a local path or an fsspec URL (``gs://``, ``s3://``, ``abfs://``, ...);
+        remote URLs need the matching fsspec driver (``gcsfs``, ``s3fs``, ``adlfs``).
+        A directory is read as its ``*.yaml`` and ``*.yml`` files.
 
         Raises:
             FileNotFoundError: if a path does not exist
             SpecValidationError: if any spec is invalid
         """
         cache = cls()
-        cache._metrics = cls._load_paths_strict(metric_paths, MetricSpec)  # type: ignore[arg-type, assignment]
-        cache._slices = cls._load_paths_strict(slice_paths, SliceSpec)  # type: ignore[arg-type, assignment]
-        cache._segments = cls._load_paths_strict(segment_paths, SegmentSpec)  # type: ignore[arg-type, assignment]
+        cache._metrics = cls._load_paths_strict(metric_paths, MetricSpec)  # type: ignore[assignment]
+        cache._slices = cls._load_paths_strict(slice_paths, SliceSpec)  # type: ignore[assignment]
+        cache._segments = cls._load_paths_strict(segment_paths, SegmentSpec)  # type: ignore[assignment]
         cache._validate()
         return cache
 
@@ -233,6 +240,58 @@ class SpecCache:
             raise
         self.version += 1
 
+    def save(
+        self,
+        metric_dir: str | Path | None = None,
+        slice_dir: str | Path | None = None,
+        segment_dir: str | Path | None = None,
+    ) -> None:
+        """Write the cached specs as YAML files, one directory per spec type.
+
+        Each spec is written to ``<dir>/<name>.yaml``, and every other ``*.yaml``/``*.yml``
+        file in the directory is deleted, so each directory mirrors the cache after
+        ``save()``. Missing directories are created. ``None`` skips that spec type.
+
+        Each directory is a local path or an fsspec URL; remote URLs need the matching
+        fsspec driver (``gcsfs`` for ``gs://``, ``s3fs`` for ``s3://``, ``adlfs`` for
+        ``abfs://``).
+
+        All checks run before any file is written or deleted, and the cache is never
+        changed.
+
+        Raises:
+            SpecValidationError: if a spec is invalid, or two specs of one type have
+                names that differ only in case.
+            FileExistsError: if a directory holds a file whose name differs from
+                ``<name>.yaml`` only in case (e.g. ``CTR.yaml`` for spec ``ctr``).
+        """
+        targets = []
+        for spec_type, directory in (
+            ("metric", metric_dir),
+            ("slice", slice_dir),
+            ("segment", segment_dir),
+        ):
+            if directory is None:
+                continue
+            specs = self._bucket_for_type(spec_type)
+            fs, root = url_to_fs(str(directory))
+            files = self._list_files(fs, root) if fs.isdir(root) else []
+            self._check_savable(spec_type, specs, files)
+            targets.append((fs, root, specs, files))
+
+        for fs, root, specs, files in targets:
+            fs.makedirs(root, exist_ok=True)
+            written = set()
+            for name, spec in specs.items():
+                file_name = f"{name}.yaml"
+                with fs.open(posixpath.join(root, file_name), "w", encoding="utf-8") as f:
+                    f.write(spec.to_yaml())
+                written.add(file_name)
+            for path in files:
+                file_name = posixpath.basename(path)
+                if self._is_yaml_file(file_name) and file_name not in written:
+                    fs.rm(path)
+
     @property
     def metrics(self) -> Mapping[str, MetricSpec]:
         """Read-only view of all loaded metric specs, keyed by name."""
@@ -290,12 +349,12 @@ class SpecCache:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _normalize_paths(paths: str | list[str] | None) -> list[Path]:
+    def _normalize_paths(paths: PathArg) -> list[str]:
         if paths is None:
             return []
         if isinstance(paths, (str, Path)):
-            return [Path(paths)]
-        return [Path(p) for p in paths]
+            return [str(paths)]
+        return [str(p) for p in paths]
 
     @staticmethod
     def _normalize_strings(strings: str | list[str] | None) -> list[str]:
@@ -306,32 +365,22 @@ class SpecCache:
         return list(strings)
 
     @classmethod
-    def _load_paths_strict(
-        cls, paths: str | list[str] | None, spec_type: SpecType
-    ) -> dict[str, AnySpec]:
-        """Load specs from paths/directories, raising on any error."""
+    def _load_paths_strict(cls, paths: PathArg, spec_type: SpecType) -> dict[str, AnySpec]:
+        """Load specs from files/directories (local paths or fsspec URLs), raising on any error."""
         result: dict[str, AnySpec] = {}
         for path in cls._normalize_paths(paths):
-            if not path.exists():
-                raise FileNotFoundError(f"Spec path not found: {path}")
-            if path.is_dir():
-                yaml_files = sorted(list(path.glob("*.yaml")) + list(path.glob("*.yml")))
-                for yaml_file in yaml_files:
-                    spec = spec_type.from_yaml(yaml_file)
-                    if spec.name in result:
-                        raise SpecValidationError(
-                            spec_type.__name__,
-                            spec.name,
-                            [
-                                ValidationError(
-                                    field="name",
-                                    message=f"Duplicate spec name '{spec.name}': already loaded from a previous file",
-                                )
-                            ],
-                        )
-                    result[spec.name] = spec
+            fs, root = url_to_fs(path)
+            if fs.isdir(root):
+                yaml_files = [
+                    f for f in cls._list_files(fs, root) if cls._is_yaml_file(posixpath.basename(f))
+                ]
+            elif fs.isfile(root):
+                yaml_files = [root]
             else:
-                spec = spec_type.from_yaml(path)
+                raise FileNotFoundError(f"Spec path not found: {path}")
+            for yaml_file in yaml_files:
+                with fs.open(yaml_file, "r", encoding="utf-8") as f:
+                    spec = spec_type.from_yaml(f.read())
                 if spec.name in result:
                     raise SpecValidationError(
                         spec_type.__name__,
@@ -345,6 +394,54 @@ class SpecCache:
                     )
                 result[spec.name] = spec
         return result
+
+    @staticmethod
+    def _list_files(fs, root: str) -> list[str]:
+        """Return the sorted paths of the files directly inside directory root."""
+        return sorted(e["name"] for e in fs.ls(root, detail=True) if e["type"] == "file")
+
+    @staticmethod
+    def _is_yaml_file(file_name: str) -> bool:
+        return file_name.endswith((".yaml", ".yml"))
+
+    @staticmethod
+    def _check_savable(spec_type: str, specs: dict[str, AnySpec], files: list[str]) -> None:
+        """Raise if specs cannot be saved as <name>.yaml files next to the given existing files.
+
+        Raises:
+            SpecValidationError: if a spec is invalid, or two names differ only in case.
+            FileExistsError: if a file name differs from <name>.yaml only in case.
+        """
+        seen: dict[str, str] = {}
+        for name, spec in specs.items():
+            validation = spec.validate()
+            if not validation.valid:
+                raise SpecValidationError(spec_type, name, validation.errors)
+            if name.lower() in seen:
+                first = seen[name.lower()]
+                raise SpecValidationError(
+                    spec_type,
+                    name,
+                    [
+                        ValidationError(
+                            field="name",
+                            message=f"Spec names '{first}' and '{name}' differ only in case "
+                            "and would be saved to the same file on case-insensitive filesystems",
+                        )
+                    ],
+                )
+            seen[name.lower()] = name
+
+        for name in specs:
+            file_name = f"{name}.yaml"
+            for path in files:
+                existing = posixpath.basename(path)
+                if existing.lower() != file_name.lower() or existing == file_name:
+                    continue
+                raise FileExistsError(
+                    f"Cannot save {spec_type} '{name}' as '{file_name}': '{path}' differs "
+                    "from it only in case; rename the spec or move the file"
+                )
 
     def _bucket_for(
         self, spec: MetricSpec | SliceSpec | SegmentSpec

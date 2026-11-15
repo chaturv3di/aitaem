@@ -1050,9 +1050,7 @@ class TestBuildWildcardSegmentMutations:
 
     def test_single_column_alias_and_expr(self):
         dim = ibis.table(schema={"user_id": "int64", "region": "string"}, name="dim")
-        mutations = QueryBuilder._build_wildcard_segment_mutations(
-            _wildcard_region_segment, dim
-        )
+        mutations = QueryBuilder._build_wildcard_segment_mutations(_wildcard_region_segment, dim)
         assert list(mutations.keys()) == ["_segment_0"]
         assert mutations["_segment_0"].type().is_string()
 
@@ -1370,9 +1368,7 @@ class TestFragmentSplicingDialectCoverage:
         slice_spec = SliceSpec(
             name="high_value",
             values=(
-                SliceValue(
-                    name="big", where="amount IS NOT NULL AND amount > 75"
-                ),
+                SliceValue(name="big", where="amount IS NOT NULL AND amount > 75"),
                 SliceValue(name="small", where="amount IS NOT NULL AND amount <= 75"),
             ),
         )

@@ -94,20 +94,35 @@ These instructions apply regardless of the nature of implementation task, whethe
     3. Retain any active test commands and their results.
     4. Summarize deep debugging logs but keep key decisions.
 
+### Research and Design Instructions
+These apply when researching, writing architecture docs, or writing plans. Research and decisions are kept in separate documents. Strictly follow the instructions below.
+1. Research (findings, evidence, library mechanics, options considered) goes in `research/<area>/NN-<topic>.md`, following the conventions in [research/README.md](./research/README.md)
+    1. `NN-` is the number of the `plans/NN-*.md` plan the note supports; use `00-` until that plan exists
+    2. Every note records its date, sources (with library versions), and the documents that use it
+    3. Mark claims read in source or docs but not confirmed by execution as **[verify]**
+    4. Never rewrite a research note to match a later decision or library version; add a dated **Update** section or a new note
+2. Write research notes before the architecture or plan changes that depend on them
+3. Architecture docs (`plans/<area>/`, e.g. `plans/agent_module/ARCHITECTURE.md`) and plans record decisions only. Link to the research note that justifies a decision instead of restating its evidence
+4. When creating a numbered plan, rename the `00-` research notes it relies on to the plan's number and link them from the plan
+5. Superseded architecture docs move (with `git mv`) to `plans/<area>/archive/vN/`, where N is the last major version they describe, with a README marking them as history only
+
 ### Implementing Plans
 Strictly follow the instructions below.
+
 0. Always expect a path to a plan document to be provided whenever asked to implement a plan
     1. Plan documents reside in the [plans folder](./plans/); an exact plan document will be pointed out
     2. Expect one plan document at a time
     3. Always stay consistent with the plan document which is provided
+    4. The plan links the research notes it relies on (`research/<area>/NN-*.md`, same number as the plan); read a note when the sub-feature at hand depends on its findings
 1. Break down each class and each feature into multiple sub-features.
     1. The definition of a sub-feature is a minimal functionality that can be tested
     2. From the perspective of a class, each method could be a sub-feature. However, it is possible that some methods can also be implemented incrementally with each incremental addition being a sub-feature
     3. Add a package dependency in the `pyproject.toml` file only if the current sub-feature requires it
 2. Think about sub-features critically before starting the implementation
     1. Create a logical order of (sub-)features to implement. If A depends on B, then implement B first and then A
-    2. Implement the sub-feature which is next in line
-    3. Follow the testing strategy defined above to test the sub-feature
+    2. If the next sub-feature relies on a research claim marked **[verify]**, confirm the claim with a test first. If the claim is wrong, add a dated **Update** to the research note and ask before deviating from the plan
+    3. Implement the sub-feature which is next in line
+    4. Follow the testing strategy defined above to test the sub-feature
 3. After each sub-feature implementation, proactively manage context to stay focused
 
 ## Release Process

@@ -334,7 +334,9 @@ class TestScanIntegration:
         )
         country_slice = make_wildcard_slice("country", "country")
 
-        mc = self._make_mc(ad_campaigns_connection_manager, metric, campaign_type_slice, country_slice)
+        mc = self._make_mc(
+            ad_campaigns_connection_manager, metric, campaign_type_slice, country_slice
+        )
         result = mc.scan()
 
         assert result.compatible_slices("ctr") == ["campaign_type", "country"] or set(

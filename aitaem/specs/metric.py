@@ -10,6 +10,8 @@ import logging
 from dataclasses import dataclass, fields
 from pathlib import Path
 
+import yaml
+
 from aitaem.utils.exceptions import SpecValidationError
 from aitaem.utils.validation import ValidationResult, validate_metric_spec
 from aitaem.utils.yaml_validation import load_yaml_spec_dict
@@ -27,6 +29,11 @@ class MetricSpec:
     denominator: str | None = None
     entities: list[str] | None = None
     format: str | None = None
+
+    def __post_init__(self) -> None:
+        # A blank denominator means no denominator, as YAML `denominator: ''` does in from_yaml.
+        if self.denominator == "":
+            object.__setattr__(self, "denominator", None)
 
     @classmethod
     def from_yaml(cls, yaml_input: str | Path) -> "MetricSpec":
@@ -68,6 +75,14 @@ class MetricSpec:
 
     def validate(self) -> ValidationResult:
         """Validate spec fields and return a ValidationResult (does not raise)."""
+        return validate_metric_spec(self._to_dict())
+
+    def to_yaml(self) -> str:
+        """Serialize to YAML under a top-level 'metric:' key. Does not validate."""
+        return yaml.safe_dump({"metric": self._to_dict()}, sort_keys=False)
+
+    def _to_dict(self) -> dict[str, object]:
+        """Return the spec as a dict with its YAML keys."""
         spec_dict: dict[str, object] = {
             "name": self.name,
             "source": self.source,
@@ -81,4 +96,4 @@ class MetricSpec:
             spec_dict["entities"] = self.entities
         if self.format is not None:
             spec_dict["format"] = self.format
-        return validate_metric_spec(spec_dict)
+        return spec_dict

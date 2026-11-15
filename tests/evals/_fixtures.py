@@ -1,178 +1,162 @@
-"""Self-contained eval fixtures for tests/evals/ (SF-5).
+"""Self-contained eval fixtures for tests/evals/.
 
-tests/evals/ doubles as the reference example ND-09/OQ-2 ships (blueprint
-philosophy, G2) — a user should be able to read and copy it without also
-understanding tests/test_agent/'s internal fixtures. This module therefore
-defines its own minimal spec-cache/connection-manager/ground-truth fixtures,
-duplicating a small amount of structure already present in
-tests/test_agent/test_query_bot.py and tests/test_agent/test_definition_bot.py.
-Deliberate, bounded exception to "don't duplicate" — legibility in isolation
-is the point.
+tests/evals/ doubles as a reference for writing evals against `AitaemAgent`, so it defines its
+own small dataset, catalog, and scripted models instead of importing tests/test_agent/'s fixtures.
+
+Every scripted case drives each agent role with a `FunctionModel` that already knows which tools to
+call. Those cases check that traces, artifacts, and responses are consumable by `pydantic_evals`
+evaluators — the eval substrate — not that a model would choose well. Live-model cases, skipped
+without ANTHROPIC_API_KEY, measure behavior.
 """
 
 from __future__ import annotations
 
 import datetime
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
 
-import ibis
 import pyarrow as pa
+import yaml
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 
-from aitaem.agent.definition_bot import DefinitionBot
-from aitaem.agent.query_bot import QueryBot
+from aitaem import ConnectionManager, IbisConnector, MetricCompute, SpecCache
+from aitaem.agent import AitaemAgent
 
-GROUND_TRUTH_REVENUE_TABLE: pa.Table = pa.table({
-    "metric_name": ["revenue"],
-    "metric_value": [1000.0],
-    "period_type": ["all_time"],
-    "period_start_date": [None],
-    "period_end_date": [None],
-    "entity_id": [None],
-    "metric_format": [None],
-    "slice_type": [None],
-    "slice_value": [None],
-    "segment_name": [None],
-    "segment_value": [None],
-})
-# Fixed ground-truth Arrow table for the deterministic-correctness eval case.
-# Small, hand-constructed (a handful of rows) — not derived from any real backend.
+SOURCE = "duckdb://analytics.db/transactions"
 
-
-def _mock_metric_compute() -> MagicMock:
-    mc = MagicMock()
-    mock_ibis = MagicMock()
-    mock_ibis.to_pyarrow.return_value = GROUND_TRUTH_REVENUE_TABLE
-    mc.compute.return_value = mock_ibis
-    return mc
-
-
-# Patched once, at import time, for the lifetime of the eval harness process:
-# every QueryBot built by make_query_bot_fixture() below deterministically
-# returns GROUND_TRUTH_REVENUE_TABLE via compute_metrics(), regardless of the
-# (fake) backend it's constructed against.
-patch(
-    "aitaem.agent.common_tools.MetricCompute",
-    return_value=_mock_metric_compute(),
-).start()
-
-
-def _query_bot_spec_cache() -> Any:
-    sc = MagicMock()
-    sc.metrics = {
-        "revenue": MagicMock(description="Total revenue", entities=["user_id"], format="currency:USD"),
+TRANSACTIONS = pa.table(
+    {
+        "amount": [100.0, 250.0, 400.0, 999.0, 1500.0, 80.0],
+        "country": ["US", "US", "DE", "DE", "IN", "IN"],
+        "transaction_date": [datetime.date(2024, m, 1) for m in (1, 3, 6, 9, 12, 12)],
     }
-    sc.slices = {}
-    sc.segments = {}
-    return sc
+)
+
+REVENUE = f"""\
+metric:
+  name: revenue
+  description: Total transaction revenue
+  source: {SOURCE}
+  numerator: SUM(amount)
+  timestamp_col: transaction_date
+"""
+COUNTRY = """\
+slice:
+  name: country
+  description: Breakdown by customer country
+  values:
+    - name: US
+      where: "country = 'US'"
+    - name: DE
+      where: "country = 'DE'"
+    - name: IN
+      where: "country = 'IN'"
+"""
+DEVICE = """\
+slice:
+  name: device
+  description: Breakdown by device type
+  values:
+    - name: mobile
+      where: "device = 'mobile'"
+"""
 
 
-def make_query_bot_fixture(model: Any) -> QueryBot:
-    """Build a QueryBot against a minimal one-metric SpecCache stand-in and a
-    MagicMock ConnectionManager, with aitaem.agent.common_tools.MetricCompute
-    patched (at import time, above) so compute_metrics() deterministically
-    returns GROUND_TRUTH_REVENUE_TABLE regardless of the (fake) backend.
+def make_agent(model: Any, executor_model: Any = None, spec_dir: Path | None = None) -> AitaemAgent:
+    """An AitaemAgent over an in-memory DuckDB `transactions` table and a small catalog."""
+    connector = IbisConnector("duckdb")
+    connector.connect(":memory:")
+    assert connector.connection is not None
+    connector.connection.create_table("transactions", TRANSACTIONS)
+    cm = ConnectionManager(tmp_dir=None)
+    cm.add_connection("duckdb", connector=connector)
+    specs = SpecCache.from_string(metric_yaml=REVENUE, slice_yaml=[COUNTRY, DEVICE])
+    return AitaemAgent(
+        cm, specs, model=model, executor_model=executor_model or model, spec_dir=spec_dir
+    )
+
+
+def ground_truth(agent: AitaemAgent, **compute: Any) -> pa.Table:
+    """The compute result a direct MetricCompute call gives."""
+    deps = agent.deps
+    return MetricCompute(deps.spec_cache, deps.connection_manager).compute(**compute).to_pyarrow()
+
+
+# ── scripted role models ────────────────────────────────────────────────────
+
+Script = Callable[[list[ModelMessage]], ModelResponse]
+
+# A tool only one role has tells the roles apart when one model backs them all.
+_ROLE_MARKERS = {
+    "run_analysis": "main",
+    "run_analysis_executors": "analysis",
+    "run_spec_executors": "spec",
+    "connect_source": "connections",
+    "find_specs": "analysis_executor",
+    "date_range": "spec_executor",
+}
+
+
+def role_of(info: AgentInfo) -> str:
+    names = {t.name for t in info.function_tools}
+    return next(role for tool, role in _ROLE_MARKERS.items() if tool in names)
+
+
+def role_model(**scripts: list[Script | ModelResponse]) -> FunctionModel:
+    """One model for every role: each role answers with its own script, step by step.
+
+    A role's script is consumed one step per model request across every run of that role.
     """
-    return QueryBot(model=model, spec_cache=_query_bot_spec_cache(), connection_manager=MagicMock())
+    queues = {role: list(steps) for role, steps in scripts.items()}
+
+    def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        steps = queues[role_of(info)]
+        step = steps.pop(0)
+        return step(messages) if callable(step) else step
+
+    return FunctionModel(model)
 
 
-def _definition_spec_cache() -> Any:
-    sc = MagicMock()
-    sc.metrics = {}
-    sc.slices = {}
-    sc.segments = {}
-    return sc
+def call(tool: str, **args: Any) -> ModelResponse:
+    return ModelResponse(parts=[ToolCallPart(tool, args)])
 
 
-def _definition_connection_manager() -> Any:
-    mock_cm = MagicMock()
-    mock_cm.backend_types = ["duckdb"]
-    mock_connector = MagicMock()
-    mock_connector.list_tables.return_value = ["transactions"]
-    mock_ibis_table = MagicMock()
-    mock_ibis_table.schema.return_value = MagicMock(
-        names=["amount", "transaction_date"], types=["float64", "date"]
-    )
-    mock_ibis_table.columns = ["amount", "transaction_date"]
-    mock_connector.get_table.return_value = mock_ibis_table
-    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://analytics.db/{name}"
-    # describe_table()/list_tables() go through get_connection(backend_type);
-    # validate_spec()'s live-schema column check goes through
-    # get_connection_for_source(source_uri) + resolve_table_reference(source_uri).
-    # Both must resolve to the same table for the column-existence check
-    # (SF-7's refusal-on-ambiguous-schema case) to exercise real logic
-    # instead of silently no-op'ing into a warning.
-    mock_cm.get_connection.return_value = mock_connector
-    mock_cm.get_connection_for_source.return_value = mock_connector
-    mock_cm.parse_source_uri.return_value = ("duckdb", "analytics.db", "transactions")
-    mock_cm.resolve_table_reference.return_value = ("transactions", None)
-    return mock_cm
+def document(doc: dict[str, Any]) -> ModelResponse:
+    return ModelResponse(parts=[TextPart(yaml.safe_dump(doc, sort_keys=False))])
 
 
-def make_definition_bot_fixture(model: Any) -> DefinitionBot:
-    """Build a DefinitionBot against a MagicMock ConnectionManager exposing one
-    `transactions` table with a fixed two-column schema (amount, transaction_date).
-    """
-    return DefinitionBot(
-        model=model,
-        spec_cache=_definition_spec_cache(),
-        connection_manager=_definition_connection_manager(),
+def reply(response: str, *attachments: str, status: str = "ok") -> ModelResponse:
+    return document(
+        {
+            "response": response,
+            "status": status,
+            "attachments": [
+                {"artifact_id": a, "reason": "supports the answer"} for a in attachments
+            ],
+        }
     )
 
 
-# ---------------------------------------------------------------------------
-# Grounding fixture (Plan 37, SF-10): one metric already in the catalog,
-# backed by a real ibis.memtable so column_distribution/date_range/
-# compute_metrics execute real aggregation logic — a MagicMock ibis table
-# (as used by make_definition_bot_fixture above) doesn't support .to_pandas()
-# on an aggregate expression.
-# ---------------------------------------------------------------------------
-
-GROUNDING_TRANSACTIONS_TABLE = ibis.memtable(pa.table({
-    "amount": [100.0, 250.0, 400.0, 999.0, 1500.0],
-    "transaction_date": [
-        datetime.date(2024, 1, 1),
-        datetime.date(2024, 3, 1),
-        datetime.date(2024, 6, 1),
-        datetime.date(2024, 9, 1),
-        datetime.date(2024, 12, 1),
-    ],
-}))
-# Small, hand-constructed — not derived from any real backend. Same spirit as
-# GROUND_TRUTH_REVENUE_TABLE above.
+def returns(messages: list[ModelMessage]) -> list[Any]:
+    """The tool results of the latest request."""
+    last = messages[-1]
+    if not isinstance(last, ModelRequest):
+        return []
+    return [p.content for p in last.parts if isinstance(p, ToolReturnPart)]
 
 
-def _grounding_connection_manager() -> Any:
-    mock_cm = MagicMock()
-    mock_cm.backend_types = ["duckdb"]
-    mock_connector = MagicMock()
-    mock_connector.list_tables.return_value = ["transactions"]
-    mock_connector.get_table.return_value = GROUNDING_TRANSACTIONS_TABLE
-    mock_connector.build_source_uri.side_effect = lambda name: f"duckdb://analytics.db/{name}"
-    mock_cm.get_connection.return_value = mock_connector
-    mock_cm.get_connection_for_source.return_value = mock_connector
-    mock_cm.parse_source_uri.return_value = ("duckdb", "analytics.db", "transactions")
-    mock_cm.resolve_table_reference.return_value = ("transactions", None)
-    return mock_cm
-
-
-def _grounding_spec_cache() -> Any:
-    sc = MagicMock()
-    rev = MagicMock(description="Total revenue", entities=["user_id"], format="currency:USD")
-    rev.source = "duckdb://analytics.db/transactions"
-    rev.timestamp_col = "transaction_date"
-    sc.metrics = {"revenue": rev}
-    sc.slices = {}
-    sc.segments = {}
-    return sc
-
-
-def make_definition_bot_grounding_fixture(model: Any) -> DefinitionBot:
-    """Build a DefinitionBot with a `revenue` metric already in the catalog,
-    backed by GROUNDING_TRANSACTIONS_TABLE, for cases exercising
-    date_range/column_distribution/compute_metrics."""
-    return DefinitionBot(
-        model=model,
-        spec_cache=_grounding_spec_cache(),
-        connection_manager=_grounding_connection_manager(),
-    )
+def prompt(messages: list[ModelMessage]) -> str:
+    """The user prompt of a run: for coordinators and executors, their intake YAML."""
+    first = messages[0]
+    assert isinstance(first, ModelRequest)
+    return next(str(p.content) for p in first.parts if isinstance(p, UserPromptPart))
